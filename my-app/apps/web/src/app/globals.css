@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 全局基础样式重置与主题变量 */
+:root {
+  --color-brand: #6366f1;
+  --color-brand-dark: #4f46e5;
+}
+
+body {
+  @apply antialiased text-gray-900;
+}

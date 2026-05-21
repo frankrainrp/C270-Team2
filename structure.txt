@@ -1,0 +1,35 @@
+# Smart Multimodal Learning Hub (智能多模态学习管家)
+
+## 📌 项目定位与核心上下文 (Context for AI Assistants)
+> **致 AI 编码助手**：在开始编写、重构或审查本项目的任何代码前，请务必严格遵守以下底层设计原则。
+
+本项目是一个融合了 **B2B 隐私合规骨架** 与 **B2C 病毒裂变外壳** 的智能多模态学习系统。
+1. **全栈 TypeScript 闭环**：坚决抛弃任何 Python 顶层黑盒 AI 框架（如 LangChain/LlamaIndex）。所有大模型交互、工作流编排必须使用原生大模型 SDK 与 Zod 进行强类型校验。
+2. **零信任隔离**：原始文档上传后“阅后即焚”（S3 TTL 物理删除）。对外部日历（Google/Outlook）仅实施 **Write-only（只写不读）** 权限隔离。
+3. **高校级多租户**：应用层通过动态连接池路由，访问高校/机构级别的**完全隔离独立物理数据库**，禁止跨库查询。
+4. **事件驱动流**：核心计算流水线采用纯异步、事件驱动的 Serverless 异步工作流 (Inngest)。
+
+---
+
+## 🛠️ 技术栈 (Tech Stack)
+- **Monorepo 管理**: pnpm workspaces + Turborepo
+- **前端 & B2C 登录**: Next.js (App Router) + Clerk + TailwindCSS
+- **异步工作流**: Inngest / Upstash
+- **ORM & 数据库**: Drizzle ORM + PostgreSQL (多高校独立库)
+- **多渠道通知**: Novu (Telegram / WhatsApp 轰炸裂变)
+- **AI 与数据校验**: OpenAI/DeepSeek SDK + Zod
+
+---
+
+## 📂 核心目录结构与开发规范 (Directory & Conventions)
+```text
+my-app/
+├── apps/
+│   └── web/                 # Next.js 前端 (处理用户交互与 Clerk 登录)
+├── packages/
+│   ├── ai-core/             # 🎯 AI 核心层：大模型 SDK、Zod Schema 与 Prompt 资产
+│   │   └── src/
+│   │       ├── prompts/     # 所有 Prompt 必须严格定义为 .ts 模块，禁止写死在业务代码中
+│   │       └── schemas/     # 统一的契约数据结构 (Zod)
+│   ├── database/            # ⚖️ 数据库层：Drizzle Schema、多高校动态连接池路由
+│   └── workflows/           # ⚡ 工作流层：Inngest 异步任务流水线
