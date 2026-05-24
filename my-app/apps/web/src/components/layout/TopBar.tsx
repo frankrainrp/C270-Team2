@@ -6,7 +6,7 @@
 // ============================================================
 
 import React, { useState } from "react";
-import { Search, Bell, ChevronDown, User as UserIcon, LogOut, CreditCard } from "lucide-react";
+import { Search, Bell, ChevronDown, User as UserIcon, LogOut, CreditCard, LayoutGrid } from "lucide-react";
 import type { NavId } from "@/lib/types";
 
 const TABS: { id: NavId; label: string }[] = [
@@ -19,9 +19,11 @@ const TABS: { id: NavId; label: string }[] = [
 interface TopBarProps {
   activeNav: NavId;
   onNavChange: (id: NavId) => void;
+  miniAppsOpen?: boolean;
+  onToggleMiniApps?: () => void;
 }
 
-export default function TopBar({ activeNav, onNavChange }: TopBarProps) {
+export default function TopBar({ activeNav, onNavChange, miniAppsOpen, onToggleMiniApps }: TopBarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchFocus, setSearchFocus] = useState(false);
 
@@ -160,6 +162,35 @@ export default function TopBar({ activeNav, onNavChange }: TopBarProps) {
             ⌘K
           </span>
         </div>
+
+        {/* 学习工具抽屉切换 */}
+        <button
+          aria-label="学习工具"
+          title="学习工具（专注计时等）"
+          onClick={onToggleMiniApps}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            border: miniAppsOpen ? "1px solid var(--color-primary)" : "none",
+            background: miniAppsOpen ? "var(--color-primary-soft)" : "transparent",
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: miniAppsOpen ? "var(--color-primary)" : "var(--color-text-muted)",
+            position: "relative",
+            transition: "all 0.15s",
+          }}
+          onMouseEnter={(e) => {
+            if (!miniAppsOpen) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-surface)";
+          }}
+          onMouseLeave={(e) => {
+            if (!miniAppsOpen) (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+          }}
+        >
+          <LayoutGrid size={16} />
+        </button>
 
         {/* 通知 */}
         <button

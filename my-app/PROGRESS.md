@@ -5,6 +5,163 @@
 
 ---
 
+## [024] 2026-05-22 — 学习工具抽屉（Mini Apps Drawer）+ Focus Timer
+
+> 用户决策：Focus Timer 不要放 Calendar Day View，而是做一个**全局右侧滑入抽屉**，作为「学习辅助小程序仓库」。后续可扩展更多小工具（番茄记录 / 单词卡 / 公式速查等）。
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/mini-apps/FocusTimer.tsx` | 新建 | 功能完整的专注计时器：mm:ss 倒计时 + 环形进度（SVG）+ 25/45/60 min 预设 + 自定义起停重置；倒计时完成 alert（Phase 3 接 Tauri Notification） |
+| `apps/web/src/components/MiniAppsDrawer.tsx` | 新建 | 全局右侧滑入抽屉（320px，从 TopBar 下方开始）；可扩展的 `APPS` 注册表 + App 切换器（≥2 App 时显示）；当前仅含 FocusTimer，留好 ComingSoon 占位接口 |
+| `apps/web/src/components/layout/TopBar.tsx` | 修改 | 新增 `LayoutGrid` 图标按钮（位于通知前），点击切换抽屉；接 `miniAppsOpen` / `onToggleMiniApps` props，open 时按钮 active（墨绿边框 + 浅墨绿底） |
+| `apps/web/src/app/page.tsx` | 修改 | 新增 `miniAppsOpen` state；渲染 `<MiniAppsDrawer>` 在顶层（fixed，不影响主区布局）；传给 TopBar |
+| `apps/web/src/components/CalendarPanel.tsx` | 修改 | 移除 Day View 右侧 Focus widget（仅保留 Upcoming Events + Tasks）；移除 `Target` import |
+
+### 🎯 设计要点
+
+- **抽屉浮在主区上**（不挤主内容），用户可以一边看 Calendar/Tasks 一边计时
+- **不带遮罩**（pointer-events 不阻塞），点抽屉外部不会自动关，需手动 X
+- **fixed 定位 top:56**（TopBar 高度），确保 TopBar 始终可点击切换
+- **滑入动画**：`cubic-bezier(0.16, 1, 0.3, 1)` 0.25s，自然顺滑
+- **App 状态在抽屉内 useState**（不在 page.tsx 顶层），关闭抽屉后再开会**保留 App 选择**但计时器会重新挂载（暂未做跨开关持久化，下次需要再优化）
+
+### 🚦 后续扩展接口
+
+```ts
+// MiniAppsDrawer.tsx 里 APPS 数组扩展即可
+const APPS: MiniApp[] = [
+  { id: "focus",     name: "专注计时", icon: <Target />, Component: FocusTimer },
+  { id: "pomodoro",  name: "番茄记录", icon: <Coffee />, Component: PomodoroLog },
+  { id: "flashcard", name: "单词卡",   icon: <BookOpen />, Component: Flashcard },
+  { id: "calculator",name: "计算器",   icon: <Calculator />, Component: Calc },
+];
+```
+
+### ✅ 验证
+
+- `tsc --noEmit` 通过（`EXIT=0`）
+- Focus Timer 25/45/60 min 切换正常
+- 倒计时环 stroke-dashoffset 平滑过渡
+- 抽屉滑入/滑出无闪烁
+- Calendar Day View 不再有 Focus widget
+
+---
+
+## [023] 2026-05-22 — Stage D：Calendar 月视图重做 + Day View 深度页
+
+> 用户决策：Calendar 不做大改 — **默认入口保持月视图**（视觉对齐墨绿），**点空白日期才进入深度的 Day View**（时间轴 + 右侧 widgets）。
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/CalendarPanel.tsx` | 重写 | 顶层维护 `view: "month" \| "day"` + `selectedDate`；月视图视觉重做（去 DecoLayered/紫色，全部 token 化）；新增 `DayView` 子组件（返回按钮 + 24h 时间轴 6AM-11PM + 右侧 3 个 widgets：Upcoming Events / Tasks / Focus 计时环）；新增 `TimelinePill`、`WidgetCard`、`PrimaryBtn` 子组件 |
+
+### 🎯 交互变化
+
+| 操作 | 之前 | 现在 |
+|---|---|---|
+| 点空白日期格 | 直接弹「新建事件」modal | 进入 **Day View**（深度时间轴页） |
+| 点事件 pill | 编辑 modal | 不变（编辑 modal） |
+| 月视图右上 | 「今天」按钮 | 「今天」+ **「+ New Event」墨绿主按钮** |
+| Day View 时间轴点空时段 | 无此功能 | 触发新建（带 `presetDate=当前选中日`） |
+| Day View 返回 | 无 | 顶部 ← 按钮 |
+
+### 🎨 Day View 布局
+
+```
+┌─ ← 返回 │ 2026 年 5 月 26 日 [今天]   + New Event ┐
+├──────────────────────────────────┬─────────────┤
+│ 6 AM ─────────                   │ UPCOMING     │
+│ 7 AM ─────────                   │  CA1 06/26   │
+│ 8 AM ──[09:00 课程会议 30%]──    │  Mtg 06/28   │
+│ 9 AM ─                           │              │
+│ ...                              │ TASKS        │
+│ 11 PM ─                          │  ☐ Read Ch3  │
+│ ─其他时段（早于6AM/晚于11PM）─    │              │
+│  23:59 提交作业                  │ FOCUS        │
+│                                  │   ╭─120 min─╮│
+│                                  │   ╲ 待接入 ╱ │
+└──────────────────────────────────┴─────────────┘
+```
+
+### 🎨 月视图视觉重做
+
+| 维度 | 之前 | 现在 |
+|---|---|---|
+| 卡片 | DecoLayered 玻璃 | 白底 + 1px border + 圆角 10 |
+| 周标题行 | 黑半透 2% 底 | `var(--color-surface)` |
+| 格子边线 | 黑半透 5% | `var(--color-border-soft)` |
+| 今日圆背景 | 紫色 + 紫阴影 | **墨绿圆**（无阴影） |
+| Hover 格子 | 紫色 6% 底 | `var(--color-primary-soft)` 浅墨绿 |
+| 事件 pill | 紫/绿/红色块 | 浅墨绿底 + 墨绿左边框（统一墨绿主色） |
+| AddButton | 紫渐变 | 墨绿实色 `PrimaryBtn` |
+| 空状态 | DecoLayered + 紫渐变按钮 | 虚线边框 + 墨绿按钮 |
+
+### ✅ 验证
+
+- `tsc --noEmit` 通过（`EXIT=0`）
+- Day View 时间轴正确按 `dueTime` 落格
+- 早于 6AM / 晚于 11PM 的事件落"其他时段"区
+- 右侧 widgets 真实接入 `allDdls`（Upcoming 取未完成且 dueDate >= 今天 前 5；Tasks 取未完成前 5；Focus 静态 120 min UI）
+
+### 🚦 后续可继续
+
+- Focus Timer 接入真实计时（Phase 3 Tauri 通知后做）
+- Week 视图（当前 day/month 两态，week 标 coming soon）
+- Day View 时间轴拖拽创建 / 拖动改时间
+- 月视图加迷你月历到 CalendarRail 左栏
+
+---
+
+## [022] 2026-05-22 — Stage C.1：TasksPanel 视觉重做（不动 schema）
+
+> [UI-REDESIGN-PLAN.md](UI-REDESIGN-PLAN.md) Stage C 第一阶段：把 TasksPanel 从玻璃紫色切到墨绿设计语言。**不碰 Dexie schema**，保持现有 CRUD / 字段不变。字段扩展 (status/tags/priority) + 右侧详情抽屉留给 C.2。
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/TasksPanel.tsx` | 重写 | 移除 `DecoLayered` 玻璃装饰板；全部紫色 (`#6366f1`) 切到墨绿 (`var(--color-primary)`) token；分组卡改白底 + 1px border + 圆角 10；行 hover 改 `var(--color-surface)` 浅灰；权重 badge / 附件 chip / 编辑删除按钮全部用 token；`height: 100vh` → `100%`（修嵌套高度 bug）；AddButton 从紫渐变改墨绿实色 `PrimaryBtn`；ToolbarBtn 改白底墨绿系；EmptyState 改虚线边框风格；header 标题从 28px "每日任务" 改 22px "Tasks" + 副标题精简 |
+| `apps/web/src/components/layout/TasksRail.tsx` | 修改 | 新增 `counts: TaskCounts` prop（active / upcoming / all / completed）；4 个 view 旁加灰色数字 badge（只显示，C.2 接入切换逻辑） |
+| `apps/web/src/app/page.tsx` | 修改 | 新增 `taskCounts` useMemo 派生；传给 `<TasksRail>` |
+
+### 🎨 视觉对比
+
+| 维度 | 之前 | 现在 |
+|---|---|---|
+| 主色 | 紫色 `#6366f1` | 墨绿 `#1B3D2F` |
+| 卡片 | DecoLayered 三层玻璃板 | 白底 + 1px border + 圆角 10 |
+| 行 hover | 紫色 4% 底 | 浅灰 surface 底 |
+| 行间隙 | 黑半透明 5% 边 | `var(--color-border-soft)` |
+| 标题 | 28px 中文 + 长副标题 | 22px "Tasks" + 精简计数 |
+| 新建按钮 | 紫渐变 + 紫阴影 | 墨绿实色 |
+| 工具按钮 | 玻璃白底 + 紫 hover | 白底细边 + 墨绿 hover |
+| 来源 pill | 黑半透明 4% | 灰 surface + 细边 |
+| 复选框完成色 | `#10b981` 绿 | `var(--color-success)` 墨绿系 |
+| 空状态 | DecoLayered 大圆角 + 紫渐变按钮 | 虚线边框 + 墨绿实色按钮 |
+
+### ✅ 验证
+
+- `tsc --noEmit` 通过（`EXIT=0`）
+- 所有 CRUD 行为保留：勾选完成 / 编辑 modal / 删除 confirm / 附件预览 / ICS / JSON 导出导入
+- TasksRail 4 view 显示真实数字（Active / Upcoming / All / Completed）
+
+### 🚦 后续（Stage C.2）
+
+- Dexie v3 → v4：加 `status: "todo" \| "in_progress" \| "done"` + `tags?: string[]` + `priority?` 字段
+- 把 view 列表做成可点击切换（active 当前 view）
+- TaskEditModal 改成右侧详情抽屉（与设计稿一致）
+- TasksRail 的 Tags 分组接入真实标签云
+
+### 💾 备份
+
+- commit `19fa711` + tag `backup-021-comic-chat` （C.1 之前的完整状态）
+
+---
+
 ## [021] 2026-05-22 — 管家融入主区 + AI 消息漫画对话框（去头像）
 
 > 用户反馈 [020]："人物不要再单独开一份后面的容器，要有代入感就好像是一个人在 AI 页面与你对话"；"agent 发送的内容不需要再有头像了，只需要有一个那种漫画风格的对话框就好了"。

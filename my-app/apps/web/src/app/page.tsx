@@ -7,6 +7,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import TopBar from "@/components/layout/TopBar";
 import LeftRail from "@/components/layout/LeftRail";
+import MiniAppsDrawer from "@/components/MiniAppsDrawer";
 import ChatRail from "@/components/layout/ChatRail";
 import TasksRail from "@/components/layout/TasksRail";
 import CalendarRail from "@/components/layout/CalendarRail";
@@ -42,6 +43,8 @@ export default function HomePage() {
   const currentBatchIdRef = useRef<string | null>(null);
   // PDF pipeline 完成时短暂高亮 pointout 姿势（5s 后回 standing/serving）
   const [pointoutHold, setPointoutHold] = useState(false);
+  // 学习工具抽屉
+  const [miniAppsOpen, setMiniAppsOpen] = useState(false);
 
   // ddlsRef 保证 AI tool 执行时拿到最新 state（避免闭包陷阱）
   const ddlsRef = useRef(ddls);
@@ -589,6 +592,20 @@ export default function HomePage() {
     [sessions],
   );
 
+  // 任务计数（用于 TasksRail 的 views）
+  const taskCounts = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return {
+      all: ddls.length,
+      active: ddls.filter((d) => !d.completed).length,
+      upcoming: ddls.filter(
+        (d) => !d.completed && d.dueDate && new Date(d.dueDate) >= today,
+      ).length,
+      completed: ddls.filter((d) => d.completed).length,
+    };
+  }, [ddls]);
+
   const handleQuickAction = useCallback((prompt: string) => {
     setInputValue(prompt);
   }, []);
@@ -667,7 +684,15 @@ export default function HomePage() {
       }}
     >
       {/* 顶 Bar */}
-      <TopBar activeNav={activeNav} onNavChange={(id) => setActiveNav(id)} />
+      <TopBar
+        activeNav={activeNav}
+        onNavChange={(id) => setActiveNav(id)}
+        miniAppsOpen={miniAppsOpen}
+        onToggleMiniApps={() => setMiniAppsOpen((v) => !v)}
+      />
+
+      {/* 学习工具抽屉（fixed 浮在右侧，不阻塞主区操作） */}
+      <MiniAppsDrawer open={miniAppsOpen} onClose={() => setMiniAppsOpen(false)} />
 
       {/* 主体：左栏 + 内容区 */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
@@ -683,7 +708,10 @@ export default function HomePage() {
             />
           )}
           {activeNav === "tasks" && (
-            <TasksRail onCreateTask={() => setEditing({ mode: "create" })} />
+            <TasksRail
+              onCreateTask={() => setEditing({ mode: "create" })}
+              counts={taskCounts}
+            />
           )}
           {activeNav === "calendar" && (
             <CalendarRail onCreateEvent={() => setEditing({ mode: "create" })} />
