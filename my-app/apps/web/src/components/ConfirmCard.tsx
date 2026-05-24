@@ -1,0 +1,294 @@
+"use client";
+
+// ============================================================
+// components/ConfirmCard.tsx — AI 写操作的"核实卡"
+// 一键全收 + 逐条 ✕ 删除；拒绝整批
+// ============================================================
+
+import React from "react";
+import { Plus, Pencil, Trash2, X, Check, Sparkles } from "lucide-react";
+import type { PendingBatch, PendingChange } from "@/lib/pending";
+
+interface ConfirmCardProps {
+  batch: PendingBatch;
+  onAccept: (batchId: string) => void;
+  onReject: (batchId: string) => void;
+  /** 单独移除某条 change（保留其他） */
+  onDropChange: (batchId: string, changeId: string) => void;
+}
+
+export default function ConfirmCard({ batch, onAccept, onReject, onDropChange }: ConfirmCardProps) {
+  const isPending = batch.status === "pending";
+  const isAccepted = batch.status === "accepted";
+  const isRejected = batch.status === "rejected";
+  const remaining = batch.changes.length;
+
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+      {/* AI 头像（与 AssistantMessage 一致的视觉锚点） */}
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 10,
+          flexShrink: 0,
+          background: "var(--color-primary)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginTop: 2,
+        }}
+      >
+        <Sparkles size={14} color="white" />
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            background: "var(--color-bg)",
+            border: `1px solid ${isPending ? "var(--color-primary)" : "var(--color-border)"}`,
+            borderRadius: 12,
+            padding: 14,
+            boxShadow: isPending ? "0 4px 12px rgba(27,61,47,0.08)" : "none",
+            opacity: isRejected ? 0.55 : 1,
+          }}
+        >
+          {/* 顶部：intro + 状态徽章 */}
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 12 }}>
+            <p
+              style={{
+                flex: 1,
+                fontSize: 14,
+                color: "var(--color-text)",
+                margin: 0,
+                lineHeight: 1.5,
+              }}
+            >
+              {batch.intro}
+            </p>
+            {isAccepted && <StatusBadge label="已采纳" color="var(--color-success)" />}
+            {isRejected && <StatusBadge label="已取消" color="var(--color-text-faint)" />}
+            {isPending && <StatusBadge label={`待核实 (${remaining})`} color="var(--color-primary)" />}
+          </div>
+
+          {/* changes 列表 */}
+          {remaining > 0 ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                borderTop: "1px solid var(--color-border-soft)",
+                paddingTop: 12,
+              }}
+            >
+              {batch.changes.map((ch) => (
+                <ChangeRow
+                  key={ch.id}
+                  change={ch}
+                  canDrop={isPending}
+                  onDrop={() => onDropChange(batch.id, ch.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <p style={{ fontSize: 12, color: "var(--color-text-faint)", margin: 0 }}>
+              （所有改动已被移除）
+            </p>
+          )}
+
+          {/* 操作区 */}
+          {isPending && (
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                marginTop: 14,
+                paddingTop: 12,
+                borderTop: "1px solid var(--color-border-soft)",
+              }}
+            >
+              <button
+                onClick={() => onAccept(batch.id)}
+                disabled={remaining === 0}
+                style={{
+                  flex: 1,
+                  height: 36,
+                  borderRadius: 8,
+                  border: "none",
+                  background: remaining === 0 ? "var(--color-border)" : "var(--color-primary)",
+                  color: "white",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: remaining === 0 ? "not-allowed" : "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                }}
+              >
+                <Check size={14} />
+                接受 {remaining > 0 && `(${remaining})`}
+              </button>
+              <button
+                onClick={() => onReject(batch.id)}
+                style={{
+                  height: 36,
+                  padding: "0 14px",
+                  borderRadius: 8,
+                  border: "1px solid var(--color-border)",
+                  background: "var(--color-bg)",
+                  color: "var(--color-text-muted)",
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                全部取消
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ label, color }: { label: string; color: string }) {
+  return (
+    <span
+      style={{
+        flexShrink: 0,
+        fontSize: 11,
+        fontWeight: 500,
+        color,
+        background: `color-mix(in srgb, ${color} 12%, transparent)`,
+        padding: "2px 8px",
+        borderRadius: 12,
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function ChangeRow({
+  change,
+  canDrop,
+  onDrop,
+}: {
+  change: PendingChange;
+  canDrop: boolean;
+  onDrop: () => void;
+}) {
+  const meta = describeChange(change);
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "6px 8px",
+        borderRadius: 6,
+        background: "var(--color-surface)",
+      }}
+    >
+      <span
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: 6,
+          background: meta.bg,
+          color: meta.fg,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        {meta.icon}
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p
+          style={{
+            fontSize: 13,
+            color: "var(--color-text)",
+            margin: 0,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {change.summary}
+        </p>
+        {meta.subline && (
+          <p style={{ fontSize: 11, color: "var(--color-text-muted)", margin: "2px 0 0" }}>
+            {meta.subline}
+          </p>
+        )}
+      </div>
+      {canDrop && (
+        <button
+          aria-label="移除此条"
+          onClick={onDrop}
+          style={{
+            width: 22,
+            height: 22,
+            border: "none",
+            borderRadius: 4,
+            background: "transparent",
+            cursor: "pointer",
+            color: "var(--color-text-faint)",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onMouseEnter={(e) => {
+            const el = e.currentTarget as HTMLButtonElement;
+            el.style.background = "rgba(220,38,38,0.1)";
+            el.style.color = "var(--color-danger)";
+          }}
+          onMouseLeave={(e) => {
+            const el = e.currentTarget as HTMLButtonElement;
+            el.style.background = "transparent";
+            el.style.color = "var(--color-text-faint)";
+          }}
+        >
+          <X size={13} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function describeChange(ch: PendingChange): {
+  icon: React.ReactNode;
+  bg: string;
+  fg: string;
+  subline?: string;
+} {
+  if (ch.kind === "create") {
+    const d = ch.draft;
+    const date = d.dueDate || "待定";
+    return {
+      icon: <Plus size={13} />,
+      bg: "rgba(45,122,77,0.12)",
+      fg: "var(--color-success)",
+      subline: `${date}${d.dueTime ? " " + d.dueTime : ""}${d.weight != null ? ` · ${d.weight}%` : ""}`,
+    };
+  }
+  if (ch.kind === "update") {
+    const patched = Object.keys(ch.patch).filter((k) => k !== "id");
+    return {
+      icon: <Pencil size={13} />,
+      bg: "rgba(59,130,246,0.12)",
+      fg: "var(--color-info)",
+      subline: patched.length > 0 ? `修改 ${patched.join(" · ")}` : undefined,
+    };
+  }
+  return {
+    icon: <Trash2 size={13} />,
+    bg: "rgba(220,38,38,0.1)",
+    fg: "var(--color-danger)",
+    subline: `${ch.before.dueDate || "待定"}`,
+  };
+}

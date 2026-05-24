@@ -1,14 +1,20 @@
 // ============================================================
 // apps/web/src/app/layout.tsx
-// 全局根布局 — 挂载 Clerk Provider 与全局样式
+// 全局根布局 — 挂载 Google Fonts 与全局样式
 // ============================================================
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "智能多模态学习管家",
-  description: "AI-powered multimodal learning hub for universities",
+  title: "Butler — 智能多模态学习管家",
+  description: "AI-powered multimodal learning hub — 让学习更智能、更高效。",
 };
 
 export default function RootLayout({
@@ -17,11 +23,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="zh-CN">
-      <body>
-        {/* Clerk Provider 包裹全局，所有页面共享登录状态 */}
-        <ClerkProvider>{children}</ClerkProvider>
-      </body>
+    <html lang="zh-CN" className={inter.variable}>
+      <body>{children}</body>
     </html>
   );
 }

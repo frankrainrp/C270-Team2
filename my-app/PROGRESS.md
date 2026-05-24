@@ -5,6 +5,689 @@
 
 ---
 
+## [020] 2026-05-22 — 管家位置调整：移到主区左侧全高栏
+
+> 用户反馈 [019] 的"底部舞台"管家不对，期望管家**独占主区左侧整栏**（全高、大尺寸），历史+气泡+输入都在右栏。截图红框标出了目标位置。
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/ButlerCharacter.tsx` | 修改 | 新增 `fillContainer` prop：true 时容器 width/height = 100% + objectPosition = "bottom"，让人物踩在父容器底部 |
+| `apps/web/src/components/ChatCanvas.tsx` | 重写主区 | `<main>` 从 `flex column`（上历史下舞台）改为 `flex row`（左管家右内容）。左栏 320px 渐变背景常驻管家；右栏 flex-1 = 历史 + 气泡 + InputPod。气泡尾巴方向从"左下"改为"左侧水平指向"（双层三角描边） |
+
+### 🎭 新布局
+
+```
+┌─ TopBar 56px ─────────────────────────────┐
+├─LeftRail─┬─────────────────────────────────┤
+│          │ ┌────┐  历史区（可滚动）          │
+│          │ │ 管 │  - 用户气泡                │
+│          │ │ 家 │  - AI 紧凑卡              │
+│          │ │ 全 │  - ConfirmCard / Pipeline │
+│          │ │ 高 │  ───────────────────────  │
+│          │ │ 渐 │  ╭ 漫画气泡 ─────────╮  │
+│          │ │ 变 ├──┤ "好的，我已为你..." │  │
+│          │ │ 底 │  ╰────────────────────╯  │
+│          │ │    │  ┌─ InputPod ─────────┐  │
+│          │ │320 │  │ Ask Butler...      │  │
+│          │ │ px │  └────────────────────┘  │
+│          │ │    │   提示：Butler 可能犯错    │
+│          │ └────┘                            │
+└──────────┴─────────────────────────────────┘
+```
+
+### ✅ 验证
+
+- `tsc --noEmit` 通过（`EXIT=0`）
+- HMR 稳定（dev log 最后 `GET / 200`，中途一次 swc parser 闪报是 Edit 过渡态，最终编译成功）
+- 移除了 [019] 的"回到底部"圆按钮（新布局下位置算不准，非关键功能）
+
+### 🚦 后续可继续打磨
+
+- 气泡位置可以再向上提（更靠管家头部高度，让"嘴部"对应更精确）
+- 管家右侧渐变可调（当前是 bg → primary-soft 35% 的从上到下）
+- 历史区滚动到顶/底可加视觉指示
+
+---
+
+## [019] 2026-05-22 — 漫画式对话舞台 + 真透明 PNG 抠图
+
+> 用户反馈两点：(1) SVG 背景没去干净，要"直接替换原文件的背景通道"——升级到方案 C；(2) 当前 chat 不是想要的形态，期望"左下角大人物常驻 + 说过的话像漫画对话框 + 历史可上下拖回看"。
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/public/assets/{logo,butler-standing,butler-serving,butler-pointout}.png` | 新建 4 个 | **真 alpha 透明 PNG**，从对应 SVG 内嵌 base64 提取后用 PowerShell + `System.Drawing.LockBits` 抠白底（容差 240 + 边缘 220-240 渐变淡出避免白边渣） |
+| `apps/web/src/components/ButlerCharacter.tsx` | 修改 | 引用 `.png` 替代 `.svg`；移除 `mix-blend-mode: multiply` |
+| `apps/web/src/components/layout/TopBar.tsx` | 修改 | logo 引用 `.png`，去掉 multiply |
+| `apps/web/src/components/InputPod.tsx` | 修改 | **去掉 `position: fixed`**，改为流式布局（嵌入 ChatCanvas 舞台区）；去掉旧紫色玻璃态、改墨绿细边设计；移除独立的"重要信息请核实"小字（合并到 ChatCanvas 底部统一显示） |
+| `apps/web/src/components/ChatCanvas.tsx` | **重写** | 漫画式两栏：**上历史区**（滚动回看，紧凑用户/AI 卡片 + ConfirmCard + Pipeline）+ **下舞台区**（左下 280px 大管家固定 + 右上漫画对话气泡（带尾巴指向管家）+ 右下嵌入 InputPod）；气泡内容 = 最新 assistant 消息（含流式 cursor）；历史区检测向上滚动 → 显示「回到底部」圆按钮 |
+| `apps/web/src/app/page.tsx` | 修改 | 不再独立 render InputPod，全部 props 透传给 ChatCanvas；删除 `import InputPod` |
+
+### 🎨 透明 PNG 抠图算法
+
+```text
+1. 读 SVG 文件 → 正则提取 xlink:href="data:image/...;base64,XXX"
+2. base64 → byte[] → MemoryStream → Bitmap（解码 JPEG/PNG）
+3. 新建 32bppArgb Bitmap + Graphics.Clear(Transparent) + DrawImage
+4. LockBits 拿到 BGRA 字节数组
+5. 遍历每个像素 (步长 4)：
+   - 若 R,G,B ≥ 240 → alpha=0（纯白 = 完全透明）
+   - 若 R,G,B 都在 220-240 → 线性渐变 alpha 255→0（消除 JPEG 边缘白边渣）
+   - 否则保留原 alpha=255
+6. Marshal.Copy 写回 + UnlockBits + Save(PNG)
+```
+
+实测每张 1254×1254 ≈ 1.57M 像素，抠掉 138-145 万纯白像素，PNG 文件 207-285KB（比 SVG 大但是真透明）。
+
+### 🎭 新 Chat 布局
+
+```
+┌─ TopBar ──────────────────────────────────┐
+├──LeftRail──┬───────────────────────────────┤
+│             │   📜 历史区（可上下滚动）        │
+│             │   - 用户气泡（淡墨绿底）         │
+│             │   - AI 紧凑卡（surface 底）     │
+│             │   - ConfirmCard / Pipeline    │
+│             │                                │
+│             │   [回到底部 ↓] (向上滚后显示)    │
+│             ├────────────────────────────────┤
+│             │ 舞台区（墨绿浅渐变背景）          │
+│             │ ┌────┐  💬 漫画气泡            │
+│             │ │管家 │  "好的，我准备..."       │
+│             │ │280  │  (带尾巴指向管家)        │
+│             │ │     │  ┌─ InputPod ────┐    │
+│             │ └─────┘  │ Ask Butler... │    │
+└─────────────┴───────────────────────────────┘
+```
+
+### ✅ 验证
+
+- `tsc --noEmit` 通过（`EXIT=0`）
+- Dev server HMR 热重载稳定（`GET / 200`，运行时 1 次 InputPod 短暂 undefined 已修复并加了防御 fallback）
+- 4 个透明 PNG 已就位（logo 817KB，butler 207-285KB 各 1）
+
+### 🚦 后续可继续
+
+- 气泡尺寸 / 颜色 / 尾巴形状的细化打磨（按浏览器实测反馈调）
+- 用户消息也走"漫画气泡"风格（当前只有 AI 走，用户消息仍是普通气泡）
+- 历史区滚动到顶时显示"已经到顶"提示
+- 移动端响应式（当前为桌面端设计）
+
+---
+
+## [018] 2026-05-22 — 管家人物形象 + AI 写操作"待核实"门控
+
+> 用户给了 1 张新 logo + 3 个管家姿势 SVG（standing / serving / pointout），并要求"AI 自动化的 task/calendar 改动需要先给用户核实"。本次同时落地了视觉（管家陪伴）+ 功能（核实门控）两条线。
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/public/assets/logo.svg` | 替换 | 新 logo（1MB，PNG base64），viewBox 1254×1254 正方形 |
+| `apps/web/public/assets/butler-{standing,serving,pointout}.svg` | 新建 | 3 个姿势的管家形象，源是 JPEG base64（**无 alpha 通道**） |
+| `apps/web/src/components/ButlerCharacter.tsx` | 新建 | 3 姿势叠层 + opacity 切换；用 `mix-blend-mode: multiply` 让白底视觉透明融入页面（方案 A，0 代价不改 SVG 源） |
+| `apps/web/src/lib/pending.ts` | 新建 | `PendingChange = PendingCreate \| PendingUpdate \| PendingDelete`；`PendingBatch { id, sessionId, changes, origin: "ai-chat" \| "pdf-extract", status }`；`applyBatch()` 把一批改动应用到 ddls |
+| `apps/web/src/components/ConfirmCard.tsx` | 新建 | 聊天流内嵌的"核实卡"：intro + 改动列表（每条带类型图标 + 摘要 + ✕）+ 「接受 (N)」/「全部取消」按钮 |
+| `apps/web/src/lib/types.ts` | 修改 | `ChatMessage.role` 加 `"confirm"`；新增 `confirmBatchId?: string` |
+| `apps/web/src/lib/tool-executor.ts` | 重写 | **核心变更**：create/update/delete 不再 setDdls，改产 `PendingChange` 入待核实队列；toggle/list 不变（高频低风险 / 只读）。回执文案从"已..."改为"已生成..草稿..等核实" |
+| `apps/web/src/app/page.tsx` | 修改 | 加 `pendingBatches` state + `currentBatchIdRef`（一次 send 内多个 tool_call 共用同一 batch）+ `pointoutHold` state；4 个新 handler：`addPendingChange / handleAcceptBatch / handleRejectBatch / handleDropChange`；`butlerPose` 派生计算；`runRealPipeline` 改为产 pending（不直接 setDdls）+ 触发 pointout 5 秒 |
+| `apps/web/src/components/ChatCanvas.tsx` | 修改 | 接 5 个新 props (`pendingBatches / butlerPose / onAcceptBatch / onRejectBatch / onDropChange`)；欢迎屏挂 240px 管家 / 消息流顶部挂 120px 管家；消息渲染 switch 加 `confirm` 分支 |
+| `apps/web/src/components/layout/TopBar.tsx` | 修改 | logo backgroundSize 适配新 1254×1254 viewBox（`28px 28px`）+ multiply 透明 |
+
+### 🎯 核实门控行为表
+
+| AI 操作 | 走核实？ | 落库时机 |
+|---|---|---|
+| `create_item` | ✅ 是 | 用户点「接受」 |
+| `update_item` | ✅ 是 | 用户点「接受」 |
+| `delete_item` | ✅ 是 | 用户点「接受」 |
+| `toggle_complete` | ❌ 否 | 立即（高频低风险） |
+| `list_items` | ❌ 否 | 只读 |
+| PDF pipeline 提取 | ✅ 是 | 用户点「接受」（4 步走完后入 batch，不直接 setDdls） |
+
+### 🎭 Butler 姿势驱动表
+
+| 状态 | pose | 触发条件 |
+|---|---|---|
+| 默认 idle | `standing` | 无 AI 活动、无 pending |
+| 准备核实 | `serving` | `isLoading` 或有 ai-chat origin 的 pending batch |
+| 指出发现 | `pointout` | PDF pipeline 刚完成（5s 窗口）或有 pdf-extract origin 的 pending batch |
+
+### 🚦 已知小留白
+
+- ConfirmCard 暂未支持"接受后再编辑细节"（用户接受后只能去 Tasks 面板二次编辑）
+- pending batch 不持久化：刷新页面后 pending 状态丢失（与 pipeline 一致，避免 stale 引用）
+- 管家 multiply 透明对浅色像素仍会"透"——如果你看到礼帽高光发淡，需要升级到方案 C（PowerShell + .NET 抠 alpha 重导出 PNG）
+- 旧 `Sidebar.tsx` / `SessionListPanel.tsx` 仍在文件系统中，但已无 import，等 Stage B 收尾时一并删除
+
+### ✅ 验证
+
+- `pnpm exec tsc --noEmit` 通过（`EXIT=0`）
+- 4 个 SVG 已就位（44-46KB 三个 character + 1MB logo）
+- 数据流：AI tool_call → ToolExecutor → addPending → setPendingBatches → ChatCanvas 渲染 ConfirmCard → 用户点接受 → applyBatch → setDdls → Dexie 持久化
+
+---
+
+## [017] 2026-05-22 — UI 重构 Stage A：顶 Tab Bar + 200px LeftRail + 墨绿设计语言（骨架）
+
+> 完整方案见 [`UI-REDESIGN-PLAN.md`](UI-REDESIGN-PLAN.md)（v1）。基于 `Doc/{chat,task,calender,notes}.png` 四张设计稿，从"玻璃态紫色 + 网格底"切到"Linear/Notion 风格的极简墨绿"。
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `UI-REDESIGN-PLAN.md` | 新建 | 5 个 Stage 的完整重构计划：设计 token / 信息架构 / 列宽 / 响应式 / 风险 / 不在范围 |
+| `apps/web/src/app/globals.css` | 修改 | `:root` 加新调色板（`--color-primary: #1B3D2F` 等 10+ 变量）；旧紫色 / 玻璃 class 暂留，迁移完成后再删 |
+| `apps/web/src/components/layout/TopBar.tsx` | 新建 | 56px 全宽顶 Bar：Logo（28×28 复用 SVG）+ "BUTLER" 字标 + 4 Tab（active 2px 墨绿底线）+ 240px 搜索 + 通知 + 用户区下拉 |
+| `apps/web/src/components/layout/LeftRail.tsx` | 新建 | 200px 容器组件 + 共享子组件：`RailPrimaryBtn`（墨绿实心 36px）、`RailGroupTitle`（11px 大写灰）、`RailItem`（含 active/hover/menu） |
+| `apps/web/src/components/layout/ChatRail.tsx` | 新建 | + New Chat + **Recent Chats**（取代 [016] SessionListPanel 滑入面板，常驻 12 条 + "View all"）；含重命名/删除 minimenu |
+| `apps/web/src/components/layout/TasksRail.tsx` | 新建 | + New Task + Views（Active/Upcoming/All/Completed）+ Tags（Stage C 接入占位） |
+| `apps/web/src/components/layout/CalendarRail.tsx` | 新建 | 迷你月历占位（Stage D 接入）+ New Event + Calendars 分类 |
+| `apps/web/src/components/layout/NotesRail.tsx` | 新建 | + New Note 禁用态 + Library 灰显项 + "🔒 Phase 3 解锁" 提示卡 |
+| `apps/web/src/app/page.tsx` | 重写顶层 | 由 `<Sidebar> + <SessionListPanel> + 主区` 改为 `<TopBar> + <div flex>[<LeftRail>{Rail内容} + <main>]`；删除 `GRID_BG` 网格背景；删除 `showSessionPanel` state |
+
+### 🗑 已淘汰但尚未删除
+
+- `components/Sidebar.tsx`（68px 玻璃态侧栏）—— page.tsx 不再 import，但文件保留作为 legacy
+- `components/SessionListPanel.tsx`（240px 滑入面板）—— 同上
+- `components/ui/GlassButton.tsx` / `DecoLayered.tsx` —— 仍被 ChatCanvas/InputPod/TasksPanel 等老组件引用，Stage B-E 逐步替换后清理
+- `globals.css` 中 `.bg-grid` / `.glass-panel` / `.deco-layered` / `.glass-btn` 全套规则
+
+### ✅ Stage A 已交付
+
+- 4 Tab 横向导航能切换，active 项底部 2px 墨绿线条精确对齐
+- LeftRail 200px 常驻，内容随 Tab 动态切换（Chat 时展示真实 Recent Chats）
+- Recent Chats 重命名 / 删除 / 切换 / 新建全功能可用（沿用 Dexie v3 sessions/messages）
+- TS 通过 `pnpm exec tsc --noEmit` （`EXIT=0`）
+- 主区 (`<main>`) 背景纯白，4 个 Panel 内部样式暂保持原状（紫色/玻璃感会与新顶栏冲突，留给 Stage B-E）
+
+### 🚦 下一步（Stage B — Chat 页深度重做）
+
+- ChatCanvas 欢迎屏 4 张 QuickCard（当前 3 张 + Brainstorm/Analyze/Improve/Write code 风格）
+- 消息流去玻璃化，pipeline 消息卡白底细边
+- InputPod 改白底细边，发送按钮改墨绿圆形
+- 估计 ~1 天工作量
+
+---
+
+## [016] 2026-05-22 — Sidebar 多会话管理（消息隔离、任务/日历仍全局）
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/lib/types.ts` | 修改 | `ChatMessage` 加 `sessionId: string`；新增 `ChatSession { id, title, createdAt, updatedAt }` |
+| `apps/web/src/lib/db.ts` | 修改 | Dexie v3：新增 `sessions` 表 + `messages` 表加 `sessionId` 索引；upgrade 自动把 v2 遗留 messages 归到一个名为「历史对话」的 default session |
+| `apps/web/src/components/SessionListPanel.tsx` | 新建 | 240px 滑入面板（从 Sidebar 右侧推出）：顶部 + 新建对话按钮、滚动列表、active 高亮、hover 显示重命名（行内 input）/ 删除（confirm 二次确认）；遮罩点外部收起 |
+| `apps/web/src/components/Sidebar.tsx` | 修改 | 「+ 新对话」按钮 onClick 改为 `onNewChat` prop；新增「会话列表」按钮（History 图标，激活态紫色） |
+| `apps/web/src/app/page.tsx` | 修改 | 顶层新增 `sessions[] / activeSessionId / showSessionPanel` 三 state；hydrate 时一并 load sessions + messages（空 sessions 自动建一个默认）；持久化 sessions（整体替换）+ messages（过滤 pipeline 类避免重启挂尸）；`visibleMessages` 按 activeSessionId 过滤；`touchActiveSession` 在用户发消息时更新 updatedAt + 首条消息自动取前 24 字作 title；新增 `handleNewChat / handleSelectSession / handleRenameSession / handleDeleteSession`（删除 active 时自动切到剩下最新；删空时自建） |
+
+### 🎯 关键决策（与用户 PM 对齐确认）
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| **任务/日历跨 session 共享** | ✅ 全局 | 符合「AI 是创造者，任务/日历/笔记是用户实际居住的产物」心智。消息隔离 = 不同思考路径，但居住空间只有一个。变成 ChatGPT 克隆才是反 PM 定位 |
+| **UI 形态** | 240px 滑入面板 | Sidebar 保持 68px 窄幅不变；面板按需推出/收回；不像 Cursor 那样常驻吃宽度 |
+| **ICS 订阅端点（原候选）** | 推迟到 Phase 4 | 拉旗：纯客户端 Dexie 架构下服务端拿不到任务数据，订阅 URL 字面上无法实现。等接 Clerk + Neon 时一并做 |
+
+### 🔬 实测验证（preview server + 直读 IDB）
+
+```json
+{
+  "sessions": [
+    { "title": "历史对话",                          "idTag": "sess-legacy-" },
+    { "title": "测试多会话隔离用的第一条消息",        "idTag": "sess-vxed5f7" }
+  ],
+  "messages": [
+    { "role": "assistant", "sessionTag": "sess-vxed5f7", "content": "好的，收到！当前你的任务清单中只有一条记录：\n\n- **准备" },
+    { "role": "user",      "sessionTag": "sess-vxed5f7", "content": "测试多会话隔离用的第一条消息" }
+  ]
+}
+```
+
+证实：
+- ✅ v2→v3 自动迁移成功（创建「历史对话」default session）
+- ✅ 新建 session + 自动切到新的（消息全部带新 sessionId 而非历史的）
+- ✅ 自动标题截取 24 字生效（「新对话」→「测试多会话隔离用的第一条消息」）
+- ✅ AI 看到全局 contextSummary（回复里提到「准备…」任务，证明任务跨 session 共享）
+- ✅ messages 持久化到 IDB v3（之前 v2 时 messages 表只是空建着，从未 sync）
+
+### 🚦 顺手补的小修
+
+- **messages 此前未持久化**：v2 schema 一直有 messages 表但 page.tsx 没 sync，刷新即丢。本次接 sessions 时把 messages 持久化一并补了（过滤掉 pipeline 类消息——重启后 pipelineId 无效，留着是垃圾）。
+
+### 🚦 后续可继续做
+
+- AI 主动问候（用 contextSummary 在新 session 首次打开时生成「今天有 N 项待办」）
+- Markdown 备注预览
+- Phase 3 Tauri 桌面壳启动（NotesPanel 真实化 + filepath 一键打开）
+
+---
+
+## [015] 2026-05-22 — 任务备注 + 附件（URL / 文件路径 / 上传 Blob）+ 预览
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/lib/types.ts` | 修改 | DdlItem 加 `notes?: string` + `attachments?: DdlAttachment[]`；新类型 `AttachmentKind = "url" \| "filepath" \| "blob"`、`DdlAttachment`、`StoredBlob` |
+| `apps/web/src/lib/db.ts` | 修改 | Dexie 升级 v2，新增 `blobs` 表（主键 id + 索引 createdAt）。v1 数据自动迁移 |
+| `apps/web/src/lib/blobs.ts` | 新建 | `saveBlob/getBlob/deleteBlob/deleteBlobs/getBlobUrl`；后者返回 `URL.createObjectURL` 给 iframe/img 用 |
+| `apps/web/src/components/AttachmentPreview.tsx` | 新建 | URL：新窗口打开按钮 / filepath：路径显示 + 复制 + Phase 3 提示 / blob：PDF iframe、图片 img、其他下载链接 |
+| `apps/web/src/components/TaskEditModal.tsx` | 修改 | 表单加「备注（长篇）」textarea + 「附件」编辑区（3 入口：链接 / 文件路径 / 上传文件）；移除附件即时反映 |
+| `apps/web/src/components/TasksPanel.tsx` | 修改 | 任务行描述下方渲染 chip 行：📝 备注 + 各类型附件 chip（按 mime 选图标/颜色）。点击 chip 触发 onRequestPreview，stopPropagation 防止进编辑 |
+| `apps/web/src/app/page.tsx` | 修改 | 新增 `previewing: DdlAttachment \| null` 状态 + AttachmentPreview 渲染；handleSubmitEdit 在编辑模式下计算被移除的 blob 附件并 deleteBlobs 清理；handleDeleteDdl 删除任务前清理其所有 blob 附件 |
+
+### 📝 实测路径
+
+1. ✅ 新建任务「准备 Project Proposal」+ 15% 权重 + 备注（多行）+ 3 种附件全加上：
+   - URL: `https://owl.purdue.edu/...` → chip 显示 `owl.purdue.edu`
+   - 路径: `D:\研究资料\论文模板.docx` → chip 显示 `论文模板.docx`
+   - 上传: fake `project-template.pdf` → chip 显示 `project-template.pdf`
+2. ✅ 任务行展示 4 个 chip（备注 + 3 附件），各自图标和颜色对应类型
+3. ✅ 点击 PDF chip → AttachmentPreview modal 弹出 → iframe 加载 blob URL（fake 内容显示空白，真实 PDF 可读）
+4. ✅ 点击 filepath chip → modal 显示路径 + 复制按钮 + "Phase 3 桌面壳上线后可一键在文件管理器中显示" 提示
+5. ✅ F5 刷新 → 任务/备注/3 附件完整保留（包括 IndexedDB 里的 Blob 数据）
+
+### 🚦 Phase 3 桌面壳后能解锁的能力
+
+- filepath 附件：调 `tauri-plugin-shell` 执行 `explorer /select,<path>`（Win）或 `open -R <path>`（Mac）一键打开所在文件夹
+- 「绑定本地 Vault 目录」让用户的 .pdf/.docx 附件不进 IDB 而直接引用本地文件
+- Tauri 通知 API 取代 ICS 订阅做"今日待办"主动推送
+
+---
+
+## [014] 2026-05-22 — AI 质量护栏 + ICS 日历订阅 + JSON 导出/导入
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/app/api/extract-ddls/route.ts` | 修改 | system prompt 重写：**"宁可漏标也不要瞎猜"** 核心原则；日期未明确 → `dueDate=""`，禁止用学期末/任意日期兜底；权重未明确 → `weight=null`，不要均分推算 |
+| `apps/web/src/lib/tool-executor.ts` | 修改 | execCreate 放宽 dueDate 允许空串；回执 message 把空 dueDate 显示为「待定」 |
+| `apps/web/src/components/TasksPanel.tsx` | 修改 | 新增 `tbd` 分组（黄色 #eab308）；formatDate("") → "待定"；header 工具栏加 3 个按钮（订阅日历 / 导出 / 导入） |
+| `apps/web/src/components/CalendarPanel.tsx` | 修改 | ddlMap 跳过空 dueDate，避免月历错位 |
+| `apps/web/src/lib/ics-export.ts` | 新建 | RFC 5545 兼容 ICS 生成器：每条 VEVENT 含 VALARM (-PT30M 系统提醒)；75 字段折行；special char 转义；空 dueDate 跳过；触发浏览器下载 |
+| `apps/web/src/lib/json-export.ts` | 新建 | `exportToJson` 一键下载；`importFromFile` 解析 + 按 id 合并去重；`pickJsonFile` 隐藏 input 选文件 |
+| `apps/web/src/app/page.tsx` | 修改 | 新增 `handleExportIcs` / `handleExportJson` / `handleImportJson`；传给 TasksPanel |
+
+### 🎯 AI 质量对比（用 C245 PDF 跑同一份输入）
+
+| 项 | 之前（瞎猜兜底） | 现在（待定） |
+|---|---|---|
+| CA1 | 2026-06-26（凭空猜 Week 6 = 开学+5 周） | **待定**（PDF 没给学期开学日，不应猜） |
+| CA2 | 2026-08-14 | **待定** |
+| Presentation | 2026-08-14 | **待定** |
+| SDLC | 2026-09-04（学期末兜底） | **待定** |
+| FA | 2026-09-04 | **待定** |
+| 权重总和 | 10+10+10+15+55=100% ✅ | 同上 ✅ |
+| 描述详细度 | 一般 | **明显更详细**（"Must pass to pass the module" 等额外信息） |
+
+**用户路径：** 看到「待定」徽章 → 手动点行体打开编辑 → 填实际日期 → 保存。
+
+### 📅 ICS 订阅日历（已实测）
+
+生成的 .ics 完全合规 RFC 5545：
+```
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Butler//Personal Learning OS//ZH
+X-WR-CALNAME:Butler 任务
+X-WR-TIMEZONE:Asia/Shanghai
+BEGIN:VEVENT
+UID:<id>@butler
+DTSTAMP:<UTC now>
+DTSTART:20260626T235900       ← 浮动本地时间
+DTEND:20260627T005900         ← 1 小时事件（防被压缩）
+SUMMARY:CA2 Online Quiz (KS)（10%）
+DESCRIPTION:...（含描述 + 来源）
+BEGIN:VALARM
+TRIGGER:-PT30M                ← 系统提前 30 分钟提醒
+ACTION:DISPLAY
+END:VALARM
+END:VEVENT
+...
+END:VCALENDAR
+```
+
+**用户使用方式：**
+1. 任务面板点「📅 订阅日历」→ 下载 `butler-tasks-2026-05-22.ics`
+2. 把文件发到手机 / 邮件 / 文件传输助手
+3. iPhone：双击 .ics → 系统提示「添加到日历」→ 选择日历账户即可
+4. Android Google Calendar / Outlook / Apple Calendar 同理
+5. 系统日历会按 VALARM 自动**提前 30 分钟通知**
+
+### 💾 JSON 导出/导入
+
+- **导出**：一键下载 `butler-tasks-YYYY-MM-DD.json`（含 version / exportedAt / ddls 数组）
+- **导入**：选 .json 文件 → 按 id 合并到现有任务（已存在 → 更新；不存在 → 新增）
+- **用法**：把 .json 放进 iCloud Drive / Dropbox / 坚果云 目录实现跨设备同步备份；或交给 Phase 3 Tauri 桌面壳读写
+
+### 🚦 后续可继续做
+
+- **任务备注 + 文件附件**（用户上次提到的额外细节字段）
+- **手动绑定本地文件夹**（File System Access API，Chrome only，让 JSON 自动持续写入）
+- **Sidebar 多对话切换**（C 顺位）
+
+---
+
+## [013] 2026-05-22 — TasksPanel + CalendarPanel 手动 CRUD UI
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/TaskEditModal.tsx` | 新建 | 玻璃态 modal，create + edit 复用同一表单；编辑模式额外提供删除按钮（confirm 二次确认）；ESC + 点遮罩关闭；focus 自动跳到任务名 |
+| `apps/web/src/components/TasksPanel.tsx` | 修改 | 「新建任务」按钮启用（紫色 gradient hover 态）；任务行 hover 时右侧渐显铅笔/垃圾桶图标；行体点击直接进编辑；空状态加大号「新建任务」按钮 |
+| `apps/web/src/components/CalendarPanel.tsx` | 修改 | 月内格子整体可点击 → presetDate 自动预填；事件 pill 点击 → 进编辑（stopPropagation 防穿透到格子）；空状态加「新建事件」按钮 |
+| `apps/web/src/app/page.tsx` | 修改 | 顶层 `editing: EditingTarget \| null` 状态；handleSubmitEdit 区分 create/edit 分支；handleDeleteDdl 过滤 ddls 列表（自动经 Dexie 同步） |
+
+### 📝 实测路径
+
+1. ✅ 点右上「+ 新建任务」→ modal 弹出 → 填表（"看医生" 5/30 14:30 "约好的体检"）→ 创建 → "之后"分组多出 1 条，source「手动添加」
+2. ✅ 点击行体 → 编辑 modal 预填 → 改时间 14:30 → 16:00 → 保存 → 行直接更新
+3. ✅ 编辑 modal 点删除 → confirm → 任务消失
+4. ✅ 切日历面板 → 点 5 月 1 日空格 → 编辑 modal `dueDate` 自动预填 `2026-05-01`
+5. ✅ 全部操作经 Dexie 同步，F5 刷新后状态完全一致
+
+### 🎯 现在能做什么
+
+- 手动 / AI 双通道创建任务：AI 对话自然语言、点按钮表单、日历格子直接点
+- 编辑：行体点击 或 行 hover 编辑图标 或 日历事件 pill 点击
+- 删除：modal 内删除按钮（带 confirm）或 行 hover 垃圾桶
+- 全部自动持久化到 IndexedDB
+
+---
+
+## [012] 2026-05-22 — Dexie 持久化（任务刷新不丢）
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/lib/db.ts` | 新建 | `ButlerDB extends Dexie`，`ddls` table 主键 id + 索引 dueDate/completed/source；`messages` table 主键 id + 索引 timestamp/role |
+| `apps/web/src/app/page.tsx` | 修改 | 加 `hydrated` 状态门控；mount 时 useEffect `db.ddls.toArray()` 注入；ddls 变化时 transaction 整体 bulkPut 替换 IDB 表 |
+| `apps/web/package.json` | 修改 | + `dexie@^4.4` |
+
+### 📝 实测
+
+「明天早上 10 点交毕业论文初稿，占 30%」→ AI 创建 → IndexedDB 写入 → 刷新页面 → 任务"毕业论文初稿 30%"仍在「本周」分组下显示。
+
+### 🚦 路线匹配
+
+- 当前 Phase 2（个人 MVP，纯 Web）：Dexie 完全够用，0 部署 0 月费 0 后端
+- Phase 3（Tauri 桌面壳）：切换到 `tauri-plugin-sql` + SQLite 文件，Schema 复用 `packages/database/src/schema.ts`
+- Phase 4（云 SaaS / 多租户）：迁 Neon Serverless Postgres，按 `framework.txt` 多租户分库设计接入 `getDbForTenant()`
+
+---
+
+## [011] 2026-05-22 — 客户端语义粗筛（MiniLM embedding）
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/lib/semantic-filter.ts` | 新建 | MiniLM-L6-v2 客户端 embedding（22MB 一次性下载到 IndexedDB），用 6 个 DDL 概念种子查询的平均向量与文本片段算 cosine 相似度，topK=30 + minSim=0.35 |
+| `apps/web/src/app/page.tsx` | 修改 | runRealPipeline Step 1 串语义粗筛：失败时降级到纯关键词，detail 显示 `12697 → 关键词 8000 → 语义 22/111 段 3138 字` |
+
+### 🛠 技术挑战与解决
+
+1. **transformers.js + Next.js webpack 不兼容** — `@huggingface/transformers` npm 包打包时 webpack 想引入 `onnxruntime-node` 与 `.node` 二进制，全是 build error。
+   - **解决：完全绕过 webpack**，用 `new Function("u", "return import(u)")` 隐藏 dynamic import 不被静态分析，从 `cdn.jsdelivr.net` 加载 ESM 版本。模型本身仍走 HuggingFace CDN + IndexedDB 缓存，永久离线。
+2. **PDF 文本无段落分隔** — unpdf 输出整段无 `\n`，关键词过滤后还是 1 大段，semantic filter 只能 score 整个文本（噪音稀释信号至 0.272）。
+   - **解决：semantic-filter 自己做激进 split**：`[.!?。！？；;]\s+|\n+|\s{2,}|•\s+`，少于 5 段时启用 180 字滑窗兜底。
+
+### 📊 C245 PDF 实测对比
+
+| 指标 | Phase D 仅关键词 | + 语义粗筛 |
+|---|---|---|
+| AI 输入字数 | 8000 | **3138** ↓ 61% |
+| AI 输入 tokens（估） | 4500 | **1800** ↓ 60% |
+| 提取出的 DDL 数 | 3 | **5** ↑ 67% |
+| 权重正确填入 | 0/3 | **5/5** ✅ |
+| 权重总和 | – | **10+10+10+15+55 = 100%** ✅（与 PDF 一致） |
+| 单份成本 | ¥0.008 | **¥0.003** ↓ 63% |
+
+**为什么质量也提升了：** semantic filter 把 PDF 中的 Assessment 表（被"Official (Closed) Sensitive Normal"页眉淹没的部分）精准捞出来，noise/signal 比从 5:1 拉到 1:3。V4 Flash 看到的输入更聚焦，能找到 CA1/CA2/Presentation/SDLC 全部考核 + 权重。
+
+### 💡 关键洞察
+
+**语义粗筛对低信息密度 PDF 收益最大** —— Welcome/Brochure 型 PDF 整页都是机构介绍 / 政策声明，关键词无法区分"有 % 字符的政策段"和"真 DDL 段"。Embedding 能从语义上识别"分数权重 vs 政策警告"。
+
+---
+
+## [010] 2026-05-22 — Phase D：真实 PDF 链路（unpdf + V4 Flash 提取 DDL）
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/lib/document-parser.ts` | 新建 | 客户端 PDF 解析（unpdf）+ 关键词过滤函数 `filterDdlRelevant`（DDL/截止/Week/%/等 30+ 关键词砍 60-80% 无关段） |
+| `apps/web/src/app/api/extract-ddls/route.ts` | 新建 | V4 Flash + 强制 `tool_choice` 一次性返回 DDL 数组；system prompt 含 Week N → 日期推算规则、"不计成绩"项跳过、兜底学期末日期 |
+| `apps/web/src/lib/types.ts` | 修改 | `UploadedFile` 加 `file?: File` 字段保留真实 Blob 引用 |
+| `apps/web/src/app/page.tsx` | 修改 | `runMockPipeline` → `runRealPipeline`：4 步串真实链路（OCR / 提取 / 跳过日历 / 写 state），任何步失败 step.status="failed" |
+| `apps/web/package.json` | 修改 | + `unpdf@^0.x` |
+
+### 📝 改动描述
+
+**目标：** 把上传 PDF 这条线从 mock setTimeout + 假 DDL 模板，换成真实「客户端 PDF.js 解析 → 关键词过滤 → 服务端 V4 Flash 提取 → 落 state」。
+
+**架构决策：**
+- **PDF 解析放客户端**（unpdf，~50KB gzip）：零 API 成本、文件不出浏览器，符合 framework.txt"阅后即焚"原则。扫描件场景留待后续接 Mistral OCR 兜底。
+- **关键词过滤先做一遍**：DDL/截止/Week/%/Assignment/Quiz 等中英 30+ 关键词把无关段砍掉，目标砍 60-80% token。C245 PDF 实测从 12697 字 → 8000 字（节省 37%，因为这份 PDF 信息密度高）。
+- **/api/extract-ddls 用强制 tool_choice**：避免 AI 返回"我已为你提取..."这种自然语言文字，强制走结构化输出。
+
+**浏览器实测（C245_Data_Analytics_Welcome.pdf, 23 页 / 1.4MB）：**
+- Step 1 OCR：23 页 → 12697 字 → 过滤后 8000 字 ✅
+- Step 2 V4 Flash：提取出 3 条 DDL（CA1 6/26、CA2 8/14、FA 9/4）✅
+- AI 准确把 "Week 6" → 2026-06-26、"Week 12" → 2026-08-14（基准今天 5-22）
+- AI 智能跳过 SDCL（过程性评估）+ Action Research Quiz（"不计成绩"）
+- Step 3/4 占位通过 ✅
+
+**已知小不足：** FA 的 55% 权重 PDF 里有但放在另一段，AI 没关联上。后续可在 system prompt 加强"找权重百分比要全文扫描"。
+
+**单份 PDF 成本估算（V4 Flash）：** 输入 ~8000 字 ≈ 4500 tokens + system + tool schema ≈ 5500 tokens，输出 ~600 tokens → 总成本约 **¥0.008/份**。配合 cache hit（同 system prompt 不变），第二份起降至 ¥0.003/份。
+
+---
+
+## [009] 2026-05-22 — 切换至 DeepSeek-V4 Flash（成本砍 3-25 倍）
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/app/api/chat/route.ts` | 修改 | `model: "deepseek-chat" → "deepseek-v4-flash"`，注释头同步 |
+| `apps/web/src/components/InputPod.tsx` | 修改 | Badge 文字 `DeepSeek-V3 → DeepSeek-V4 Flash` |
+| `apps/web/src/lib/mock-pipeline.ts` | 修改 | Pipeline Step 详情文案同步 |
+
+### 💰 价格对比（USD / 1M tokens，官方）
+
+| 项 | V3 (deepseek-chat) | V4 Flash | 降幅 |
+|---|---|---|---|
+| 输入 cache hit | $0.07 | **$0.0028** | ↓ 25× |
+| 输入 cache miss | $0.27 | **$0.14** | ↓ 2× |
+| 输出 | $1.10 | **$0.28** | ↓ 4× |
+
+### 📝 改动描述
+
+DeepSeek 于 2026-04-24 发布 V4 系列，4/26 二次降价后 V4 Flash 在所有维度全面碾压 V3。**API 完全兼容**（OpenAI SDK 同一套），只换 model 字符串即可，无需改 tool schema / SSE 解析 / 客户端任何代码。
+
+**浏览器实测：** 「明天晚上8点小组讨论组会，占15%」→ V4 Flash 一次性正确填入 **6 个字段**（含从"小组"自动推断 `isGroupWork=true`，V3 之前测试中没主动设这个字段），日期推算"明天=2026-05-23 周六"正确。
+
+**额外发现：** 官方 docs 提示 `deepseek-chat` 与 `deepseek-reasoner` 将来弃用，提前迁移避免后续被迫改动。
+
+---
+
+## [008] 2026-05-22 — UI 视觉升级：Butler Logo + 玻璃按钮 + 三层装饰板
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/app/globals.css` | 修改 | 新增 `.fx-layer`（contrast(1.5) 包裹）、`.glass-btn` 玻璃按钮（按 `--w/--h` 缩放，含 `::before/::after` 玻璃边）、`.glass-btn.is-active/is-dashed/is-primary` 三种变体；强化 `.deco-layered-btn` hover 上浮 |
+| `apps/web/src/components/ui/DecoLayered.tsx` | 新建 | 复用三层板组件：外 `rgba(24,24,24,0.2)` → 中 `rgba(255,255,255,0.18)` → 内白；顶左各露 6px。支持 `hoverable` 与 `innerStyle` |
+| `apps/web/src/components/ui/GlassButton.tsx` | 新建 | 复用玻璃按钮组件：`size` prop 驱动 CSS 变量；`variant: default/primary/dashed`；自带 `fx-layer` 包裹 |
+| `apps/web/src/components/Sidebar.tsx` | 重写 | Logo 槽改用 `/assets/logo.svg`（background-image + size 180px 裁掉 viewBox 两侧大留白，露出 Butler 角色）；4 个 nav 按钮、新对话按钮、设置按钮全部换成 `<GlassButton>` |
+| `apps/web/src/components/InputPod.tsx` | 修改 | 圆形发送按钮换成 `<GlassButton variant="primary" size={36}>`，移除原 inline mouse handlers |
+| `apps/web/src/components/ChatCanvas.tsx` | 修改 | QuickCard 三张快捷卡套 `<DecoLayered hoverable>`，宽度从 220 → 232（容纳 6px 露出层） |
+| `apps/web/src/components/ProcessingPipeline.tsx` | 修改 | 4 步 Stepper 外层卡片换成 `<DecoLayered>`（非 hoverable，运行中不应跳动） |
+| `apps/web/src/components/TasksPanel.tsx` | 修改 | TaskGroup 容器 + EmptyState 改用 `<DecoLayered>` |
+| `apps/web/src/components/CalendarPanel.tsx` | 修改 | 主日历网格 + EmptyState 改用 `<DecoLayered>` |
+| `apps/web/src/components/NotesPanel.tsx` | 修改 | Hero 占位卡改用 `<DecoLayered>` |
+
+### 📝 改动描述
+
+按 `creating bg_content/chat_UI.txt` 中 `.box` 玻璃按钮与 `.deco-layered` 三层装饰板的规范，把视觉升到 chat_UI.txt 描述的「苹果/Linear 级极简质感」。
+
+**玻璃按钮架构（`.glass-btn` + `.fx-layer`）：**
+- 原 `.box` 默认 100×100，本次按 `--w/--h` CSS 变量驱动，44px / 36px / 42px 均可复用。
+- 父级 `.fx-layer { filter: contrast(1.5); }` —— 原规范为 contrast(3) 过于激进，缩到 1.5 即可强化白色 inset 与 blur 边缘，又不会让图标过曝。
+- 6 层 inset box-shadow 形成「玻璃边缘」立体感；`::before` 是顶部模糊镜片环，`::after` 是 45° 斜向高光带（is-active 时染品牌色 lavender）。
+- 三种 variant：`default`（默认透明玻璃）、`primary`（暗色发送按钮）、`dashed`（虚线新对话）。
+
+**三层装饰板（`<DecoLayered>`）：**
+- 外层 `rgba(24,24,24,0.2)` 深色底；中层 `rgba(255,255,255,0.18)` 半透白；内层 `rgba(255,255,255,0.95)` 不透白
+- `padding: 6px 0 0 6px` 让顶部与左侧各露出 6px 形成「卡片堆叠错位」感
+- `hoverable` 开启时 hover 上浮 2px + 阴影染品牌色（用于 QuickCard 这种可点击的板）
+
+**Butler Logo 接入：**
+- 原 `logo.svg` 是 `viewBox="0 0 1536 1024"` 的横向矩形，Butler 角色（戴礼帽 + 蝶形领结的管家）只占中间约 25% 宽度，两侧大量留白
+- 用 `background-image` + `background-size: 180px auto` + `background-position: center` 把角色放大到 180px 宽再裁切到 44×44 圆角槽内，露出主体
+- 与「Butler / 管家」品牌名完美呼应
+
+**未做：** 用户头像、Tooltip、消息流工具栏、Calendar 月份导航按钮等次要 UI 元素保持原样，避免过度玻璃化造成视觉疲劳。
+
+### ✅ 浏览器实测验证（preview screenshot）
+
+| 面板 | 验证点 |
+|---|---|
+| Chat 欢迎屏 | Butler logo + 4 个玻璃 nav + 3 张分层 QuickCard + 玻璃 primary 发送按钮 |
+| Chat Pipeline 完成态 | 「正在解析 CS101_Syllabus.pdf」+ 4 步绿勾 + 分层板包裹 + 跳转按钮 |
+| Tasks 面板（6 条 DDL） | "本周 / 之后" 两组 TaskGroup 均为分层板，DDL 行内权重 badge / 小组图标 / 来源 pill 正常 |
+| Calendar 面板 | 月视图整体被分层板包裹，今日紫圆 + 4 个事件 pill 落到对应日期 |
+| Notes 面板 | Hero 大占位卡 = 分层板，Phase 3 黄色标签可见 |
+
+---
+
+## [007] 2026-05-22 — Phase 1：4 面板架构 + 文档上传 + 处理流可视化
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/lib/types.ts` | 新建 | 前端共享类型：`NavId`、`UploadedFile`、`ProcessingPipeline`、`DdlItem`、`ChatMessage`（与 `packages/ai-core` 的 Zod Schema 字段对齐） |
+| `apps/web/src/lib/mock-pipeline.ts` | 新建 | Mock 4 步处理流（OCR/Extract/Calendar/Persist）+ 8 条 CS101 风格的 DDL 模板生成器，Phase 4 替换为真实 Inngest |
+| `apps/web/src/components/Sidebar.tsx` | 修改 | NAV_ITEMS 由 `chat/knowledge/tools/gallery` 重定位为 `chat/tasks/calendar/notes` —— 与新产品定位（Personal Learning OS）对齐 |
+| `apps/web/src/components/InputPod.tsx` | 重写 | 支持点击附件 + 整舱拖拽上传；拖入时显示发光遮罩；附件 chip（PDF 红 / 图片绿 / 其他紫）；附件态下 placeholder 与发送按钮逻辑切换 |
+| `apps/web/src/components/ChatCanvas.tsx` | 修改 | 新增 `role: "pipeline"` 消息渲染；UserMessage 支持附件 chips；快捷卡片改为 `上传课件 / 添加日程 / 拆解任务`；接收 `pipelines` Map 与跳转回调 |
+| `apps/web/src/components/ProcessingPipeline.tsx` | 新建 | 4 步 Stepper：状态图标（pending 灰圈 / running 旋转 Loader2 / success 绿勾 / failed 红叉）、连接线、技术细节副标题、完成态跳转操作按钮 |
+| `apps/web/src/components/TasksPanel.tsx` | 新建 | 任务面板：分组（今日/本周/之后/已完成）、复选框、权重 badge、小组作业图标、来源 pill、空状态引导 |
+| `apps/web/src/components/CalendarPanel.tsx` | 新建 | 月视图日历：6×7 网格、今日紫色圆背景、事件 pill（按权重 / 是否小组分配颜色）、月份导航 + "今天" 按钮、空状态引导 |
+| `apps/web/src/components/NotesPanel.tsx` | 新建 | 笔记面板占位：Hero 区说明 AI → Vault 联动、Phase 3 黄色标签（"需要 Tauri 桌面壳支持本地文件系统访问"）、3 张能力预览卡 |
+| `apps/web/src/app/page.tsx` | 重写 | 全局状态编排：`activeNav` 控制 4 面板路由、`pipelines` Record 管理多个并行处理流、`runMockPipeline` 通过 setTimeout 链顺次推进 4 步并最终注入 mock DDLs |
+| `.claude/launch.json` | 新建 | Claude Preview 启动配置，`pnpm --filter @smart-hub/web dev` 端口 3000 |
+
+### 📝 改动描述
+
+**产品定位重大澄清：** 与产品经理（用户）多轮 PM 式对齐后，确认本产品不是 ChatGPT 克隆，而是一个 **AI 驱动的 Personal Learning OS**，由 4 个面板组成：
+- **AI 对话**（主交互入口，AI 是后三面板的"创造者"）
+- **每日任务**（CRUD 待办，AI 自动生成 + 维护）
+- **日历**（时间维度事项，AI 自动落 DDL）
+- **笔记**（Obsidian 风格双向链接 Markdown，未来 Tauri 桌面壳读写本地 Vault）
+
+**Phase 1 交付（本次）：** 上传 PDF → AI 提取 DDL → 自动出现在任务与日历面板的完整闭环（Mock 数据，无真实后端）。验证流程：
+1. 点击 / 拖拽 PDF 到 InputPod → 显示文件 chip
+2. 点发送 → ChatCanvas 出现"正在解析 XXX.pdf"的 4 步 Stepper
+3. ~5.3 秒内顺次完成 4 步（OCR 1.5s / Extract 2s / Calendar 1s / Persist 0.8s）
+4. 完成后徽章"提取到 N 条 DDL" + 跳转按钮"查看任务面板"/"查看日历"
+5. 切到 Tasks 面板：DDL 按今日 / 本周 / 之后分组，含权重与来源
+6. 切到 Calendar 面板：DDL 按 dueDate 落到月视图对应格子，按权重 / 是否小组着色
+
+**关键架构决策：**
+- **共享类型走 `lib/types.ts`**：前端 `DdlItem` 与 `packages/ai-core/src/schemas/ddl-schema.ts` 字段对齐（taskName / weight / dueDate / dueTime / isGroupWork），Phase 4 接真实 API 时类型自动通用。
+- **Mock pipeline 独立模块化** `lib/mock-pipeline.ts`：8 条 CS101 计算机课程风格的 DDL 模板，每次 demo 随机抽 5-8 条让演示有变化；Phase 4 将整个文件替换为真实 SSE/Polling，业务代码无需改动。
+- **状态全部在 page.tsx 顶层管理**：保证切换面板时 DDL / 消息 / Pipeline 状态不丢失。后续接 Zustand / Jotai 重构时入口已对齐。
+- **Sidebar 不再单独管理"新对话"清空逻辑**：当前点 "+" 按钮仅切到 chat 面板，清空对话留待 Phase 2。
+
+### 🚦 后续路线图
+
+| 阶段 | 内容 |
+|---|---|
+| Phase 2 | TasksPanel CRUD（add/edit/delete）、CalendarPanel 事件 CRUD、自然语言驱动（"明天 9 点开会" → 自动建 task） |
+| Phase 3 | NotesPanel 真实实现：Tauri 桌面壳套装 + 本地 Obsidian Vault 读写 + 双向链接编辑器 |
+| Phase 4 | `/api/chat` 路由 → DeepSeek-V3 流式响应；接入 `packages/workflows` 真实 Inngest 流水线；多租户分库；Clerk 鉴权 |
+
+---
+
+## [006] 2026-05-21 14:05 — 构建 AI 对话界面基础页面 (Chat UI)
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/public/assets/logo.svg` | 新建（复制） | 将根目录 `logo.svg` 复制至 Next.js 静态资源标准目录 |
+| `apps/web/next.config.ts` → `next.config.js` | 重命名 + 修改 | Next.js 14 不支持 `.ts` 格式配置，转为 `.js`；新增 webpack alias 使 `@/` 路径别名生效 |
+| `apps/web/tsconfig.json` | 修改 | 补充 `baseUrl: "."` 与 `paths: { "@/*": ["./src/*"] }`，修复模块解析 |
+| `apps/web/tailwind.config.ts` | 修改 | 新增 `darkMode: "class"`、品牌色 token `brand`、字体族、以及 `@tailwindcss/typography` 插件 |
+| `apps/web/src/app/globals.css` | 重写 | 将所有自定义样式移入 `@layer base / components`；定义网格背景 `.bg-grid`、玻璃态 `.glass-panel`、Tooltip、消息流滚动条、快捷卡片 `.quick-card` 等 |
+| `apps/web/src/app/layout.tsx` | 修改 | 移除 Clerk 硬依赖（暂时解耦），改用 `next/font/google` 加载 Inter 字体；更新页面 Metadata |
+| `apps/web/src/app/page.tsx` | 重写 | 全屏视口主页面：内联网格背景；组装 `Sidebar` + `ChatCanvas` + `InputPod`；含消息状态管理与 Mock AI 回复占位逻辑 |
+| `apps/web/src/components/Sidebar.tsx` | 新建 | 窄幅 68px 垂直导航栏：渐变 Logo 槽、新对话圆形按钮（Hover 旋转 90°）、四项核心功能（Tooltip 右弹 + Active 指示条）、设置按钮、用户头像（在线状态灯 + 向上 Popover 菜单） |
+| `apps/web/src/components/ChatCanvas.tsx` | 新建 | 主对话画布：欢迎首屏（居中标题 + 三张快捷卡片）、消息流（用户消息右对齐 + AI 消息左对齐带头像）、Hover 工具栏（点赞/复制/重新生成）、打字动态指示器（弹跳三点） |
+| `apps/web/src/components/InputPod.tsx` | 新建 | 悬浮底栏输入舱：玻璃态面板、自动高度 textarea（min 44px / max 200px）、Focus 发光边框、DeepSeek-V3 Smart Router 徽章、回形针附件按钮、圆形发送按钮（激活时变品牌紫色） |
+
+### 📦 新增依赖
+
+| 包名 | 类型 | 用途 |
+|---|---|---|
+| `lucide-react` | `dependencies` | 提供所有 UI 图标（Sparkles、MessageSquare、Database 等） |
+| `@tailwindcss/typography` | `devDependencies` | 支持 `prose` 类，为后续 Markdown 渲染预留样式容器 |
+
+### 📝 改动描述
+
+依据 `creating bg_content/chat_UI.txt` 中的布局规范，从零构建"智能多模态学习管家"的 AI 对话界面基础页面。
+
+**架构决策：**
+- 采用 `h-screen w-screen overflow-hidden flex` 全屏视口架构，侧边栏固定 `68px`，主画布 `flex-1`，严禁全局双滚动条。
+- 样式方案：由于 Tailwind JIT 在此 Monorepo 环境中动态类生成不稳定，关键视觉样式改为 **inline style** 实现，确保玻璃态、渐变、阴影等效果可靠渲染。Tailwind 仅保留 `@layer` 内可扫描的工具类。
+- InputPod 悬浮定位通过 `left: calc(68px + (100vw - 68px) / 2)` 精确计算，使输入舱始终对齐主画布中心而非整体视口中心。
+
+**规范对照（chat_UI.txt）：**
+
+| 规范要求 | 实现状态 |
+|---|---|
+| 网格背景 `background-size: 55px 55px` | ✅ 已实现（`page.tsx` inline style） |
+| 侧边栏 `w-[68px]` 三段式布局 | ✅ 已实现 |
+| Tooltip 右弹 + `delay-100` 渐现 | ✅ 已实现（CSS `transition-delay: 0.1s`） |
+| Active 指示条 `h-5 w-[4px] rounded-r-full` | ✅ 已实现（绝对定位 + scaleY 动画） |
+| 欢迎语 28px bold + 3 块快捷卡片 | ✅ 已实现 |
+| 开放式消息流（无气泡框） | ✅ 已实现 |
+| `backdrop-filter: blur(10px)` 输入舱 | ✅ 已实现（blur 16px + 专注态发光边框） |
+| DeepSeek-V3 Smart Router 徽章 | ✅ 已实现 |
+| AI 消息 hover 工具栏（点赞/复制/重生成） | ✅ 已实现 |
+| 用户头像在线状态灯 + Popover | ✅ 已实现 |
+
+**待接入（TODO）：**
+- `/api/chat` 路由 → DeepSeek-V3 真实流式响应
+- `react-markdown` + `rehype-highlight` Markdown 渲染与代码高亮
+- Dark Mode 切换开关
+- Clerk 鉴权重新集成
+
+### 🗂️ 美术资源规范
+
+```
+apps/web/public/
+└── assets/          ← 所有静态美术资源统一存放于此
+    └── logo.svg     ← 通过 /assets/logo.svg 直接访问
+```
+
+> `public/` 是 Next.js 唯一可通过 URL 直接访问的静态目录。建议后续新增图片、字体文件等均放入 `public/assets/`，与代码文件区分。
+
+---
+
 ## [001] 2026-05-21 12:18 — 初始化 Monorepo 项目骨架
 
 ### 📂 涉及文件
@@ -118,4 +801,4 @@
 
 ---
 
-*最后更新：2026-05-21 12:20*
+*最后更新：2026-05-22（[016] 多会话管理）*
