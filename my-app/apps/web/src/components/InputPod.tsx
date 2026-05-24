@@ -7,7 +7,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import { Paperclip, ArrowUp, ChevronDown, FileText, Image as ImageIcon, X, File as FileIcon } from "lucide-react";
 import type { UploadedFile } from "@/lib/types";
-import GlassButton from "./ui/GlassButton";
 
 interface InputPodProps {
   value: string;
@@ -200,17 +199,34 @@ export default function InputPod({
             />
           </div>
 
-          {/* 发送按钮（GlassButton primary 变体） */}
-          <GlassButton
+          {/* 发送按钮 — 墨绿圆形 */}
+          <button
             id="send-btn"
             aria-label="发送消息"
             onClick={onSend}
             disabled={!canSend}
-            size={36}
-            variant="primary"
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: "50%",
+              border: "none",
+              background: !canSend ? "var(--color-border)" : "var(--color-primary)",
+              color: "white",
+              cursor: !canSend ? "not-allowed" : "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              if (canSend) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-primary-hover)";
+            }}
+            onMouseLeave={(e) => {
+              if (canSend) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-primary)";
+            }}
           >
             <ArrowUp size={16} />
-          </GlassButton>
+          </button>
         </div>
       </div>
     </div>

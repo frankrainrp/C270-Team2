@@ -1,103 +1,170 @@
 "use client";
 
 // ============================================================
-// components/NotesPanel.tsx — 「笔记」面板（占位）
-// Phase 3 接入：Tauri 桌面壳 + 本地 Obsidian Vault 读写
+// components/NotesPanel.tsx — 「笔记」面板（Phase 3 占位）
+// Stage E：墨绿设计语言重做，保留"Phase 3 解锁"心智
+// 真实笔记功能需要 Tauri 桌面壳读写本地 Obsidian Vault
 // ============================================================
 
 import React from "react";
-import { FileText, FolderOpen, Link2, Sparkles, Monitor } from "lucide-react";
-import DecoLayered from "./ui/DecoLayered";
+import { FileText, FolderOpen, Link2, Sparkles, Monitor, Lock } from "lucide-react";
 
 export default function NotesPanel() {
   return (
-    <div style={{ height: "100vh", overflow: "auto", padding: "32px 32px 40px" }}>
-      <div style={{ maxWidth: 820, margin: "0 auto" }}>
+    <div
+      style={{
+        height: "100%",
+        overflow: "auto",
+        padding: "28px 32px 40px",
+        background: "var(--color-bg)",
+      }}
+    >
+      <div style={{ maxWidth: 880, margin: "0 auto" }}>
         {/* Header */}
-        <header style={{ marginBottom: 28 }}>
-          <h1 style={{
-            fontSize: 28, fontWeight: 700, color: "#111",
-            margin: 0, letterSpacing: "-0.5px",
-          }}>笔记</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
+        <header style={{ marginBottom: 24 }}>
+          <h1
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+              color: "var(--color-text)",
+              margin: 0,
+              letterSpacing: "-0.3px",
+            }}
+          >
+            Notes
+          </h1>
+          <p
+            style={{
+              fontSize: 12,
+              color: "var(--color-text-muted)",
+              margin: "4px 0 0",
+            }}
+          >
             AI 生成、双向链接、与本地 Obsidian Vault 实时同步
           </p>
         </header>
 
-        {/* 大占位 hero (DecoLayered) */}
-        <DecoLayered innerStyle={{ padding: "48px 36px", textAlign: "center" }}>
-          <div style={{
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            gap: 14, marginBottom: 24,
-          }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: 14,
-              background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
-            }}>
-              <Sparkles size={26} color="white" />
+        {/* 大占位 hero */}
+        <div
+          style={{
+            background: "var(--color-bg)",
+            border: "1px dashed var(--color-border)",
+            borderRadius: 12,
+            padding: "48px 36px",
+            textAlign: "center",
+          }}
+        >
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 14,
+              marginBottom: 20,
+            }}
+          >
+            <div
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 12,
+                background: "var(--color-primary)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Sparkles size={22} color="white" />
             </div>
-            <Link2 size={20} color="#9ca3af" />
-            <div style={{
-              width: 56, height: 56, borderRadius: 14,
-              background: "linear-gradient(135deg, #7c3aed, #a855f7)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 4px 14px rgba(124,58,237,0.35)",
-              fontSize: 26, color: "white", fontWeight: 700,
-            }}>
-              <FolderOpen size={26} color="white" />
+            <Link2 size={16} color="var(--color-text-faint)" />
+            <div
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 12,
+                background: "var(--color-primary-soft)",
+                border: "1px solid color-mix(in srgb, var(--color-primary) 24%, transparent)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <FolderOpen size={22} color="var(--color-primary)" />
             </div>
           </div>
 
-          <h2 style={{
-            fontSize: 20, fontWeight: 700, color: "#111",
-            margin: "0 0 10px",
-          }}>笔记功能即将上线</h2>
-          <p style={{
-            fontSize: 14, color: "#6b7280", lineHeight: 1.7,
-            margin: "0 auto", maxWidth: 520,
-          }}>
-            未来在这里，AI 会根据你和它的对话、上传的资料，
+          <h2
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              color: "var(--color-text)",
+              margin: "0 0 10px",
+            }}
+          >
+            笔记功能即将上线
+          </h2>
+          <p
+            style={{
+              fontSize: 13.5,
+              color: "var(--color-text-muted)",
+              lineHeight: 1.7,
+              margin: "0 auto",
+              maxWidth: 520,
+            }}
+          >
+            未来在这里，Butler 会根据你的对话、上传的资料，
             <br />
             自动生成 Obsidian 风格的双向链接笔记，
             <br />
-            <span style={{ fontWeight: 600, color: "#374151" }}>
+            <span style={{ fontWeight: 600, color: "var(--color-text)" }}>
               直接写入你本地的 Obsidian Vault 文件夹
-            </span>。
+            </span>
+            。
           </p>
 
           {/* 路线图标签 */}
-          <div style={{
-            marginTop: 28, display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "8px 14px", borderRadius: 10,
-            background: "rgba(245,158,11,0.1)",
-            border: "1px solid rgba(245,158,11,0.25)",
-            color: "#92400e", fontSize: 12, fontWeight: 600,
-          }}>
-            <Monitor size={14} />
-            Phase 3：需要 Tauri 桌面壳支持本地文件系统访问
+          <div
+            style={{
+              marginTop: 22,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 14px",
+              borderRadius: 8,
+              background: "var(--color-primary-soft)",
+              border: "1px solid color-mix(in srgb, var(--color-primary) 24%, transparent)",
+              color: "var(--color-primary)",
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            <Lock size={13} />
+            Phase 3 解锁 · 需要 Tauri 桌面壳
+            <Monitor size={13} style={{ marginLeft: 4 }} />
           </div>
-        </DecoLayered>
+        </div>
 
         {/* 预览能力列表 */}
-        <div style={{
-          marginTop: 24, display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: 12,
-        }}>
+        <div
+          style={{
+            marginTop: 18,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gap: 12,
+          }}
+        >
           <FeatureCard
-            icon={<FileText size={16} color="#6366f1" />}
+            icon={<FileText size={16} />}
             title="AI 撰写笔记"
-            desc="对 AI 说「整理这门课的核心概念」，生成结构化 .md"
+            desc="对 Butler 说「整理这门课的核心概念」，生成结构化 .md"
           />
           <FeatureCard
-            icon={<Link2 size={16} color="#8b5cf6" />}
+            icon={<Link2 size={16} />}
             title="双向链接"
             desc="自动识别 [[wikilink]] 与 #tag，构建知识图谱"
           />
           <FeatureCard
-            icon={<FolderOpen size={16} color="#10b981" />}
+            icon={<FolderOpen size={16} />}
             title="Vault 实时同步"
             desc="文件写入本地 Vault，Obsidian 立即可见"
           />
@@ -107,20 +174,31 @@ export default function NotesPanel() {
   );
 }
 
-function FeatureCard({ icon, title, desc }: {
-  icon: React.ReactNode; title: string; desc: string;
+function FeatureCard({
+  icon, title, desc,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
 }) {
   return (
-    <div style={{
-      padding: "14px 16px", borderRadius: 12,
-      background: "rgba(255,255,255,0.7)",
-      border: "1px solid rgba(0,0,0,0.06)",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+    <div
+      style={{
+        padding: "14px 16px",
+        borderRadius: 10,
+        background: "var(--color-bg)",
+        border: "1px solid var(--color-border)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, color: "var(--color-primary)" }}>
         {icon}
-        <span style={{ fontSize: 13, fontWeight: 600, color: "#111" }}>{title}</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>
+          {title}
+        </span>
       </div>
-      <p style={{ fontSize: 12, color: "#6b7280", margin: 0, lineHeight: 1.5 }}>{desc}</p>
+      <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: 0, lineHeight: 1.5 }}>
+        {desc}
+      </p>
     </div>
   );
 }

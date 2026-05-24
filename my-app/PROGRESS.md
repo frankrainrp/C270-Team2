@@ -5,6 +5,61 @@
 
 ---
 
+## [025] 2026-05-22 — Stage E：Notes 占位重做 + 全局 legacy 清理（5 阶段 UI 重构收尾）
+
+> UI-REDESIGN-PLAN.md 的最后一个 Stage。NotesPanel 视觉对齐墨绿（保留 Phase 3 解锁心智），同时**彻底清理玻璃态/紫色 legacy**：删除 4 个无引用文件、所有 InputPod / ProcessingPipeline 内的 GlassButton / DecoLayered、globals.css 里全部旧 class。
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/NotesPanel.tsx` | 重写 | 去 `DecoLayered`，纯白底 + 虚线边框 hero；紫色渐变图标 → 墨绿实色 + 墨绿浅底；Phase 3 解锁徽章改墨绿系；FeatureCard 改 token；标题缩到 22px |
+| `apps/web/src/components/InputPod.tsx` | 修改 | 移除 `import GlassButton`；发送按钮改纯墨绿圆形按钮（hover 加深、disabled 灰）|
+| `apps/web/src/components/ProcessingPipeline.tsx` | 重写 | 去 `DecoLayered` + AI Sparkles 头像；Pipeline 卡改白底墨绿描边；StepIcon 紫色 → 墨绿；成功色用 `var(--color-success)`；JumpBtn 改墨绿系 |
+| `apps/web/src/components/Sidebar.tsx` | **删除** | 旧 68px 玻璃侧栏，已被 LeftRail 取代 |
+| `apps/web/src/components/SessionListPanel.tsx` | **删除** | 旧 240px 滑入面板，已被 ChatRail 取代 |
+| `apps/web/src/components/ui/GlassButton.tsx` | **删除** | 玻璃态按钮，最后一个引用（InputPod）已替换 |
+| `apps/web/src/components/ui/DecoLayered.tsx` | **删除** | 三层装饰板，最后一个引用（ProcessingPipeline）已替换 |
+| `apps/web/src/components/ui/` | 删除（空目录） | 整个 ui/ 目录已无文件 |
+| `apps/web/src/app/globals.css` | 大幅精简 | 删除旧 token (`--color-brand` / `--grid-color` / `--radius-lg`)；删除全部旧 components 层 class：`.bg-grid` / `.glass-panel` / `.nav-tooltip` / `.nav-icon-btn` / `.quick-card` / `.send-btn` / `.deco-layered*` / `.glass-btn*` / `.fx-layer` / `.msg-toolbar` / `.ai-message`；只留 `.message-stream`（滚动条）+ `.selectable` |
+
+### 🧹 清理统计
+
+- 删除 4 个 legacy 文件（~600 行）
+- 删除 globals.css 中 ~280 行旧 class 规则
+- 全项目无紫色 / 玻璃 / 网格背景残留
+
+### ✅ Stage A-E 全部完成（PROGRESS [017]-[025]）
+
+| Stage | 状态 | 关键交付 |
+|---|---|---|
+| **A** 全局 layout + token | ✅ | TopBar / LeftRail / 墨绿调色板 |
+| **B** Chat 漫画式 + 核实门控 | ✅ | 管家融入主区 / ButlerBubble / ConfirmCard / PendingBatch |
+| **C.1** Tasks 视觉重做 | ✅ | 墨绿 Linear 风格列表 + TasksRail 计数 |
+| **D** Calendar 月+日双视图 | ✅ | 月视图墨绿 + Day View 时间轴 + Upcoming/Tasks widgets |
+| **E** Notes 占位 + 全局清理 | ✅ | NotesPanel 墨绿化 + 4 legacy 文件删除 + globals.css 精简 |
+| (额外) Mini Apps Drawer | ✅ | 右侧学习工具抽屉 + Focus Timer |
+
+### ✅ 验证
+
+- `tsc --noEmit` 通过（`EXIT=0`）
+- `grep -r "GlassButton\|DecoLayered\|SessionListPanel\|Sidebar"` 在 src/ 下无引用
+- `grep -r "className.*bg-grid\|glass-\|deco-layered"` 在 src/ 下无引用
+- 4 个 Tab + Mini Apps 抽屉 全部对齐墨绿设计语言
+
+### 🚦 至此 UI 重构完成。后续可继续
+
+- **C.2** Tasks 字段扩展（Dexie v3→v4：status/tags/priority）+ TaskEditModal 改右侧抽屉
+- **Phase 3** Tauri 桌面壳启动 → Notes 真实化 + 原生通知 + filepath 一键打开
+- **Phase 4** Clerk + Neon 多租户 → ICS 订阅 URL + 真实云后端
+- 更多 Mini Apps（番茄记录 / 单词卡 / 公式速查...）
+
+### 💾 备份
+
+- commit `fb9c4f9` + tag `backup-024-mini-apps`（本次清理之前）
+
+---
+
 ## [024] 2026-05-22 — 学习工具抽屉（Mini Apps Drawer）+ Focus Timer
 
 > 用户决策：Focus Timer 不要放 Calendar Day View，而是做一个**全局右侧滑入抽屉**，作为「学习辅助小程序仓库」。后续可扩展更多小工具（番茄记录 / 单词卡 / 公式速查等）。
