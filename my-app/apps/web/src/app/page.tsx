@@ -248,12 +248,32 @@ export default function HomePage() {
     };
 
     try {
-      // ---- Step 1: OCR + 双重粗筛（关键词 → 语义） ----
+      // ---- Step 1: 解析 / OCR + 双重粗筛（关键词 → 语义） ----
       setStep(0, "running");
       if (!uploaded.file) throw new Error("文件对象丢失");
+
+      // 大文件 warning（10 MB+）
+      if (uploaded.file.size > 10 * 1024 * 1024) {
+        setStep(0, "running", `${(uploaded.file.size / 1024 / 1024).toFixed(1)} MB 大文件，请稍候…`);
+      }
+
       const { parseDocument, filterDdlRelevant } = await import("@/lib/document-parser");
       const parsed = await parseDocument(uploaded.file);
-      if (parsed.ok !== true) { setStep(0, "failed", parsed.error); finishPipeline("failed"); return; }
+      if (parsed.ok !== true) {
+        // 无 OCR key 的友好提示
+        const hint = parsed.needsConfig
+          ? "\n\n💡 提示：图片/扫描件需要配置 MISTRAL_API_KEY。请到 console.mistral.ai 申请后填到 apps/web/.env.local 重启。"
+          : "";
+        setStep(0, "failed", parsed.error + hint);
+        finishPipeline("failed");
+        return;
+      }
+
+      const sourceLabel = parsed.source === "unpdf"
+        ? "本地解析 (unpdf)"
+        : parsed.source.startsWith("ocr-")
+        ? `OCR (${parsed.source.replace("ocr-", "")})`
+        : parsed.source;
 
       // 1a. 关键词快速预筛（同步，免费）
       const keywordFiltered = filterDdlRelevant(parsed.text);
@@ -262,7 +282,7 @@ export default function HomePage() {
       let finalMd = keywordFiltered;
       let semDetail = "（仅关键词筛）";
       try {
-        setStep(0, "running", `${parsed.pages} 页 → ${parsed.text.length} 字 → 关键词 ${keywordFiltered.length} 字，正在语义粗筛…`);
+        setStep(0, "running", `${sourceLabel} · ${parsed.pages} 页 → ${parsed.text.length} 字 → 关键词 ${keywordFiltered.length} 字，正在语义粗筛…`);
         const { filterBySemantic } = await import("@/lib/semantic-filter");
         // 实测数据：相关段相似度 0.55+，弱相关 0.15-0.30，垃圾 <0.15
         // 阈值 0.35 + topK 20 既能砍掉模板段又保住所有真 DDL
@@ -276,7 +296,7 @@ export default function HomePage() {
         // 模型下载失败 / 浏览器不支持 → 降级
         console.warn("semantic filter unavailable, fallback to keyword only:", e);
       }
-      setStep(0, "success", `${parsed.pages} 页 → ${parsed.text.length} 字 → 关键词 ${keywordFiltered.length} 字 ${semDetail}`);
+      setStep(0, "success", `${sourceLabel} · ${parsed.pages} 页 → ${parsed.text.length} 字 → 关键词 ${keywordFiltered.length} 字 ${semDetail}`);
 
       // ---- Step 2: V4 Flash 提取 DDL ----
       setStep(1, "running");

@@ -94,25 +94,38 @@ export async function POST(req: Request) {
   const requestedModel: AiModelId =
     body.model && isValidModelId(body.model) ? body.model : DEFAULT_MODEL_ID;
   const modelMeta = getModelMeta(requestedModel);
-  // reasoner 类模型不支持 tool calling，自动跳过
   const useTools = body.includeTools !== false && modelMeta.supportsTools;
 
+  // 思考模式（V4 Pro thinking）：加 reasoning_effort + thinking 字段
+  // DeepSeek docs: https://api-docs.deepseek.com/guides/thinking_mode
+  // 注：reasoning_effort: "max" 与 thinking 字段非 OpenAI SDK 标准类型，但 DeepSeek 后端识别 → cast 透传
+  const thinkingExtras: Record<string, unknown> = modelMeta.thinking
+    ? {
+        reasoning_effort: modelMeta.thinking.reasoningEffort,
+        thinking: { type: "enabled" },
+      }
+    : {};
+
   try {
-    const stream = await openai.chat.completions.create({
-      model: requestedModel,
+    const createParams = {
+      model: modelMeta.apiModel,
       messages: messages as Parameters<typeof openai.chat.completions.create>[0]["messages"],
       tools: useTools ? TOOLS : undefined,
       tool_choice: useTools ? "auto" : undefined,
       stream: true,
       temperature: 0.4,
       max_tokens: 2048,
-    });
+      ...thinkingExtras,
+    };
+    const stream = await openai.chat.completions.create(
+      createParams as Parameters<typeof openai.chat.completions.create>[0],
+    );
 
     const encoder = new TextEncoder();
     const sseStream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of stream) {
+          for await (const chunk of stream as AsyncIterable<unknown>) {
             const data = JSON.stringify(chunk);
             controller.enqueue(encoder.encode(`data: ${data}\n\n`));
           }

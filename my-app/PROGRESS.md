@@ -5,6 +5,61 @@
 
 ---
 
+## [028] 2026-05-24 — 多模态 OCR：图片 + 扫描件 PDF 全链路（Mistral）
+
+> 用户决策：(a) 接 Mistral OCR（用户原话）；(b) 关心成本+希望未来可切换 → 做 provider 注册表；(c) PDF 路由用 unpdf < 50 字 → 扫描件 → OCR；(d) 图片 10MB warning / 50MB 硬拒。
+
+### 📂 涉及文件
+
+| 文件路径 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/lib/ocr/providers.ts` | 新建 | OCR provider 注册表：mistral（已实现）/ deepseek-vl（占位）/ tesseract（占位）；各自含价格、需要的 env、tier、desc |
+| `apps/web/src/lib/ocr/index.ts` | 新建 | 客户端入口 `runOcr(file)`：调 `/api/ocr`；50MB 客户端硬拒；返回 `OcrResponse` discriminated union（ok=true/false + needsConfig 标志） |
+| `apps/web/src/app/api/ocr/route.ts` | 新建 | 服务端路由（runtime nodejs）：读 `OCR_PROVIDER` env 白名单 → 校验 key → FormData(file) → base64 → 调 Mistral `/v1/ocr`（model `mistral-ocr-latest`）→ 拼接多页 markdown → 返回 `{ ok, text, pages, provider, ocrUsed }`；无 key 时返回 `needsConfig: true` 让前端友好提示 |
+| `apps/web/src/lib/document-parser.ts` | 重写 | 加路由：文字 PDF → unpdf；**扫描 PDF（unpdf 输出 < 50 字）→ OCR**；image/\* → OCR；其他报错。新增 `ParseSource = "unpdf" \| "ocr-mistral" \| ...`；新增 `needsConfig?: boolean` 透传 |
+| `apps/web/src/app/page.tsx` | 修改 | `runRealPipeline` step 1：> 10MB 加 warning；`parsed.source` 反映来源（"本地解析 (unpdf)" / "OCR (mistral)"）展示在 Pipeline detail；失败 + needsConfig → 提示用户配 MISTRAL_API_KEY |
+| `apps/web/.env.local.example` | 修改 | 加 `MISTRAL_API_KEY` + `MISTRAL_BASE_URL` + `OCR_PROVIDER`；DEEPSEEK_MODEL 默认值同步为 `deepseek-v4-flash` |
+
+### 🎯 路由策略表
+
+| 上传文件类型 | 路由 | 成本 |
+|---|---|---|
+| 文字型 PDF | unpdf 本地 | **¥0**（免费快）|
+| 扫描件 PDF（unpdf < 50 字） | Mistral OCR | ~$0.001/页 |
+| jpg/png/webp/heic 等图片 | Mistral OCR | ~$0.001/张 |
+| docx/ppt | 报错（待后续接入） | — |
+
+### 🔧 OCR Provider 注册表
+
+| Provider | 状态 | 价格 | 需要的 env |
+|---|---|---|---|
+| **Mistral OCR**（默认） | ✅ 已接入 | $0.001/页 (1000 页 $1) | `MISTRAL_API_KEY` |
+| DeepSeek-VL | ⏳ 占位 | 复用现有 DEEPSEEK_API_KEY，按 token 算 | `DEEPSEEK_API_KEY` |
+| Tesseract.js | ⏳ 占位 | 0 成本（10MB 模型一次下载） | — |
+
+切换：环境变量 `OCR_PROVIDER=mistral`。后两个等用户需要时再实现（架构已留位）。
+
+### ✅ 验证
+
+- `tsc --noEmit` 通过（`EXIT=0`）
+- TypeScript narrowing：discriminated union 用 `ok !== true` 显式比较（`!ocr.ok` 在某些 TS 版本下 awaited 后不 narrow，已踩坑修复）
+- 50MB 硬拒在客户端 + 服务端双层校验
+- 无 MISTRAL_API_KEY 时报错带 `needsConfig: true`，UI 提示用户去 console.mistral.ai 申请
+
+### 🚦 后续可继续
+
+- 测试真实扫描件 PDF + 手机拍照课件验证 OCR 质量
+- 实现 DeepSeek-VL provider（复用 DEEPSEEK_API_KEY，无需新申请）
+- 实现 Tesseract.js provider（0 key 完全本地）
+- InputPod 加 OCR provider 切换 UI（类似模型切换）
+- docx/ppt 解析（mammoth / pptxgen）
+
+### 💾 备份
+
+- commit `10902c1` + tag `backup-027-context-partition`（本次前）
+
+---
+
 ## [027] 2026-05-24 — 上下文分区 + PNG trim 透明边 + Live2D 动画计划
 
 > 用户三件事一起做：(1) 用 2026 业界成熟方案（[Anthropic 官方 best practice](https://code.claude.com/docs/en/best-practices) + Memory Bank 风格）把描述文档分区，避免后续 AI 接手 context 爆炸；(2) PNG trim 让管家变大；(3) 计划用 Live2D / Rive 给人物加动画（**P1 Rive 已选定**，等用户准备分层资产）。
