@@ -1,17 +1,16 @@
 "use client";
 
 // ============================================================
-// components/ChatCanvas.tsx — 漫画式对话主区
+// components/ChatCanvas.tsx — 漫画式对话主区（融入式）
 //
-// 上半：历史区（可上下滚动回看所有 user / assistant / pipeline / confirm 消息）
-// 下半：舞台区
-//   - 左下：固定大管家 (320px)，pose 切换
-//   - 右上：漫画对话气泡（带尾巴指向管家），显示最新 AI 发言（含流式）
-//   - 右下：InputPod（嵌入式）
+// 设计：管家不再有独立栏，绝对定位浮在主区左下；
+//      AI 消息全部用漫画对话框（无头像，墨绿描边白底，尾巴指向左下管家）；
+//      用户消息保持简单墨绿淡底气泡；
+//      历史区 + 输入区都左 padding 让出管家空间。
 // ============================================================
 
 import React, { useRef, useEffect, useMemo, useState } from "react";
-import { FileUp, CalendarPlus, ListChecks, Sparkles, FileText, Image as ImageIcon, File as FileIcon } from "lucide-react";
+import { FileUp, CalendarPlus, ListChecks, FileText, Image as ImageIcon, File as FileIcon } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatMessage, ProcessingPipeline as Pipeline, UploadedFile } from "@/lib/types";
@@ -29,6 +28,9 @@ const QUICK_CARDS = [
   { id: "card-task",     icon: <ListChecks size={18} color="var(--color-primary)" />,   title: "拆解任务",  prompt: "帮我把「写完毕业论文」拆解成本周可执行的任务" },
 ];
 
+// 管家占用的主区左侧宽度，所有右侧内容（历史 / 输入）都要左 padding 让出空间
+const BUTLER_GUTTER = 260;
+
 interface ChatCanvasProps {
   messages: ChatMessage[];
   pipelines: Record<string, Pipeline>;
@@ -41,7 +43,6 @@ interface ChatCanvasProps {
   isLoading?: boolean;
   onJumpToTasks: () => void;
   onJumpToCalendar: () => void;
-  // InputPod 相关（ChatCanvas 内部 render 它）
   inputValue: string;
   onInputChange: (val: string) => void;
   onSend: () => void;
@@ -51,65 +52,50 @@ interface ChatCanvasProps {
 }
 
 // ============================================================
-// 历史区子组件：紧凑卡片样式（user / assistant / pipeline / confirm）
+// 用户消息：简单墨绿淡底气泡（右对齐）
 // ============================================================
-
-function HistoryUserCard({ msg }: { msg: ChatMessage }) {
+function UserBubble({ msg }: { msg: ChatMessage }) {
   const hasFiles = msg.files && msg.files.length > 0;
   return (
-    <div style={{
-      display: "flex", justifyContent: "flex-end",
-      gap: 8,
-    }}>
-      <div style={{
-        maxWidth: "80%",
-        background: "var(--color-primary-soft)",
-        border: "1px solid color-mix(in srgb, var(--color-primary) 12%, transparent)",
-        borderRadius: 12,
-        padding: "8px 12px",
-        userSelect: "text",
-        WebkitUserSelect: "text",
-      }}>
+    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <div
+        style={{
+          maxWidth: "80%",
+          background: "var(--color-primary-soft)",
+          border: "1px solid color-mix(in srgb, var(--color-primary) 18%, transparent)",
+          borderRadius: 14,
+          padding: "10px 14px",
+          userSelect: "text",
+          WebkitUserSelect: "text",
+        }}
+      >
         {hasFiles && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: msg.content ? 6 : 0 }}>
-            {msg.files!.map((f) => <UserFileChip key={f.id} file={f} />)}
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 6,
+              marginBottom: msg.content ? 6 : 0,
+            }}
+          >
+            {msg.files!.map((f) => (
+              <UserFileChip key={f.id} file={f} />
+            ))}
           </div>
         )}
         {msg.content && (
-          <p style={{ fontSize: 13.5, color: "var(--color-text)", lineHeight: 1.55, margin: 0, whiteSpace: "pre-wrap" }}>
+          <p
+            style={{
+              fontSize: 14,
+              color: "var(--color-text)",
+              lineHeight: 1.55,
+              margin: 0,
+              whiteSpace: "pre-wrap",
+            }}
+          >
             {msg.content}
           </p>
         )}
-      </div>
-    </div>
-  );
-}
-
-function HistoryAssistantCard({ msg }: { msg: ChatMessage }) {
-  if (!msg.content) return null;
-  return (
-    <div style={{ display: "flex", justifyContent: "flex-start" }}>
-      <div style={{
-        maxWidth: "85%",
-        background: "var(--color-surface)",
-        border: "1px solid var(--color-border)",
-        borderRadius: 12,
-        padding: "8px 12px",
-        userSelect: "text",
-        WebkitUserSelect: "text",
-        display: "flex", alignItems: "flex-start", gap: 8,
-      }}>
-        <span style={{
-          width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-          background: "var(--color-primary)",
-          display: "inline-flex", alignItems: "center", justifyContent: "center",
-          marginTop: 1,
-        }}>
-          <Sparkles size={10} color="white" />
-        </span>
-        <div className="ai-md" style={{ flex: 1, fontSize: 13.5, color: "var(--color-text)", lineHeight: 1.6 }}>
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-        </div>
       </div>
     </div>
   );
@@ -120,16 +106,29 @@ function UserFileChip({ file }: { file: UploadedFile }) {
   const isPdf = file.mime === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
   const Icon = isImage ? ImageIcon : isPdf ? FileText : FileIcon;
   return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 6,
-      padding: "4px 8px", borderRadius: 6,
-      background: "var(--color-bg)",
-      border: "1px solid var(--color-border)",
-      fontSize: 11, color: "var(--color-text)",
-      maxWidth: 220,
-    }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "4px 8px",
+        borderRadius: 6,
+        background: "var(--color-bg)",
+        border: "1px solid var(--color-border)",
+        fontSize: 11,
+        color: "var(--color-text)",
+        maxWidth: 220,
+      }}
+    >
       <Icon size={12} color="var(--color-primary)" style={{ flexShrink: 0 }} />
-      <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: 500 }}>
+      <span
+        style={{
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          fontWeight: 500,
+        }}
+      >
         {file.name}
       </span>
     </div>
@@ -137,33 +136,25 @@ function UserFileChip({ file }: { file: UploadedFile }) {
 }
 
 // ============================================================
-// 漫画对话气泡（带尾巴指向左下角的管家）
+// 管家漫画对话框（无头像，墨绿粗边白底，尾巴指向左下管家）
 // ============================================================
-interface BubbleProps {
-  content: string;
-  isTyping?: boolean;
-  empty?: boolean;
-}
-function SpeechBubble({ content, isTyping, empty }: BubbleProps) {
+function ButlerBubble({ content, isTyping }: { content: string; isTyping?: boolean }) {
   return (
-    <div
-      style={{
-        position: "relative",
-        background: "var(--color-bg)",
-        border: "2px solid var(--color-primary)",
-        borderRadius: 18,
-        padding: "14px 18px",
-        minHeight: 64,
-        maxWidth: 560,
-        boxShadow: "0 4px 14px rgba(27,61,47,0.10)",
-        animation: "bubble-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)",
-      }}
-    >
-      {empty ? (
-        <p style={{ fontSize: 14, color: "var(--color-text-muted)", margin: 0, lineHeight: 1.55 }}>
-          有什么我可以帮你的？告诉我你的安排，或拖一份课件给我整理。
-        </p>
-      ) : (
+    <div style={{ display: "flex", justifyContent: "flex-start" }}>
+      <div
+        style={{
+          position: "relative",
+          maxWidth: "90%",
+          background: "var(--color-bg)",
+          border: "2px solid var(--color-primary)",
+          borderRadius: 18,
+          padding: "12px 16px",
+          boxShadow: "0 2px 10px rgba(27,61,47,0.08)",
+          animation: "bubble-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
+          userSelect: "text",
+          WebkitUserSelect: "text",
+        }}
+      >
         <div
           className="ai-md"
           style={{ fontSize: 14, color: "var(--color-text)", lineHeight: 1.65 }}
@@ -173,7 +164,8 @@ function SpeechBubble({ content, isTyping, empty }: BubbleProps) {
             <span
               style={{
                 display: "inline-block",
-                width: 6, height: 14,
+                width: 6,
+                height: 14,
                 background: "var(--color-primary)",
                 marginLeft: 2,
                 verticalAlign: "middle",
@@ -182,37 +174,8 @@ function SpeechBubble({ content, isTyping, empty }: BubbleProps) {
             />
           )}
         </div>
-      )}
 
-      {/* 漫画气泡的尾巴（左侧指向管家） */}
-      {/* 外层墨绿描边三角 */}
-      <span
-        aria-hidden
-        style={{
-          position: "absolute",
-          left: -16,
-          top: 26,
-          width: 0,
-          height: 0,
-          borderTop: "12px solid transparent",
-          borderBottom: "12px solid transparent",
-          borderRight: "16px solid var(--color-primary)",
-        }}
-      />
-      {/* 内层白底三角（盖在描边内侧形成"指向"形状） */}
-      <span
-        aria-hidden
-        style={{
-          position: "absolute",
-          left: -12,
-          top: 28,
-          width: 0,
-          height: 0,
-          borderTop: "10px solid transparent",
-          borderBottom: "10px solid transparent",
-          borderRight: "14px solid var(--color-bg)",
-        }}
-      />
+      </div>
     </div>
   );
 }
@@ -222,23 +185,34 @@ function SpeechBubble({ content, isTyping, empty }: BubbleProps) {
 // ============================================================
 export default function ChatCanvas(props: ChatCanvasProps) {
   const {
-    messages, pipelines, pendingBatches, butlerPose,
-    onAcceptBatch, onRejectBatch, onDropChange,
-    onQuickAction, isLoading = false,
-    onJumpToTasks, onJumpToCalendar,
-    inputValue, onInputChange, onSend, attachedFiles, onAttach, onRemoveAttachment,
+    messages,
+    pipelines,
+    pendingBatches,
+    butlerPose,
+    onAcceptBatch,
+    onRejectBatch,
+    onDropChange,
+    onQuickAction,
+    isLoading = false,
+    onJumpToTasks,
+    onJumpToCalendar,
+    inputValue,
+    onInputChange,
+    onSend,
+    attachedFiles,
+    onAttach,
+    onRemoveAttachment,
   } = props;
   const historyRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
 
-  // 自动滚到底 — 用户向上滚动时禁用
+  // 自动滚到底 — 用户向上滚后禁用
   useEffect(() => {
     if (!autoScroll) return;
     const el = historyRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, isLoading, pipelines, pendingBatches, autoScroll]);
 
-  // 检测用户是否向上滚动了
   const onScroll = () => {
     const el = historyRef.current;
     if (!el) return;
@@ -246,10 +220,10 @@ export default function ChatCanvas(props: ChatCanvasProps) {
     setAutoScroll(atBottom);
   };
 
-  // 气泡内容：最新一条 assistant 消息
-  const latestAssistant = useMemo(() => {
+  // 最新一条 assistant id（用于在最新气泡末尾显示 typing cursor）
+  const lastAssistantId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === "assistant") return messages[i];
+      if (messages[i].role === "assistant") return messages[i].id;
     }
     return null;
   }, [messages]);
@@ -262,36 +236,27 @@ export default function ChatCanvas(props: ChatCanvasProps) {
         flex: 1,
         height: "100%",
         display: "flex",
-        flexDirection: "row",
+        flexDirection: "column",
         overflow: "hidden",
         background: "var(--color-bg)",
         position: "relative",
       }}
     >
-      {/* ── 左：管家栏（全高，pose 切换） ── */}
+      {/* 浮动管家 — 绝对定位贴主区左下角，占满高度，pointer-events 穿透 */}
       <div
         style={{
-          width: 320,
-          flexShrink: 0,
-          position: "relative",
-          background:
-            "linear-gradient(to bottom, var(--color-bg) 0%, color-mix(in srgb, var(--color-primary-soft) 35%, var(--color-bg)) 100%)",
-          borderRight: "1px solid var(--color-border-soft)",
+          position: "absolute",
+          left: 0,
+          bottom: 0,
+          width: BUTLER_GUTTER,
+          height: "100%",
+          pointerEvents: "none",
+          zIndex: 1,
         }}
       >
         <ButlerCharacter pose={butlerPose} fillContainer />
       </div>
 
-      {/* ── 右：内容栏（历史 + 气泡 + 输入） ── */}
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          minWidth: 0,
-        }}
-      >
       {/* 历史区 */}
       <div
         ref={historyRef}
@@ -300,62 +265,36 @@ export default function ChatCanvas(props: ChatCanvasProps) {
         style={{
           flex: 1,
           overflowY: "auto",
-          padding: "20px 24px 12px",
+          padding: `24px 32px 14px ${BUTLER_GUTTER + 12}px`,
           minHeight: 0,
+          position: "relative",
+          zIndex: 2,
         }}
       >
         {isEmpty ? (
-          /* 欢迎首屏：3 张快捷卡片 */
+          /* 欢迎屏：管家直接"说话" + 3 张快捷卡片 */
           <div
             style={{
               height: "100%",
               display: "flex",
               flexDirection: "column",
-              alignItems: "center",
+              alignItems: "flex-start",
               justifyContent: "center",
-              gap: 16,
+              gap: 18,
             }}
           >
-            <h1
-              style={{
-                fontSize: 22,
-                fontWeight: 600,
-                color: "var(--color-text)",
-                margin: 0,
-              }}
-            >
-              你好，Feng。
-            </h1>
-            <p style={{ fontSize: 13, color: "var(--color-text-muted)", margin: "-4px 0 12px" }}>
-              点一张快捷卡片开始，或直接和 Butler 说话。
-            </p>
-            <div
-              style={{
-                display: "flex",
-                gap: 12,
-                flexWrap: "wrap",
-                justifyContent: "center",
-                maxWidth: 600,
-              }}
-            >
+            <ButlerBubble content={"你好，Feng。\n\n告诉我你的安排，或者拖一份课件给我整理。"} />
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               {QUICK_CARDS.map((card) => (
                 <QuickCard key={card.id} card={card} onClick={() => onQuickAction(card.prompt)} />
               ))}
             </div>
           </div>
         ) : (
-          /* 历史消息列表 */
-          <div
-            style={{
-              maxWidth: 760,
-              margin: "0 auto",
-              display: "flex",
-              flexDirection: "column",
-              gap: 12,
-            }}
-          >
+          /* 历史消息流 */
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {messages.map((msg) => {
-              if (msg.role === "user") return <HistoryUserCard key={msg.id} msg={msg} />;
+              if (msg.role === "user") return <UserBubble key={msg.id} msg={msg} />;
               if (msg.role === "pipeline" && msg.pipelineId) {
                 const pipeline = pipelines[msg.pipelineId];
                 if (!pipeline) return null;
@@ -381,29 +320,27 @@ export default function ChatCanvas(props: ChatCanvasProps) {
                   />
                 );
               }
-              return <HistoryAssistantCard key={msg.id} msg={msg} />;
+              // assistant
+              const isTyping = isLoading && msg.id === lastAssistantId;
+              return <ButlerBubble key={msg.id} content={msg.content} isTyping={isTyping} />;
             })}
+            {/* 流式中：assistant 消息尚未建出（首个 delta 之前）→ 占位 typing 气泡 */}
+            {isLoading && lastAssistantId === null && (
+              <ButlerBubble content="" isTyping />
+            )}
           </div>
         )}
-
       </div>
 
-      {/* 气泡（紧贴底部输入区上方，尾巴指向左侧管家） */}
-      <div style={{ padding: "0 24px", marginBottom: 14 }}>
-        <SpeechBubble
-          content={latestAssistant?.content || ""}
-          isTyping={isLoading}
-          empty={!latestAssistant}
-        />
-      </div>
-
-      {/* 输入区 */}
+      {/* 输入区 — 透明背景 + 无边框，让管家完整露出 */}
       <div
         style={{
-          padding: "0 24px 14px",
+          padding: `12px 32px 14px ${BUTLER_GUTTER + 12}px`,
           display: "flex",
           flexDirection: "column",
           gap: 6,
+          position: "relative",
+          zIndex: 2,
         }}
       >
         <InputPod
@@ -415,16 +352,21 @@ export default function ChatCanvas(props: ChatCanvasProps) {
           onAttach={onAttach}
           onRemoveAttachment={onRemoveAttachment}
         />
-        <p style={{ textAlign: "center", fontSize: 11, color: "var(--color-text-faint)", margin: 0 }}>
+        <p
+          style={{
+            textAlign: "center",
+            fontSize: 11,
+            color: "var(--color-text-faint)",
+            margin: 0,
+          }}
+        >
           Butler 可能犯错，重要信息请自行核实。
         </p>
       </div>
 
-      </div>{/* /右内容栏 */}
-
       <style>{`
         @keyframes bubble-pop {
-          from { transform: scale(0.92); opacity: 0; }
+          from { transform: scale(0.95); opacity: 0; }
           to { transform: scale(1); opacity: 1; }
         }
         @keyframes cursor-blink {
