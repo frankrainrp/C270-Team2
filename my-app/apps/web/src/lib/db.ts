@@ -48,6 +48,19 @@ export class ButlerDB extends Dexie {
         if (!m.sessionId) m.sessionId = defaultId;
       });
     });
+    // v4: ddls 加 status 索引；旧数据 completed=true → status="done"，否则 "todo"
+    this.version(4).stores({
+      ddls: "&id, dueDate, completed, status, source",
+      messages: "&id, sessionId, timestamp, role",
+      blobs: "&id, createdAt",
+      sessions: "&id, updatedAt",
+    }).upgrade(async (tx) => {
+      await tx.table("ddls").toCollection().modify((d: DdlItem) => {
+        if (!d.status) {
+          d.status = d.completed ? "done" : "todo";
+        }
+      });
+    });
   }
 }
 

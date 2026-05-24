@@ -5,8 +5,9 @@
 // ============================================================
 
 import React, { useRef, useEffect, useState } from "react";
-import { Paperclip, ArrowUp, ChevronDown, FileText, Image as ImageIcon, X, File as FileIcon } from "lucide-react";
+import { Paperclip, ArrowUp, ChevronDown, FileText, Image as ImageIcon, X, File as FileIcon, Zap, Sparkles, Brain } from "lucide-react";
 import type { UploadedFile } from "@/lib/types";
+import { AI_MODELS, type AiModelId, getModelMeta } from "@/lib/ai-models";
 
 interface InputPodProps {
   value: string;
@@ -16,6 +17,9 @@ interface InputPodProps {
   attachedFiles: UploadedFile[];
   onAttach: (files: FileList) => void;
   onRemoveAttachment: (id: string) => void;
+  /** 当前选中的模型 id */
+  selectedModel?: AiModelId;
+  onSelectModel?: (id: AiModelId) => void;
 }
 
 const ACCEPTED_TYPES = ".pdf,.docx,.doc,.txt,.md,image/*";
@@ -23,11 +27,15 @@ const ACCEPTED_TYPES = ".pdf,.docx,.doc,.txt,.md,image/*";
 export default function InputPod({
   value, onChange, onSend, isLoading = false,
   attachedFiles, onAttach, onRemoveAttachment,
+  selectedModel = "deepseek-v4-flash",
+  onSelectModel,
 }: InputPodProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const modelMeta = getModelMeta(selectedModel);
 
   useEffect(() => {
     const ta = textareaRef.current;
@@ -156,22 +164,124 @@ export default function InputPod({
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "4px 12px 10px",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {/* 模型 Badge */}
-            <button id="model-selector-btn" style={{
-              display: "flex", alignItems: "center", gap: 6,
-              background: "rgba(0,0,0,0.05)", border: "none",
-              padding: "5px 10px", borderRadius: 8, cursor: "pointer",
-              fontSize: 12, color: "#374151", fontFamily: "inherit",
-              transition: "background 0.15s",
-            }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,0,0,0.09)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,0,0,0.05)"; }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", flexShrink: 0 }} />
-              <span style={{ fontWeight: 500 }}>DeepSeek-V4 Flash</span>
-              <span style={{ color: "#9ca3af", fontSize: 11 }}>(Smart Router)</span>
-              <ChevronDown size={12} color="#9ca3af" />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, position: "relative" }}>
+            {/* 模型选择器 */}
+            <button
+              id="model-selector-btn"
+              onClick={() => setModelMenuOpen((v) => !v)}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                background: modelMenuOpen ? "var(--color-primary-soft)" : "var(--color-surface)",
+                border: `1px solid ${modelMenuOpen ? "var(--color-primary)" : "var(--color-border)"}`,
+                padding: "5px 10px", borderRadius: 8, cursor: "pointer",
+                fontSize: 12, color: "var(--color-text)", fontFamily: "inherit",
+                transition: "all 0.15s",
+              }}
+            >
+              <ModelDot tier={modelMeta.tier} />
+              <span style={{ fontWeight: 500 }}>{modelMeta.label}</span>
+              <ChevronDown size={12} color="var(--color-text-muted)" style={{
+                transform: modelMenuOpen ? "rotate(180deg)" : "rotate(0)",
+                transition: "transform 0.15s",
+              }} />
             </button>
+
+            {modelMenuOpen && (
+              <>
+                <div
+                  style={{ position: "fixed", inset: 0, zIndex: 40 }}
+                  onClick={() => setModelMenuOpen(false)}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: "calc(100% + 6px)",
+                    left: 0,
+                    width: 280,
+                    background: "var(--color-bg)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 10,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
+                    overflow: "hidden",
+                    zIndex: 50,
+                  }}
+                >
+                  {AI_MODELS.map((m) => {
+                    const isActive = m.id === selectedModel;
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => {
+                          onSelectModel?.(m.id);
+                          setModelMenuOpen(false);
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: 10,
+                          width: "100%",
+                          padding: "10px 12px",
+                          border: "none",
+                          background: isActive ? "var(--color-primary-soft)" : "transparent",
+                          cursor: "pointer",
+                          textAlign: "left",
+                          fontFamily: "inherit",
+                          borderBottom: "1px solid var(--color-border-soft)",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-surface)";
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                        }}
+                      >
+                        <ModelIcon tier={m.tier} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>
+                              {m.label}
+                            </span>
+                            <span style={{ fontSize: 10, color: "var(--color-text-faint)" }}>
+                              {m.tagline}
+                            </span>
+                          </div>
+                          <p style={{
+                            fontSize: 11,
+                            color: "var(--color-text-muted)",
+                            margin: "3px 0 0",
+                            lineHeight: 1.5,
+                          }}>
+                            {m.desc}
+                          </p>
+                          {!m.supportsTools && (
+                            <p style={{
+                              fontSize: 10,
+                              color: "var(--color-warning)",
+                              margin: "4px 0 0",
+                              fontWeight: 500,
+                            }}>
+                              ⚠ 不支持工具调用（无法自动建任务）
+                            </p>
+                          )}
+                        </div>
+                        {isActive && (
+                          <span style={{
+                            fontSize: 10,
+                            color: "var(--color-primary)",
+                            fontWeight: 600,
+                            background: "var(--color-bg)",
+                            padding: "2px 6px",
+                            borderRadius: 4,
+                          }}>
+                            当前
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
 
             {/* 附件 */}
             <button
@@ -284,4 +394,43 @@ function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+// 模型 tier 视觉
+function ModelDot({ tier }: { tier: "low" | "mid" | "high" }) {
+  const color = tier === "low" ? "#22c55e" : tier === "mid" ? "#f59e0b" : "#ef4444";
+  return (
+    <span
+      style={{
+        width: 6,
+        height: 6,
+        borderRadius: "50%",
+        background: color,
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+
+function ModelIcon({ tier }: { tier: "low" | "mid" | "high" }) {
+  const color = "var(--color-primary)";
+  const Icon = tier === "low" ? Zap : tier === "mid" ? Sparkles : Brain;
+  return (
+    <span
+      style={{
+        width: 28,
+        height: 28,
+        borderRadius: 6,
+        background: "var(--color-primary-soft)",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color,
+        flexShrink: 0,
+        marginTop: 1,
+      }}
+    >
+      <Icon size={14} />
+    </span>
+  );
 }

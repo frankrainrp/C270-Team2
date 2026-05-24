@@ -40,6 +40,8 @@ export interface StreamOptions {
   contextSummary?: string;
   userName?: string;
   includeTools?: boolean;
+  /** AI 模型 id（来自 lib/ai-models AiModelId）；不传则用服务端默认 */
+  model?: string;
   executeToolCall: (call: ApiToolCall) => Promise<ToolResult>;
   callbacks: StreamCallbacks;
   signal?: AbortSignal;
@@ -77,6 +79,7 @@ export async function streamChat(opts: StreamOptions): Promise<void> {
       contextSummary: opts.contextSummary,
       userName: opts.userName,
       includeTools: opts.includeTools,
+      model: opts.model,
       callbacks: opts.callbacks,
       signal: opts.signal,
     });
@@ -118,6 +121,7 @@ async function streamOneRound(opts: {
   contextSummary?: string;
   userName?: string;
   includeTools?: boolean;
+  model?: string;
   callbacks: StreamCallbacks;
   signal?: AbortSignal;
 }): Promise<{ assistantMsg: ApiMessage; hadToolCalls: boolean }> {
@@ -131,6 +135,7 @@ async function streamOneRound(opts: {
         contextSummary: opts.contextSummary,
         userName: opts.userName,
         includeTools: opts.includeTools !== false,
+        model: opts.model,
       }),
       signal: opts.signal,
     });

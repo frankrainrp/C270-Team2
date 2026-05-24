@@ -1,4 +1,11 @@
-# 🎨 Butler UI 重构计划
+# 🎨 Butler UI 重构计划（已存档）
+
+> ✅ **本计划 5 个 Stage 已全部完成**（PROGRESS [017]-[025]）。
+> 留作历史参考，理解为什么当前 UI 是这套设计语言。
+>
+> 📦 从原 `my-app/UI-REDESIGN-PLAN.md` 迁移到此（PROGRESS [027]）。
+
+---
 
 > **参考设计稿**：`Doc/chat.png` · `Doc/task.png` · `Doc/calender.png` · `Doc/notes.png`
 > **目标**：从「玻璃态 + 紫色 + 网格底纹」切到「Linear/Notion 风格的极简墨绿色工具型 SaaS」

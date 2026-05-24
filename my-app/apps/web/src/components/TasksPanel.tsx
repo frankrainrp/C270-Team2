@@ -11,7 +11,8 @@ import {
   CalendarPlus, Download, Upload, Link2, FolderOpen,
   Image as ImageIcon, File as FileIcon, Paperclip,
 } from "lucide-react";
-import type { DdlItem, DdlAttachment } from "@/lib/types";
+import type { DdlItem, DdlAttachment, TaskPriority, TaskStatus } from "@/lib/types";
+import type { TaskViewId } from "./layout/TasksRail";
 
 interface Props {
   ddls: DdlItem[];
@@ -23,7 +24,45 @@ interface Props {
   onExportIcs: () => void;
   onExportJson: () => void;
   onImportJson: () => void;
+  view: TaskViewId;
 }
+
+const VIEW_TITLE: Record<TaskViewId, string> = {
+  active: "Active",
+  in_progress: "In Progress",
+  upcoming: "Upcoming",
+  all: "All Tasks",
+  completed: "Completed",
+};
+
+/** 把 ddls 按当前 view 过滤 */
+function filterByView(ddls: DdlItem[], view: TaskViewId): DdlItem[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return ddls.filter((d) => {
+    const status = effectiveStatus(d);
+    if (view === "active") return status !== "done";
+    if (view === "in_progress") return status === "in_progress";
+    if (view === "completed") return status === "done";
+    if (view === "upcoming") {
+      if (status === "done") return false;
+      if (!d.dueDate) return false;
+      return new Date(d.dueDate) >= today;
+    }
+    return true; // all
+  });
+}
+
+function effectiveStatus(d: DdlItem): TaskStatus {
+  if (d.status) return d.status;
+  return d.completed ? "done" : "todo";
+}
+
+const PRIORITY_META: Record<TaskPriority, { label: string; color: string }> = {
+  high: { label: "高", color: "var(--color-danger)" },
+  med: { label: "中", color: "var(--color-warning)" },
+  low: { label: "低", color: "var(--color-info)" },
+};
 
 type GroupKey = "tbd" | "today" | "thisWeek" | "later" | "done";
 
@@ -49,19 +88,21 @@ function classifyGroup(ddl: DdlItem): GroupKey {
 
 export default function TasksPanel({
   ddls, onToggleComplete, onRequestCreate, onRequestEdit, onRequestDelete,
-  onRequestPreview, onExportIcs, onExportJson, onImportJson,
+  onRequestPreview, onExportIcs, onExportJson, onImportJson, view,
 }: Props) {
+  const filteredDdls = useMemo(() => filterByView(ddls, view), [ddls, view]);
+
   const grouped = useMemo(() => {
     const g: Record<GroupKey, DdlItem[]> = { tbd: [], today: [], thisWeek: [], later: [], done: [] };
-    for (const ddl of ddls) g[classifyGroup(ddl)].push(ddl);
+    for (const ddl of filteredDdls) g[classifyGroup(ddl)].push(ddl);
     for (const k of Object.keys(g) as GroupKey[]) {
       g[k].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
     }
     return g;
-  }, [ddls]);
+  }, [filteredDdls]);
 
-  const totalActive = ddls.filter((d) => !d.completed).length;
-  const totalDone = ddls.filter((d) => d.completed).length;
+  const totalActive = ddls.filter((d) => effectiveStatus(d) !== "done").length;
+  const totalDone = ddls.filter((d) => effectiveStatus(d) === "done").length;
 
   return (
     <div
@@ -94,7 +135,7 @@ export default function TasksPanel({
                 letterSpacing: "-0.3px",
               }}
             >
-              Tasks
+              {VIEW_TITLE[view]}
             </h1>
             <p
               style={{
@@ -103,9 +144,9 @@ export default function TasksPanel({
                 margin: "4px 0 0",
               }}
             >
-              {totalActive > 0
-                ? `${totalActive} 项待办${totalDone > 0 ? `· ${totalDone} 已完成` : ""}`
-                : "暂无任务 — 上传课件或对 Butler 说「明天要开会」即可创建"}
+              {filteredDdls.length > 0
+                ? `当前视图 ${filteredDdls.length} 项 · 全部 ${ddls.length}（${totalActive} 待办 / ${totalDone} 已完成）`
+                : "当前视图无任务 — 切换左侧 View 或上传课件 / 对 Butler 说话创建"}
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -118,6 +159,8 @@ export default function TasksPanel({
 
         {ddls.length === 0 ? (
           <EmptyState onCreate={onRequestCreate} />
+        ) : filteredDdls.length === 0 ? (
+          <ViewEmptyState viewTitle={VIEW_TITLE[view]} />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
             {(["tbd", "today", "thisWeek", "later", "done"] as GroupKey[]).map((key) => {
@@ -244,12 +287,26 @@ function TaskRow({
     >
       <Checkbox checked={item.completed} onClick={() => onToggle(item.id)} />
 
+      {/* Priority 色块（左侧细条） */}
+      {item.priority && (
+        <span
+          title={`优先级 ${PRIORITY_META[item.priority].label}`}
+          style={{
+            width: 3,
+            height: 28,
+            borderRadius: 2,
+            background: PRIORITY_META[item.priority].color,
+            flexShrink: 0,
+          }}
+        />
+      )}
+
       <div
         style={{ flex: 1, minWidth: 0, cursor: "pointer" }}
         onClick={() => onEdit(item)}
         title="点击编辑"
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <span
             style={{
               fontSize: 14,
@@ -260,6 +317,20 @@ function TaskRow({
           >
             {item.taskName}
           </span>
+          {effectiveStatus(item) === "in_progress" && (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                color: "var(--color-warning)",
+                background: "color-mix(in srgb, var(--color-warning) 12%, transparent)",
+                padding: "1px 6px",
+                borderRadius: 4,
+              }}
+            >
+              进行中
+            </span>
+          )}
           {item.isGroupWork && (
             <span title="小组作业" style={{ display: "inline-flex", color: "var(--color-info)" }}>
               <Users size={12} />
@@ -279,6 +350,21 @@ function TaskRow({
               {item.weight}%
             </span>
           )}
+          {item.tags?.map((t) => (
+            <span
+              key={t}
+              style={{
+                fontSize: 10,
+                color: "var(--color-text-muted)",
+                background: "var(--color-surface)",
+                border: "1px solid var(--color-border)",
+                padding: "1px 6px",
+                borderRadius: 4,
+              }}
+            >
+              #{t}
+            </span>
+          ))}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 3 }}>
           <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
@@ -601,6 +687,27 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         切到 <strong style={{ color: "var(--color-text)" }}>Chat</strong> 上传课件，或点下方按钮手动添加
       </p>
       <PrimaryBtn onClick={onCreate} icon={<Plus size={14} />} label="New Task" />
+    </div>
+  );
+}
+
+function ViewEmptyState({ viewTitle }: { viewTitle: string }) {
+  return (
+    <div
+      style={{
+        background: "var(--color-bg)",
+        border: "1px dashed var(--color-border)",
+        borderRadius: 12,
+        padding: "40px 24px",
+        textAlign: "center",
+      }}
+    >
+      <p style={{ fontSize: 14, color: "var(--color-text-muted)", margin: 0 }}>
+        当前视图「{viewTitle}」下没有任务
+      </p>
+      <p style={{ fontSize: 12, color: "var(--color-text-faint)", margin: "6px 0 0" }}>
+        切换左侧 Views 看其他视图
+      </p>
     </div>
   );
 }

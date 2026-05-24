@@ -42,6 +42,9 @@ export interface DdlAttachment {
   size?: number;       // blob 字节数
 }
 
+export type TaskStatus = "todo" | "in_progress" | "done";
+export type TaskPriority = "low" | "med" | "high";
+
 export interface DdlItem {
   id: string;
   taskName: string;
@@ -51,9 +54,13 @@ export interface DdlItem {
   description: string;
   isGroupWork: boolean;
   source: string;
-  completed: boolean;
-  notes?: string;                       // 长备注（区别于简短 description）
+  completed: boolean;                   // 保留兼容；status="done" 时同步为 true
+  notes?: string;                       // 长备注
   attachments?: DdlAttachment[];        // 附件列表
+  // v4 新增（C.2）
+  status?: TaskStatus;                  // todo / in_progress / done（v4 起填充）
+  tags?: string[];                      // 自定义标签
+  priority?: TaskPriority;              // low / med / high
 }
 
 // Dexie blobs 表记录形态

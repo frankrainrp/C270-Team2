@@ -16,7 +16,7 @@ import ChatCanvas from "@/components/ChatCanvas";
 import TasksPanel from "@/components/TasksPanel";
 import CalendarPanel from "@/components/CalendarPanel";
 import NotesPanel from "@/components/NotesPanel";
-import TaskEditModal, { type EditingTarget, type FormPayload } from "@/components/TaskEditModal";
+import TaskDetailDrawer, { type EditingTarget, type FormPayload } from "@/components/TaskDetailDrawer";
 import AttachmentPreview from "@/components/AttachmentPreview";
 import type { ChatMessage, ChatSession, ProcessingPipeline, DdlItem, NavId, UploadedFile, DdlAttachment } from "@/lib/types";
 import { INITIAL_STEPS } from "@/lib/mock-pipeline";
@@ -24,6 +24,8 @@ import { streamChat, type ApiMessage } from "@/lib/chat-client";
 import { createToolExecutor } from "@/lib/tool-executor";
 import { type PendingBatch, type PendingChange, makeBatch, makeChangeId, applyBatch } from "@/lib/pending";
 import type { ButlerPose } from "@/components/ButlerCharacter";
+import { type AiModelId, DEFAULT_MODEL_ID, MODEL_STORAGE_KEY, isValidModelId } from "@/lib/ai-models";
+import type { TaskViewId } from "@/components/layout/TasksRail";
 
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 
@@ -45,6 +47,20 @@ export default function HomePage() {
   const [pointoutHold, setPointoutHold] = useState(false);
   // 学习工具抽屉
   const [miniAppsOpen, setMiniAppsOpen] = useState(false);
+  // Tasks 当前 view
+  const [taskView, setTaskView] = useState<TaskViewId>("active");
+  // AI 模型选择（localStorage 持久化）
+  const [selectedModel, setSelectedModel] = useState<AiModelId>(DEFAULT_MODEL_ID);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(MODEL_STORAGE_KEY);
+      if (saved && isValidModelId(saved)) setSelectedModel(saved);
+    } catch { /* ignore */ }
+  }, []);
+  const handleSelectModel = useCallback((id: AiModelId) => {
+    setSelectedModel(id);
+    try { localStorage.setItem(MODEL_STORAGE_KEY, id); } catch { /* ignore */ }
+  }, []);
 
   // ddlsRef 保证 AI tool 执行时拿到最新 state（避免闭包陷阱）
   const ddlsRef = useRef(ddls);
@@ -498,6 +514,7 @@ export default function HomePage() {
         contextSummary: buildContextSummary(ddlsRef.current),
         userName: "Feng",
         includeTools: true,
+        model: selectedModel,
         executeToolCall,
         callbacks: {
           onContentDelta: onDelta,
@@ -525,7 +542,7 @@ export default function HomePage() {
       setIsLoading(false);
       currentBatchIdRef.current = null;
     }
-  }, [inputValue, attachedFiles, isLoading, messages, runRealPipeline, executeToolCall, buildContextSummary, touchActiveSession]);
+  }, [inputValue, attachedFiles, isLoading, messages, runRealPipeline, executeToolCall, buildContextSummary, touchActiveSession, selectedModel]);
 
   // ---------- 多会话操作 ----------
   const handleNewChat = useCallback(() => {
@@ -596,13 +613,15 @@ export default function HomePage() {
   const taskCounts = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const effStatus = (d: DdlItem) => d.status ?? (d.completed ? "done" : "todo");
     return {
       all: ddls.length,
-      active: ddls.filter((d) => !d.completed).length,
+      active: ddls.filter((d) => effStatus(d) !== "done").length,
+      in_progress: ddls.filter((d) => effStatus(d) === "in_progress").length,
       upcoming: ddls.filter(
-        (d) => !d.completed && d.dueDate && new Date(d.dueDate) >= today,
+        (d) => effStatus(d) !== "done" && d.dueDate && new Date(d.dueDate) >= today,
       ).length,
-      completed: ddls.filter((d) => d.completed).length,
+      completed: ddls.filter((d) => effStatus(d) === "done").length,
     };
   }, [ddls]);
 
@@ -629,11 +648,13 @@ export default function HomePage() {
         import("@/lib/blobs").then(({ deleteBlobs }) => deleteBlobs(orphans));
       }
     }
+    // status 同步 completed：status="done" → completed=true，否则 false
+    const completed = data.status === "done";
     setDdls((prev) => {
       if (editing?.mode === "edit") {
-        return prev.map((d) => d.id === editing.item.id ? { ...d, ...data } : d);
+        return prev.map((d) => d.id === editing.item.id ? { ...d, ...data, completed } : d);
       }
-      return [...prev, { ...data, id: uid(), completed: false, source: "手动添加" }];
+      return [...prev, { ...data, id: uid(), completed, source: "手动添加" }];
     });
     setEditing(null);
   }, [editing]);
@@ -711,6 +732,8 @@ export default function HomePage() {
             <TasksRail
               onCreateTask={() => setEditing({ mode: "create" })}
               counts={taskCounts}
+              view={taskView}
+              onSelectView={setTaskView}
             />
           )}
           {activeNav === "calendar" && (
@@ -746,11 +769,14 @@ export default function HomePage() {
               attachedFiles={attachedFiles}
               onAttach={handleAttach}
               onRemoveAttachment={handleRemoveAttachment}
+              selectedModel={selectedModel}
+              onSelectModel={handleSelectModel}
             />
           )}
           {activeNav === "tasks" && (
             <TasksPanel
               ddls={ddls}
+              view={taskView}
               onToggleComplete={handleToggleComplete}
               onRequestCreate={() => setEditing({ mode: "create" })}
               onRequestEdit={(d) => setEditing({ mode: "edit", item: d })}
@@ -771,7 +797,7 @@ export default function HomePage() {
           {activeNav === "notes" && <NotesPanel />}
 
           {editing && (
-            <TaskEditModal
+            <TaskDetailDrawer
               target={editing}
               onCancel={() => setEditing(null)}
               onSubmit={handleSubmitEdit}

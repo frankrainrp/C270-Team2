@@ -4,6 +4,7 @@
 
 import { OpenAI } from "openai";
 import { TOOLS } from "@/lib/ai-tools";
+import { isValidModelId, getModelMeta, DEFAULT_MODEL_ID, type AiModelId } from "@/lib/ai-models";
 
 export const runtime = "nodejs";       // openai SDK 需要 node runtime（含 stream API）
 export const dynamic = "force-dynamic"; // 强制动态，禁用静态生成
@@ -22,6 +23,7 @@ interface ChatRequest {
   includeTools?: boolean;            // 是否带工具（纯聊天可不带）
   contextSummary?: string;           // 客户端附加的当前 ddls/活跃面板上下文摘要
   userName?: string;
+  model?: string;                    // 客户端选择的模型（白名单校验，否则默认）
 }
 
 function buildSystemPrompt(userName: string, contextSummary: string): string {
@@ -88,12 +90,19 @@ export async function POST(req: Request) {
     ...body.messages.filter((m) => m.role !== "system"),
   ];
 
+  // 模型选择：客户端 model 必须通过白名单；未传或非法 → 默认 V4 Flash
+  const requestedModel: AiModelId =
+    body.model && isValidModelId(body.model) ? body.model : DEFAULT_MODEL_ID;
+  const modelMeta = getModelMeta(requestedModel);
+  // reasoner 类模型不支持 tool calling，自动跳过
+  const useTools = body.includeTools !== false && modelMeta.supportsTools;
+
   try {
     const stream = await openai.chat.completions.create({
-      model: process.env.DEEPSEEK_MODEL || "deepseek-v4-flash",
+      model: requestedModel,
       messages: messages as Parameters<typeof openai.chat.completions.create>[0]["messages"],
-      tools: body.includeTools !== false ? TOOLS : undefined,
-      tool_choice: body.includeTools !== false ? "auto" : undefined,
+      tools: useTools ? TOOLS : undefined,
+      tool_choice: useTools ? "auto" : undefined,
       stream: true,
       temperature: 0.4,
       max_tokens: 2048,

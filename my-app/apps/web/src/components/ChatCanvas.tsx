@@ -15,6 +15,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatMessage, ProcessingPipeline as Pipeline, UploadedFile } from "@/lib/types";
 import type { PendingBatch } from "@/lib/pending";
+import type { AiModelId } from "@/lib/ai-models";
 import ProcessingPipeline from "./ProcessingPipeline";
 import ButlerCharacter, { type ButlerPose } from "./ButlerCharacter";
 import ConfirmCard from "./ConfirmCard";
@@ -49,6 +50,8 @@ interface ChatCanvasProps {
   attachedFiles: UploadedFile[];
   onAttach: (files: FileList) => void;
   onRemoveAttachment: (id: string) => void;
+  selectedModel?: AiModelId;
+  onSelectModel?: (id: AiModelId) => void;
 }
 
 // ============================================================
@@ -202,6 +205,8 @@ export default function ChatCanvas(props: ChatCanvasProps) {
     attachedFiles,
     onAttach,
     onRemoveAttachment,
+    selectedModel,
+    onSelectModel,
   } = props;
   const historyRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -351,6 +356,8 @@ export default function ChatCanvas(props: ChatCanvasProps) {
           attachedFiles={attachedFiles}
           onAttach={onAttach}
           onRemoveAttachment={onRemoveAttachment}
+          selectedModel={selectedModel}
+          onSelectModel={onSelectModel}
         />
         <p
           style={{
