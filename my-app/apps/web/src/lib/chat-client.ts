@@ -23,6 +23,8 @@ export interface ApiToolCall {
 export interface StreamCallbacks {
   /** 文本内容增量 */
   onContentDelta?: (delta: string) => void;
+  /** 思考过程增量（仅思考模式 V4 Pro 返回 reasoning_content 时触发） */
+  onReasoningDelta?: (delta: string) => void;
   /** 单条 assistant 消息完成（可能含 tool_calls） */
   onAssistantMessage?: (msg: ApiMessage) => void;
   /** AI 决定调用工具时触发，在执行前 */
@@ -42,6 +44,8 @@ export interface StreamOptions {
   includeTools?: boolean;
   /** AI 模型 id（来自 lib/ai-models AiModelId）；不传则用服务端默认 */
   model?: string;
+  /** G5.1 管家性格 "gentle" | "standard" | "sassy" */
+  personality?: string;
   executeToolCall: (call: ApiToolCall) => Promise<ToolResult>;
   callbacks: StreamCallbacks;
   signal?: AbortSignal;
@@ -54,6 +58,8 @@ interface SseChunk {
   choices?: Array<{
     delta?: {
       content?: string;
+      /** DeepSeek V4 思考模式 / Reasoner 系列返回的 CoT 推理增量 */
+      reasoning_content?: string;
       tool_calls?: Array<{
         index: number;
         id?: string;
@@ -80,6 +86,7 @@ export async function streamChat(opts: StreamOptions): Promise<void> {
       userName: opts.userName,
       includeTools: opts.includeTools,
       model: opts.model,
+      personality: opts.personality,
       callbacks: opts.callbacks,
       signal: opts.signal,
     });
@@ -122,6 +129,7 @@ async function streamOneRound(opts: {
   userName?: string;
   includeTools?: boolean;
   model?: string;
+  personality?: string;
   callbacks: StreamCallbacks;
   signal?: AbortSignal;
 }): Promise<{ assistantMsg: ApiMessage; hadToolCalls: boolean }> {
@@ -136,10 +144,15 @@ async function streamOneRound(opts: {
         userName: opts.userName,
         includeTools: opts.includeTools !== false,
         model: opts.model,
+        personality: opts.personality,
       }),
       signal: opts.signal,
     });
   } catch (err) {
+    // 用户主动中止：静默 throw 让外层 streamChat for-loop 退出，不触发 onError
+    if (err instanceof Error && (err.name === "AbortError" || err.name === "DOMException")) {
+      throw err;
+    }
     const msg = err instanceof Error ? err.message : String(err);
     opts.callbacks.onError?.(new Error(`网络请求失败：${msg}`));
     throw err;
@@ -202,6 +215,11 @@ async function streamOneRound(opts: {
       if (delta.content) {
         content += delta.content;
         opts.callbacks.onContentDelta?.(delta.content);
+      }
+
+      // 思考增量（V4 思考模式 / Reasoner）
+      if (delta.reasoning_content) {
+        opts.callbacks.onReasoningDelta?.(delta.reasoning_content);
       }
 
       // tool_calls 增量（分片拼装）

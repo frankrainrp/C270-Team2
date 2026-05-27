@@ -5,14 +5,16 @@
 // ============================================================
 
 import React, { useRef, useEffect, useState } from "react";
-import { Paperclip, ArrowUp, ChevronDown, FileText, Image as ImageIcon, X, File as FileIcon, Zap, Sparkles, Brain } from "lucide-react";
+import { Paperclip, ArrowUp, ChevronDown, FileText, Image as ImageIcon, X, File as FileIcon, Check, Square } from "lucide-react";
 import type { UploadedFile } from "@/lib/types";
-import { AI_MODELS, type AiModelId, getModelMeta } from "@/lib/ai-models";
+import { AI_MODELS, type AiModelId, type AiModelMeta, getModelMeta } from "@/lib/ai-models";
 
 interface InputPodProps {
   value: string;
   onChange: (val: string) => void;
   onSend: () => void;
+  /** 生成中点击此回调中止流式响应（与 onSend 同按钮位置切换） */
+  onStop?: () => void;
   isLoading?: boolean;
   attachedFiles: UploadedFile[];
   onAttach: (files: FileList) => void;
@@ -25,7 +27,7 @@ interface InputPodProps {
 const ACCEPTED_TYPES = ".pdf,.docx,.doc,.txt,.md,image/*";
 
 export default function InputPod({
-  value, onChange, onSend, isLoading = false,
+  value, onChange, onSend, onStop, isLoading = false,
   attachedFiles, onAttach, onRemoveAttachment,
   selectedModel = "deepseek-v4-flash",
   onSelectModel,
@@ -45,6 +47,9 @@ export default function InputPod({
   }, [value]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // 中文 IME 选词期间回车不发送：e.nativeEvent.isComposing 是现代标准
+    // keyCode === 229 是 Safari/旧浏览器兜底（IME composition 期间 keyCode 固定 229）
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (canSend) onSend();
@@ -206,79 +211,18 @@ export default function InputPod({
                     zIndex: 50,
                   }}
                 >
-                  {AI_MODELS.map((m) => {
-                    const isActive = m.id === selectedModel;
-                    return (
-                      <button
-                        key={m.id}
-                        onClick={() => {
-                          onSelectModel?.(m.id);
-                          setModelMenuOpen(false);
-                        }}
-                        style={{
-                          display: "flex",
-                          alignItems: "flex-start",
-                          gap: 10,
-                          width: "100%",
-                          padding: "10px 12px",
-                          border: "none",
-                          background: isActive ? "var(--color-primary-soft)" : "transparent",
-                          cursor: "pointer",
-                          textAlign: "left",
-                          fontFamily: "inherit",
-                          borderBottom: "1px solid var(--color-border-soft)",
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-surface)";
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                        }}
-                      >
-                        <ModelIcon tier={m.tier} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>
-                              {m.label}
-                            </span>
-                            <span style={{ fontSize: 10, color: "var(--color-text-faint)" }}>
-                              {m.tagline}
-                            </span>
-                          </div>
-                          <p style={{
-                            fontSize: 11,
-                            color: "var(--color-text-muted)",
-                            margin: "3px 0 0",
-                            lineHeight: 1.5,
-                          }}>
-                            {m.desc}
-                          </p>
-                          {!m.supportsTools && (
-                            <p style={{
-                              fontSize: 10,
-                              color: "var(--color-warning)",
-                              margin: "4px 0 0",
-                              fontWeight: 500,
-                            }}>
-                              ⚠ 不支持工具调用（无法自动建任务）
-                            </p>
-                          )}
-                        </div>
-                        {isActive && (
-                          <span style={{
-                            fontSize: 10,
-                            color: "var(--color-primary)",
-                            fontWeight: 600,
-                            background: "var(--color-bg)",
-                            padding: "2px 6px",
-                            borderRadius: 4,
-                          }}>
-                            当前
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+                  {AI_MODELS.map((m, idx) => (
+                    <ModelOption
+                      key={m.id}
+                      meta={m}
+                      isActive={m.id === selectedModel}
+                      isLast={idx === AI_MODELS.length - 1}
+                      onClick={() => {
+                        onSelectModel?.(m.id);
+                        setModelMenuOpen(false);
+                      }}
+                    />
+                  ))}
                 </div>
               </>
             )}
@@ -309,34 +253,59 @@ export default function InputPod({
             />
           </div>
 
-          {/* 发送按钮 — 墨绿圆形 */}
-          <button
-            id="send-btn"
-            aria-label="发送消息"
-            onClick={onSend}
-            disabled={!canSend}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: "50%",
-              border: "none",
-              background: !canSend ? "var(--color-border)" : "var(--color-primary)",
-              color: "white",
-              cursor: !canSend ? "not-allowed" : "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "background 0.15s",
-            }}
-            onMouseEnter={(e) => {
-              if (canSend) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-primary-hover)";
-            }}
-            onMouseLeave={(e) => {
-              if (canSend) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-primary)";
-            }}
-          >
-            <ArrowUp size={16} />
-          </button>
+          {/* 发送 / 停止按钮 — 生成中切换为方形 stop */}
+          {isLoading && onStop ? (
+            <button
+              id="stop-btn"
+              aria-label="停止生成"
+              onClick={onStop}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: "50%",
+                border: "none",
+                background: "var(--color-text)",
+                color: "white",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#000"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--color-text)"; }}
+            >
+              <Square size={12} fill="white" strokeWidth={0} />
+            </button>
+          ) : (
+            <button
+              id="send-btn"
+              aria-label="发送消息"
+              onClick={onSend}
+              disabled={!canSend}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: "50%",
+                border: "none",
+                background: !canSend ? "var(--color-border)" : "var(--color-primary)",
+                color: "white",
+                cursor: !canSend ? "not-allowed" : "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                if (canSend) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-primary-hover)";
+              }}
+              onMouseLeave={(e) => {
+                if (canSend) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-primary)";
+              }}
+            >
+              <ArrowUp size={16} />
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -396,7 +365,9 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-// 模型 tier 视觉
+// ============================================================
+// 模型相关：tier 圆点 + 紧凑下拉项
+// ============================================================
 function ModelDot({ tier }: { tier: "low" | "mid" | "high" }) {
   const color = tier === "low" ? "#22c55e" : tier === "mid" ? "#f59e0b" : "#ef4444";
   return (
@@ -412,25 +383,58 @@ function ModelDot({ tier }: { tier: "low" | "mid" | "high" }) {
   );
 }
 
-function ModelIcon({ tier }: { tier: "low" | "mid" | "high" }) {
-  const color = "var(--color-primary)";
-  const Icon = tier === "low" ? Zap : tier === "mid" ? Sparkles : Brain;
+/** 紧凑的下拉项：左侧 3px 墨绿条标记 active */
+function ModelOption({
+  meta, isActive, isLast, onClick,
+}: {
+  meta: AiModelMeta;
+  isActive: boolean;
+  isLast: boolean;
+  onClick: () => void;
+}) {
+  const [hov, setHov] = useState(false);
+  // 注意：不再用 inline style 残留改 background。背景完全由 state 派生
+  const bg = isActive
+    ? "var(--color-primary-soft)"
+    : hov
+    ? "var(--color-surface)"
+    : "var(--color-bg)";
   return (
-    <span
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
       style={{
-        width: 28,
-        height: 28,
-        borderRadius: 6,
-        background: "var(--color-primary-soft)",
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color,
-        flexShrink: 0,
-        marginTop: 1,
+        display: "block",
+        width: "100%",
+        padding: "8px 12px",
+        border: "none",
+        borderLeft: `3px solid ${isActive ? "var(--color-primary)" : "transparent"}`,
+        borderBottom: isLast ? "none" : "1px solid var(--color-border-soft)",
+        background: bg,
+        cursor: "pointer",
+        textAlign: "left",
+        fontFamily: "inherit",
+        transition: "background 0.12s",
       }}
     >
-      <Icon size={14} />
-    </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <ModelDot tier={meta.tier} />
+        <span
+          style={{
+            flex: 1,
+            fontSize: 13,
+            fontWeight: 600,
+            color: isActive ? "var(--color-primary)" : "var(--color-text)",
+          }}
+        >
+          {meta.label}
+        </span>
+        <span style={{ fontSize: 10, color: "var(--color-text-faint)" }}>
+          {meta.tagline}
+        </span>
+        {isActive && <Check size={13} color="var(--color-primary)" style={{ marginLeft: 4 }} />}
+      </div>
+    </button>
   );
 }

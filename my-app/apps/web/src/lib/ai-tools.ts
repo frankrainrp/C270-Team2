@@ -4,7 +4,7 @@
 // AI 通过 5 个工具完成对全局 ddls 列表的 CRUD + 查询
 // ============================================================
 
-import type { DdlItem } from "./types";
+import type { DdlItem, TaskStatus, TaskPriority } from "./types";
 
 // OpenAI / DeepSeek tool 定义格式
 export interface ToolDefinition {
@@ -56,6 +56,25 @@ export const TOOLS: ToolDefinition[] = [
             type: "boolean",
             description: "是否为小组协作事项",
           },
+          status: {
+            type: "string",
+            enum: ["todo", "in_progress", "done"],
+            description: "任务状态，默认 todo。仅在用户明确说「在做」「正在进行」时设 in_progress",
+          },
+          tags: {
+            type: "array",
+            items: { type: "string" },
+            description: "自定义标签数组，例如 [\"C245\", \"期末\"]。空数组表示无标签",
+          },
+          priority: {
+            type: "string",
+            enum: ["low", "med", "high"],
+            description: "优先级。用户明确说「重要」「紧急」时设 high；常规事项不传",
+          },
+          notes: {
+            type: "string",
+            description: "长备注（区别于简短 description），支持多行 Markdown",
+          },
         },
         required: ["taskName", "dueDate"],
       },
@@ -87,6 +106,22 @@ export const TOOLS: ToolDefinition[] = [
           weight: { type: ["number", "null"], description: "新权重（可选）" },
           description: { type: "string", description: "新描述（可选）" },
           isGroupWork: { type: "boolean", description: "是否小组作业（可选）" },
+          status: {
+            type: "string",
+            enum: ["todo", "in_progress", "done"],
+            description: "新状态（可选）。设 done 等同于完成",
+          },
+          tags: {
+            type: "array",
+            items: { type: "string" },
+            description: "新标签数组（可选，会替换原有 tags）",
+          },
+          priority: {
+            type: "string",
+            enum: ["low", "med", "high"],
+            description: "新优先级（可选）",
+          },
+          notes: { type: "string", description: "新长备注（可选）" },
         },
       },
     },
@@ -149,6 +184,37 @@ export const TOOLS: ToolDefinition[] = [
       },
     },
   },
+
+  // ---- 6. 创建笔记（B2 跨面板联动） ----
+  {
+    type: "function",
+    function: {
+      name: "create_note",
+      description:
+        "把一段内容存为笔记到 Notes 面板。适用场景：用户说「帮我记一条笔记」「把这段话存下来」" +
+        "「整理成笔记」「写一份关于 X 的笔记」。content 支持 Markdown，可包含标题、列表、代码块。" +
+        "走待核实流程（用户接受后才入 Notes 表）。",
+      parameters: {
+        type: "object",
+        properties: {
+          title: {
+            type: "string",
+            description: "笔记标题，5-20 个汉字。若用户没明确说，从 content 概括",
+          },
+          content: {
+            type: "string",
+            description: "笔记正文 Markdown。建议结构化：可用 #/##、-、**bold**、`code`",
+          },
+          tags: {
+            type: "array",
+            items: { type: "string" },
+            description: "自定义标签数组，例如 [\"数据结构\", \"复习\"]。空数组表示无标签",
+          },
+        },
+        required: ["title", "content"],
+      },
+    },
+  },
 ];
 
 // ============================================================
@@ -168,6 +234,10 @@ export interface CreateItemArgs {
   weight?: number | null;
   description?: string;
   isGroupWork?: boolean;
+  status?: TaskStatus;
+  tags?: string[];
+  priority?: TaskPriority;
+  notes?: string;
 }
 
 export interface UpdateItemArgs {
@@ -179,6 +249,10 @@ export interface UpdateItemArgs {
   weight?: number | null;
   description?: string;
   isGroupWork?: boolean;
+  status?: TaskStatus;
+  tags?: string[];
+  priority?: TaskPriority;
+  notes?: string;
 }
 
 export interface DeleteItemArgs {
@@ -196,13 +270,20 @@ export interface ListItemsArgs {
   filter?: "all" | "today" | "thisWeek" | "later" | "completed" | "active";
 }
 
+export interface CreateNoteArgs {
+  title: string;
+  content: string;
+  tags?: string[];
+}
+
 // 工具名 → 参数类型 的联合（供执行器使用）
 export type ToolCall =
   | { name: "create_item";     args: CreateItemArgs }
   | { name: "update_item";     args: UpdateItemArgs }
   | { name: "delete_item";     args: DeleteItemArgs }
   | { name: "toggle_complete"; args: ToggleCompleteArgs }
-  | { name: "list_items";      args: ListItemsArgs };
+  | { name: "list_items";      args: ListItemsArgs }
+  | { name: "create_note";     args: CreateNoteArgs };
 
 // ============================================================
 // Helper：精简的 DdlItem（用于回传给 AI 看上下文，不要给完整 source）

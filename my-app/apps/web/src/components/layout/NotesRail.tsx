@@ -2,24 +2,41 @@
 
 // ============================================================
 // components/layout/NotesRail.tsx
-// LeftRail @ Notes Tab — Phase 3 才解锁，本期占位
+// LeftRail @ Notes Tab — 简易版（v5 起接 notes 数据）
 // ============================================================
 
 import React from "react";
-import { Plus, FileText, Folder } from "lucide-react";
+import { Plus, FileText, Pin } from "lucide-react";
+import type { Note } from "@/lib/types";
 import { RailPrimaryBtn, RailGroupTitle, RailItem } from "./LeftRail";
 
-export default function NotesRail() {
+interface NotesRailProps {
+  notes: Note[];
+  onCreate: () => void;
+}
+
+export default function NotesRail({ notes, onCreate }: NotesRailProps) {
+  const pinned = notes.filter((n) => n.pinned);
+  const total = notes.length;
   return (
     <>
-      <RailPrimaryBtn icon={<Plus size={14} />} label="New Note" disabled />
+      <RailPrimaryBtn icon={<Plus size={14} />} label="New Note" onClick={onCreate} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <RailGroupTitle>Library</RailGroupTitle>
-        <div style={{ opacity: 0.45, pointerEvents: "none" }}>
-          <RailItem icon={<FileText size={14} />} label="All Notes" />
-          <RailItem icon={<Folder size={14} />} label="Starred" />
-        </div>
+        <RailItem
+          icon={<FileText size={14} />}
+          label="All Notes"
+          active
+          badge={total > 0 ? <CountBadge n={total} /> : null}
+        />
+        {pinned.length > 0 && (
+          <RailItem
+            icon={<Pin size={14} />}
+            label="Pinned"
+            badge={<CountBadge n={pinned.length} />}
+          />
+        )}
       </div>
 
       <div
@@ -34,12 +51,26 @@ export default function NotesRail() {
           lineHeight: 1.4,
         }}
       >
-        🔒 Phase 3 解锁
+        浏览器内 · Phase 3
         <br />
-        <span style={{ color: "var(--color-text-muted)" }}>
-          需要 Tauri 桌面壳读写本地 Vault
-        </span>
+        <span style={{ color: "var(--color-text-muted)" }}>接 Tauri 后写本地 Vault</span>
       </div>
     </>
+  );
+}
+
+function CountBadge({ n }: { n: number }) {
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        color: "var(--color-text-faint)",
+        fontWeight: 500,
+        minWidth: 18,
+        textAlign: "right",
+      }}
+    >
+      {n}
+    </span>
   );
 }

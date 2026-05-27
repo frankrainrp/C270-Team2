@@ -1,204 +1,505 @@
 "use client";
 
 // ============================================================
-// components/NotesPanel.tsx — 「笔记」面板（Phase 3 占位）
-// Stage E：墨绿设计语言重做，保留"Phase 3 解锁"心智
-// 真实笔记功能需要 Tauri 桌面壳读写本地 Obsidian Vault
+// components/NotesPanel.tsx — 笔记面板（浏览器内简易 Markdown 版）
+//
+// 双栏：左 280px 列表 + 右编辑区（textarea + preview 切换）
+// Dexie v5 notes 表存储
+// Phase 3 后会迁移到本地 Obsidian Vault（vaultPath 字段已留位）
 // ============================================================
 
-import React from "react";
-import { FileText, FolderOpen, Link2, Sparkles, Monitor, Lock } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Plus, Trash2, Pin, PinOff, Eye, Edit3, FileText, Lock, Link2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import type { Note, DdlItem } from "@/lib/types";
 
-export default function NotesPanel() {
+interface Props {
+  notes: Note[];
+  onCreate: () => Note;                         // 创建一条空笔记并返回（page.tsx 决定 ID + 持久化）
+  onUpdate: (id: string, patch: Partial<Note>) => void;
+  onDelete: (id: string) => void;
+  // B1 跨面板联动
+  /** 所有任务,用于反查"关联到此笔记的任务列表" */
+  ddls?: DdlItem[];
+  /** 外部要求选中某条笔记（B1/B3 跨面板跳转时传） */
+  selectActiveId?: string | null;
+  /** 点击关联任务跳转到 Tasks Tab + 打开 TaskDetailDrawer */
+  onJumpToTask?: (taskId: string) => void;
+  // B4 笔记 - [ ] todo 自动同步 Tasks（单向）
+  /** 在笔记中发现新 todo 时调用；page.tsx 创建 task + 自动关联到 noteId */
+  onAutoExtractTodos?: (noteId: string, newTodos: string[]) => void;
+}
+
+export default function NotesPanel({
+  notes, onCreate, onUpdate, onDelete,
+  ddls = [], selectActiveId, onJumpToTask, onAutoExtractTodos,
+}: Props) {
+  const sorted = useMemo(() => {
+    return [...notes].sort((a, b) => {
+      if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+      return b.updatedAt - a.updatedAt;
+    });
+  }, [notes]);
+
+  const [activeId, setActiveId] = useState<string | null>(sorted[0]?.id ?? null);
+  const [mode, setMode] = useState<"edit" | "preview">("edit");
+
+  // 当列表变化（新建/删除），自动调整 active
+  useEffect(() => {
+    if (sorted.length === 0) {
+      setActiveId(null);
+      return;
+    }
+    if (!activeId || !sorted.find((n) => n.id === activeId)) {
+      setActiveId(sorted[0].id);
+    }
+  }, [sorted, activeId]);
+
+  // B1 外部跳转：父组件传入 selectActiveId 变化时同步切换
+  useEffect(() => {
+    if (selectActiveId && sorted.find((n) => n.id === selectActiveId)) {
+      setActiveId(selectActiveId);
+      setMode("edit");
+    }
+  }, [selectActiveId, sorted]);
+
+  const active = sorted.find((n) => n.id === activeId) ?? null;
+  // B1 反查当前笔记关联的任务
+  const linkedTasks = useMemo(
+    () => (active ? ddls.filter((d) => d.noteId === active.id) : []),
+    [active, ddls],
+  );
+
+  const handleCreate = () => {
+    const fresh = onCreate();
+    setActiveId(fresh.id);
+    setMode("edit");
+  };
+
   return (
     <div
       style={{
         height: "100%",
-        overflow: "auto",
-        padding: "28px 32px 40px",
+        display: "flex",
         background: "var(--color-bg)",
+        overflow: "hidden",
       }}
     >
-      <div style={{ maxWidth: 880, margin: "0 auto" }}>
-        {/* Header */}
-        <header style={{ marginBottom: 24 }}>
-          <h1
+      {/* 左：笔记列表 */}
+      <aside
+        style={{
+          width: 280,
+          flexShrink: 0,
+          borderRight: "1px solid var(--color-border)",
+          display: "flex",
+          flexDirection: "column",
+          background: "var(--color-surface)",
+        }}
+      >
+        <header
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "14px 14px 10px",
+          }}
+        >
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--color-text)", margin: 0 }}>
+            All Notes
+          </h2>
+          <button
+            onClick={handleCreate}
+            aria-label="New Note"
+            title="新建笔记"
             style={{
-              fontSize: 22,
-              fontWeight: 700,
-              color: "var(--color-text)",
-              margin: 0,
-              letterSpacing: "-0.3px",
+              width: 28, height: 28, borderRadius: 6, border: "none",
+              background: "var(--color-primary)", color: "white",
+              cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
             }}
           >
-            Notes
-          </h1>
-          <p
-            style={{
-              fontSize: 12,
-              color: "var(--color-text-muted)",
-              margin: "4px 0 0",
-            }}
-          >
-            AI 生成、双向链接、与本地 Obsidian Vault 实时同步
-          </p>
+            <Plus size={14} />
+          </button>
         </header>
 
-        {/* 大占位 hero */}
-        <div
-          style={{
-            background: "var(--color-bg)",
-            border: "1px dashed var(--color-border)",
-            borderRadius: 12,
-            padding: "48px 36px",
-            textAlign: "center",
-          }}
-        >
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 14,
-              marginBottom: 20,
-            }}
-          >
-            <div
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: 12,
-                background: "var(--color-primary)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Sparkles size={22} color="white" />
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 8px 8px" }}>
+          {sorted.length === 0 ? (
+            <div style={{
+              textAlign: "center", padding: "40px 12px",
+              color: "var(--color-text-faint)", fontSize: 12,
+            }}>
+              没有笔记<br />
+              <span style={{ color: "var(--color-text-muted)" }}>点 + 新建</span>
             </div>
-            <Link2 size={16} color="var(--color-text-faint)" />
-            <div
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: 12,
-                background: "var(--color-primary-soft)",
-                border: "1px solid color-mix(in srgb, var(--color-primary) 24%, transparent)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <FolderOpen size={22} color="var(--color-primary)" />
-            </div>
-          </div>
-
-          <h2
-            style={{
-              fontSize: 18,
-              fontWeight: 700,
-              color: "var(--color-text)",
-              margin: "0 0 10px",
-            }}
-          >
-            笔记功能即将上线
-          </h2>
-          <p
-            style={{
-              fontSize: 13.5,
-              color: "var(--color-text-muted)",
-              lineHeight: 1.7,
-              margin: "0 auto",
-              maxWidth: 520,
-            }}
-          >
-            未来在这里，Butler 会根据你的对话、上传的资料，
-            <br />
-            自动生成 Obsidian 风格的双向链接笔记，
-            <br />
-            <span style={{ fontWeight: 600, color: "var(--color-text)" }}>
-              直接写入你本地的 Obsidian Vault 文件夹
-            </span>
-            。
-          </p>
-
-          {/* 路线图标签 */}
-          <div
-            style={{
-              marginTop: 22,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "8px 14px",
-              borderRadius: 8,
-              background: "var(--color-primary-soft)",
-              border: "1px solid color-mix(in srgb, var(--color-primary) 24%, transparent)",
-              color: "var(--color-primary)",
-              fontSize: 12,
-              fontWeight: 600,
-            }}
-          >
-            <Lock size={13} />
-            Phase 3 解锁 · 需要 Tauri 桌面壳
-            <Monitor size={13} style={{ marginLeft: 4 }} />
-          </div>
+          ) : (
+            sorted.map((n) => (
+              <NoteListItem
+                key={n.id}
+                note={n}
+                active={n.id === activeId}
+                onClick={() => setActiveId(n.id)}
+              />
+            ))
+          )}
         </div>
 
-        {/* 预览能力列表 */}
-        <div
+        <footer
           style={{
-            marginTop: 18,
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-            gap: 12,
+            padding: "10px 12px",
+            borderTop: "1px solid var(--color-border)",
+            fontSize: 11,
+            color: "var(--color-text-faint)",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
           }}
         >
-          <FeatureCard
-            icon={<FileText size={16} />}
-            title="AI 撰写笔记"
-            desc="对 Butler 说「整理这门课的核心概念」，生成结构化 .md"
+          <Lock size={11} />
+          浏览器内 · Phase 3 接 Obsidian Vault
+        </footer>
+      </aside>
+
+      {/* 右：编辑区 */}
+      <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+        {active ? (
+          <NoteEditor
+            key={active.id}
+            note={active}
+            mode={mode}
+            onModeChange={setMode}
+            onUpdate={(patch) => onUpdate(active.id, patch)}
+            onDelete={() => {
+              if (confirm(`删除「${active.title || "(无标题)"}」？`)) onDelete(active.id);
+            }}
+            linkedTasks={linkedTasks}
+            onJumpToTask={onJumpToTask}
+            onAutoExtractTodos={onAutoExtractTodos}
           />
-          <FeatureCard
-            icon={<Link2 size={16} />}
-            title="双向链接"
-            desc="自动识别 [[wikilink]] 与 #tag，构建知识图谱"
-          />
-          <FeatureCard
-            icon={<FolderOpen size={16} />}
-            title="Vault 实时同步"
-            desc="文件写入本地 Vault，Obsidian 立即可见"
-          />
-        </div>
-      </div>
+        ) : (
+          <EmptyHero onCreate={handleCreate} />
+        )}
+      </main>
     </div>
   );
 }
 
-function FeatureCard({
-  icon, title, desc,
+// ============================================================
+// 左侧列表项
+// ============================================================
+function NoteListItem({
+  note, active, onClick,
 }: {
-  icon: React.ReactNode;
-  title: string;
-  desc: string;
+  note: Note;
+  active: boolean;
+  onClick: () => void;
 }) {
+  const [hov, setHov] = useState(false);
+  const preview = (note.content || "").replace(/[#*`>\-_\[\]()]/g, "").trim().slice(0, 60);
+  const time = formatRelative(note.updatedAt);
   return (
     <div
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
       style={{
-        padding: "14px 16px",
-        borderRadius: 10,
-        background: "var(--color-bg)",
-        border: "1px solid var(--color-border)",
+        padding: "10px 12px",
+        borderRadius: 6,
+        background: active ? "var(--color-primary-soft)" : hov ? "rgba(0,0,0,0.04)" : "transparent",
+        cursor: "pointer",
+        marginBottom: 2,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, color: "var(--color-primary)" }}>
-        {icon}
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>
-          {title}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+        {note.pinned && <Pin size={11} color="var(--color-warning)" style={{ flexShrink: 0 }} />}
+        <span
+          style={{
+            fontSize: 13, fontWeight: 500,
+            color: active ? "var(--color-primary)" : "var(--color-text)",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            flex: 1,
+          }}
+        >
+          {note.title || "(无标题)"}
         </span>
       </div>
-      <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: 0, lineHeight: 1.5 }}>
-        {desc}
+      <p
+        style={{
+          fontSize: 11, color: "var(--color-text-faint)",
+          margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}
+      >
+        {time} · {preview || "(空)"}
       </p>
     </div>
   );
+}
+
+// ============================================================
+// 编辑器
+// ============================================================
+function NoteEditor({
+  note, mode, onModeChange, onUpdate, onDelete, linkedTasks = [], onJumpToTask, onAutoExtractTodos,
+}: {
+  note: Note;
+  mode: "edit" | "preview";
+  onModeChange: (m: "edit" | "preview") => void;
+  onUpdate: (patch: Partial<Note>) => void;
+  onDelete: () => void;
+  linkedTasks?: DdlItem[];
+  onJumpToTask?: (taskId: string) => void;
+  onAutoExtractTodos?: (noteId: string, newTodos: string[]) => void;
+}) {
+  const [title, setTitle] = useState(note.title);
+  const [content, setContent] = useState(note.content);
+
+  // 切换不同 note 时同步本地 state
+  useEffect(() => {
+    setTitle(note.title);
+    setContent(note.content);
+  }, [note.id, note.title, note.content]);
+
+  // 防抖保存（500ms）
+  useEffect(() => {
+    if (title === note.title && content === note.content) return;
+    const t = setTimeout(() => {
+      onUpdate({ title, content, updatedAt: Date.now() });
+    }, 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, content]);
+
+  // B4 防抖（1.2s）扫描 markdown 中的 `- [ ] todo`，对比已同步列表，emit 新增的
+  useEffect(() => {
+    if (!onAutoExtractTodos) return;
+    const t = setTimeout(() => {
+      const synced = new Set(note.syncedTodos ?? []);
+      const found = new Set<string>();
+      // 正则匹配 - [ ] 或 * [ ] 开头的行（小写 x 表示已选，跳过）
+      const re = /^[\s　]*[-*]\s+\[\s\]\s+(.+?)\s*$/gm;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(content)) !== null) {
+        const todo = m[1].trim();
+        if (todo.length > 0 && todo.length <= 80) found.add(todo);
+      }
+      const newOnes = Array.from(found).filter((t) => !synced.has(t));
+      if (newOnes.length > 0) onAutoExtractTodos(note.id, newOnes);
+    }, 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content, note.id]);
+
+  return (
+    <>
+      {/* Header */}
+      <header
+        style={{
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "14px 24px",
+          borderBottom: "1px solid var(--color-border)",
+          flexShrink: 0,
+        }}
+      >
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="无标题..."
+          style={{
+            flex: 1, border: "none", background: "transparent",
+            fontSize: 18, fontWeight: 700, color: "var(--color-text)",
+            outline: "none", fontFamily: "inherit",
+          }}
+        />
+        <button
+          onClick={() => onUpdate({ pinned: !note.pinned, updatedAt: Date.now() })}
+          title={note.pinned ? "取消置顶" : "置顶"}
+          aria-label="pin"
+          style={iconBtnStyle(note.pinned)}
+        >
+          {note.pinned ? <Pin size={14} /> : <PinOff size={14} />}
+        </button>
+        <button
+          onClick={() => onModeChange(mode === "edit" ? "preview" : "edit")}
+          title={mode === "edit" ? "切到预览" : "切到编辑"}
+          aria-label="mode"
+          style={iconBtnStyle(mode === "preview")}
+        >
+          {mode === "edit" ? <Eye size={14} /> : <Edit3 size={14} />}
+        </button>
+        <button onClick={onDelete} title="删除" aria-label="delete" style={iconBtnStyle(false, true)}>
+          <Trash2 size={14} />
+        </button>
+      </header>
+
+      {/* B1 关联任务条（仅有关联时显示） */}
+      {linkedTasks.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 6,
+            padding: "8px 24px",
+            background: "var(--color-primary-soft)",
+            borderBottom: "1px solid color-mix(in srgb, var(--color-primary) 20%, transparent)",
+            fontSize: 12,
+            color: "var(--color-text-muted)",
+          }}
+        >
+          <Link2 size={12} color="var(--color-primary)" />
+          <span style={{ marginRight: 4 }}>关联任务:</span>
+          {linkedTasks.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => onJumpToTask?.(t.id)}
+              style={{
+                padding: "2px 8px",
+                borderRadius: 4,
+                border: "1px solid color-mix(in srgb, var(--color-primary) 30%, transparent)",
+                background: "var(--color-bg)",
+                color: "var(--color-primary)",
+                fontSize: 11,
+                fontWeight: 500,
+                cursor: onJumpToTask ? "pointer" : "default",
+                fontFamily: "inherit",
+              }}
+            >
+              {t.taskName}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Body */}
+      {mode === "edit" ? (
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="开始写..."
+          style={{
+            flex: 1, width: "100%", padding: "16px 24px",
+            border: "none", outline: "none", resize: "none",
+            background: "var(--color-bg)", color: "var(--color-text)",
+            fontSize: 14, lineHeight: 1.7, fontFamily: "inherit",
+          }}
+        />
+      ) : (
+        <div
+          className="md-preview"
+          style={{
+            flex: 1, overflowY: "auto",
+            padding: "16px 24px",
+            fontSize: 14, lineHeight: 1.7, color: "var(--color-text)",
+          }}
+        >
+          {content.trim() ? (
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          ) : (
+            <p style={{ color: "var(--color-text-faint)" }}>（笔记为空）</p>
+          )}
+        </div>
+      )}
+
+      <style>{`
+        .md-preview p { margin: 0 0 10px; }
+        .md-preview ul, .md-preview ol { margin: 6px 0 10px; padding-left: 24px; }
+        .md-preview h1, .md-preview h2, .md-preview h3 { font-weight: 700; margin: 14px 0 8px; }
+        .md-preview h1 { font-size: 20px; }
+        .md-preview h2 { font-size: 17px; }
+        .md-preview h3 { font-size: 15px; }
+        .md-preview code { background: var(--color-primary-soft); padding: 1px 6px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--color-primary); }
+        .md-preview pre { background: #1f2937; color: #f3f4f6; padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; margin: 10px 0; }
+        .md-preview pre code { background: transparent; color: inherit; }
+        .md-preview a { color: var(--color-primary); text-decoration: underline; }
+        .md-preview blockquote { border-left: 3px solid var(--color-primary); padding: 2px 12px; color: var(--color-text-muted); margin: 8px 0; }
+        .md-preview table { border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+        .md-preview th, .md-preview td { border: 1px solid var(--color-border); padding: 6px 10px; }
+        .md-preview th { background: var(--color-surface); font-weight: 600; }
+      `}</style>
+    </>
+  );
+}
+
+// ============================================================
+// 空状态
+// ============================================================
+function EmptyHero({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div
+      style={{
+        flex: 1, display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", gap: 14,
+        padding: 40,
+      }}
+    >
+      <div
+        style={{
+          width: 56, height: 56, borderRadius: 14,
+          background: "var(--color-primary-soft)",
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+        }}
+      >
+        <FileText size={26} color="var(--color-primary)" />
+      </div>
+      <div style={{ textAlign: "center" }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--color-text)", margin: "0 0 4px" }}>
+          没有笔记
+        </h2>
+        <p style={{ fontSize: 12.5, color: "var(--color-text-muted)", margin: 0 }}>
+          点下方按钮新建第一条
+        </p>
+      </div>
+      {/* Epic 6.5 管家小气泡 */}
+      <p
+        style={{
+          fontSize: 12,
+          fontStyle: "italic",
+          color: "var(--color-primary)",
+          background: "var(--color-primary-soft)",
+          padding: "6px 12px",
+          borderRadius: 14,
+          margin: 0,
+        }}
+      >
+        💡「在 Chat 里说『帮我记一条笔记』,我也能帮你写」— Butler
+      </p>
+      <button
+        onClick={onCreate}
+        style={{
+          padding: "8px 16px", borderRadius: 8, border: "none",
+          background: "var(--color-primary)", color: "white",
+          fontSize: 13, fontWeight: 500, cursor: "pointer",
+          display: "inline-flex", alignItems: "center", gap: 6,
+          fontFamily: "inherit",
+        }}
+      >
+        <Plus size={14} /> New Note
+      </button>
+    </div>
+  );
+}
+
+// ============================================================
+// 工具
+// ============================================================
+function iconBtnStyle(active: boolean, danger?: boolean): React.CSSProperties {
+  return {
+    width: 28, height: 28, borderRadius: 6,
+    border: "1px solid " + (active ? "var(--color-primary)" : "var(--color-border)"),
+    background: active ? "var(--color-primary-soft)" : "var(--color-bg)",
+    color: danger ? "var(--color-danger)" : active ? "var(--color-primary)" : "var(--color-text-muted)",
+    cursor: "pointer",
+    display: "inline-flex", alignItems: "center", justifyContent: "center",
+    flexShrink: 0,
+  };
+}
+
+function formatRelative(ts: number): string {
+  const diff = Date.now() - ts;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "刚刚";
+  if (min < 60) return `${min} 分钟前`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} 小时前`;
+  const d = new Date(ts);
+  return `${d.getMonth() + 1}-${String(d.getDate()).padStart(2, "0")}`;
 }

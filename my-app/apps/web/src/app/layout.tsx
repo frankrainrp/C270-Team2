@@ -5,6 +5,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { ToastProvider } from "@/components/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -15,6 +16,9 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Butler — 智能多模态学习管家",
   description: "AI-powered multimodal learning hub — 让学习更智能、更高效。",
+  manifest: "/manifest.webmanifest",
+  themeColor: "#1B3D2F",
+  icons: { icon: "/assets/logo.png", apple: "/assets/logo.png" },
 };
 
 export default function RootLayout({
@@ -24,7 +28,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN" className={inter.variable}>
-      <body>{children}</body>
+      <body>
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   );
 }

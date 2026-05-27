@@ -9,7 +9,7 @@
 // 回执文案使用"建议..."而非"已..."，让 AI 明确告诉用户「需要核实」。
 // ============================================================
 
-import type { DdlItem } from "./types";
+import type { DdlItem, Note } from "./types";
 import type { ApiToolCall } from "./chat-client";
 import {
   compactItem,
@@ -20,6 +20,7 @@ import {
   type DeleteItemArgs,
   type ToggleCompleteArgs,
   type ListItemsArgs,
+  type CreateNoteArgs,
 } from "./ai-tools";
 import { makeChangeId, type PendingChange } from "./pending";
 
@@ -52,6 +53,8 @@ export function createToolExecutor(deps: ToolExecutorDeps) {
         return execToggle(args as ToggleCompleteArgs, deps);
       case "list_items":
         return execList(args as ListItemsArgs, deps);
+      case "create_note":
+        return execCreateNote(args as CreateNoteArgs, deps);
       default:
         return { ok: false, message: `未知工具：${call.function.name}` };
     }
@@ -69,6 +72,7 @@ function execCreate(args: CreateItemArgs, { addPending }: ToolExecutorDeps): Too
   if (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
     return { ok: false, message: `dueDate 必须是 YYYY-MM-DD 或空串，当前传入：${dueDate}` };
   }
+  const status = args.status ?? "todo";
   const draft: DdlItem = {
     id: uid(),
     taskName: args.taskName,
@@ -78,7 +82,11 @@ function execCreate(args: CreateItemArgs, { addPending }: ToolExecutorDeps): Too
     description: args.description || "",
     isGroupWork: args.isGroupWork ?? false,
     source: "AI 创建（待核实）",
-    completed: false,
+    completed: status === "done",
+    status,
+    ...(args.tags && args.tags.length > 0 ? { tags: args.tags } : {}),
+    ...(args.priority ? { priority: args.priority } : {}),
+    ...(args.notes ? { notes: args.notes } : {}),
   };
   const dateLabel = draft.dueDate || "待定";
   addPending({
@@ -116,6 +124,10 @@ function execUpdate(args: UpdateItemArgs, { getDdls, addPending }: ToolExecutorD
     ...(args.weight !== undefined ? { weight: args.weight } : {}),
     ...(args.description !== undefined ? { description: args.description } : {}),
     ...(args.isGroupWork !== undefined ? { isGroupWork: args.isGroupWork } : {}),
+    ...(args.status !== undefined ? { status: args.status, completed: args.status === "done" } : {}),
+    ...(args.tags !== undefined ? { tags: args.tags } : {}),
+    ...(args.priority !== undefined ? { priority: args.priority } : {}),
+    ...(args.notes !== undefined ? { notes: args.notes } : {}),
   };
   if (Object.keys(patch).length === 0) {
     return { ok: false, message: "update_item 至少需要 1 个待修改字段" };
@@ -204,6 +216,35 @@ function execList(args: ListItemsArgs, { getDdls }: ToolExecutorDeps): ToolResul
     ok: true,
     message: `当前匹配 ${filtered.length} 条`,
     data: filtered.map(compactItem),
+  };
+}
+
+// ============================================================
+// 6. create_note → PendingCreateNote（待核实，B2 跨面板联动）
+// ============================================================
+function execCreateNote(args: CreateNoteArgs, { addPending }: ToolExecutorDeps): ToolResult {
+  if (!args.title || !args.content) {
+    return { ok: false, message: "create_note 需要 title 和 content" };
+  }
+  const now = Date.now();
+  const noteDraft: Note = {
+    id: "note-" + uid(),
+    title: args.title.slice(0, 60),
+    content: args.content,
+    ...(args.tags && args.tags.length > 0 ? { tags: args.tags } : {}),
+    createdAt: now,
+    updatedAt: now,
+  };
+  addPending({
+    id: makeChangeId(),
+    kind: "create-note",
+    summary: noteDraft.title,
+    noteDraft,
+  });
+  return {
+    ok: true,
+    message: `已生成笔记草稿:「${noteDraft.title}」(${noteDraft.content.length} 字)。已加入待核实队列。`,
+    data: { id: noteDraft.id, title: noteDraft.title, length: noteDraft.content.length },
   };
 }
 

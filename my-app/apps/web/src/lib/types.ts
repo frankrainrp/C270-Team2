@@ -61,6 +61,8 @@ export interface DdlItem {
   status?: TaskStatus;                  // todo / in_progress / done（v4 起填充）
   tags?: string[];                      // 自定义标签
   priority?: TaskPriority;              // low / med / high
+  // v5+ 跨面板联动（B1）
+  noteId?: string;                      // 关联笔记 id（一对一,反向 Note.taskIds 通过 ddls 反查）
 }
 
 // Dexie blobs 表记录形态
@@ -81,6 +83,10 @@ export interface ChatMessage {
   pipelineId?: string;
   /** role=confirm 时关联的 PendingBatch id */
   confirmBatchId?: string;
+  /** V4 思考模式产生的推理过程（CoT），仅 assistant 可能有 */
+  reasoning?: string;
+  /** 标记此条 assistant 是错误消息（来自 onError 兜底），UI 显示 retry 按钮 */
+  isError?: boolean;
   timestamp: Date;
 }
 
@@ -91,4 +97,23 @@ export interface ChatSession {
   title: string;        // "新对话" → 首条用户消息后自动取前 24 字
   createdAt: number;
   updatedAt: number;    // 用于列表排序
+}
+
+// 笔记（浏览器内简易 Markdown 版，Dexie v5 起）
+// Phase 3 接 Tauri 后，会迁移到本地 Obsidian Vault（用 path 字段标记同步状态）
+export interface Note {
+  id: string;
+  title: string;
+  /** Markdown 内容 */
+  content: string;
+  /** 自定义标签 */
+  tags?: string[];
+  /** 是否置顶 */
+  pinned?: boolean;
+  createdAt: number;
+  updatedAt: number;
+  /** Phase 3 同步本地 Vault 时填，当前留空 */
+  vaultPath?: string;
+  /** B4 已自动同步到 Tasks 的 todo 文本（去重防止重复创建任务） */
+  syncedTodos?: string[];
 }

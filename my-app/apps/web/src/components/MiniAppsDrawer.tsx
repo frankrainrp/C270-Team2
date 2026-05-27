@@ -13,29 +13,41 @@
 // ============================================================
 
 import React, { useState } from "react";
-import { X, Target, Sparkles } from "lucide-react";
+import { X, Target, Sparkles, BarChart3, Share2 } from "lucide-react";
+import type { DdlItem } from "@/lib/types";
 import FocusTimer from "./mini-apps/FocusTimer";
+import StatsApp from "./mini-apps/StatsApp";
+import ShareCard from "./mini-apps/ShareCard";
+
+interface MiniAppCommonProps {
+  ddls?: DdlItem[];
+  onAppendTaskNote?: (taskId: string, line: string) => void;
+}
 
 interface MiniApp {
   id: string;
   name: string;
   icon: React.ReactNode;
-  Component: React.ComponentType;
+  Component: React.ComponentType<MiniAppCommonProps>;
   disabled?: boolean;
 }
 
 const APPS: MiniApp[] = [
   { id: "focus", name: "专注计时", icon: <Target size={16} />, Component: FocusTimer },
-  // 占位：后续添加
-  // { id: "flashcard", name: "单词卡", icon: <BookOpen size={16} />, Component: ComingSoon, disabled: true },
+  { id: "stats", name: "学习统计", icon: <BarChart3 size={16} />, Component: StatsApp },
+  { id: "share", name: "分享卡片", icon: <Share2 size={16} />, Component: ShareCard },
 ];
 
 interface MiniAppsDrawerProps {
   open: boolean;
   onClose: () => void;
+  /** Epic 4.3 / 5.1 提供给 StatsApp / FocusTimer */
+  ddls?: DdlItem[];
+  /** Epic 5.1 FocusTimer 结束追加到任务 notes */
+  onAppendTaskNote?: (taskId: string, line: string) => void;
 }
 
-export default function MiniAppsDrawer({ open, onClose }: MiniAppsDrawerProps) {
+export default function MiniAppsDrawer({ open, onClose, ddls = [], onAppendTaskNote }: MiniAppsDrawerProps) {
   const [activeId, setActiveId] = useState<string>("focus");
   const active = APPS.find((a) => a.id === activeId) ?? APPS[0];
   const ActiveComponent = active.Component;
@@ -157,7 +169,7 @@ export default function MiniAppsDrawer({ open, onClose }: MiniAppsDrawerProps) {
             padding: "20px 16px",
           }}
         >
-          <ActiveComponent />
+          <ActiveComponent ddls={ddls} onAppendTaskNote={onAppendTaskNote} />
         </div>
       </aside>
     </>

@@ -8,6 +8,8 @@
 |---|---|---|---|
 | 2026-05 | [2026-05.md](./2026-05.md) | [001]-[021] | Monorepo 骨架 / Chat UI / 4 面板 / V4 Flash / 真 PDF 链路 / Dexie / CRUD / ICS / 附件 / 多会话 / UI 重构 Stage A-B / 管家形象 |
 
+> [022]-[030] 仍在根 [PROGRESS.md](../../PROGRESS.md)，下次月度归档时迁过来。
+
 ## 按主题速查（跨月）
 
 ### 架构里程碑
@@ -27,6 +29,10 @@
 - [011] 客户端语义粗筛（MiniLM）（`2026-05.md`）
 - [014] AI 质量护栏（不准瞎猜）（`2026-05.md`）
 - [018] AI 写操作"待核实"门控（ConfirmCard）（`2026-05.md`）
+- [026] 模型切换 + Stage C.2 字段扩展（[PROGRESS.md](../../PROGRESS.md)）
+- [028] 多模态 OCR（Mistral）+ 模型简化 V4 only（[PROGRESS.md](../../PROGRESS.md)）
+- [029] AI tool 加 status/tags/priority/notes + AI 开屏问候（[PROGRESS.md](../../PROGRESS.md)）
+- [030] 模型切换 bug 修复（inline style 竞争）（[PROGRESS.md](../../PROGRESS.md)）
 
 ### UI 重构（Stage A-E）
 - [017] Stage A：顶 Tab Bar + LeftRail + 墨绿设计 token（`2026-05.md`）
@@ -44,6 +50,11 @@
 - [014] ICS 订阅 + JSON 导出导入（`2026-05.md`）
 - [015] 任务备注 + 3 类附件（`2026-05.md`）
 - [026] 模型切换 + Stage C.2 字段扩展（[PROGRESS.md](../../PROGRESS.md)）
+- [029] Notes 浏览器版（Dexie v5 双栏）+ 全局搜索 + Markdown 预览（[PROGRESS.md](../../PROGRESS.md)）
+
+### 文档维护
+- [027] 上下文分区（按 Anthropic 2026 best practice 拆 AGENT/docs/）（[PROGRESS.md](../../PROGRESS.md)）
+- [030] AGENT/architecture/setup/pitfalls/INDEX 同步最新状态（[PROGRESS.md](../../PROGRESS.md)）
 
 ## 归档规则
 

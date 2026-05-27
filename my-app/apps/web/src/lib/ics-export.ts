@@ -56,6 +56,8 @@ export function generateIcs(ddls: DdlItem[]): string {
       const descParts = [
         d.description || "",
         d.source ? `来源：${d.source}` : "",
+        // G3.1 被动传播水印
+        "—— Powered by Butler · 智能学习管家 https://butler.app",
       ].filter(Boolean);
       const lines = [
         "BEGIN:VEVENT",

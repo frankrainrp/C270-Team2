@@ -8,25 +8,37 @@
 // Stage D：墨绿设计 + 双视图
 // ============================================================
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
-  ChevronLeft, ChevronRight, CalendarDays, ArrowLeft, Plus, Clock, ListChecks,
+  ChevronLeft, ChevronRight, CalendarDays, ArrowLeft, Plus, Clock, ListChecks, LayoutGrid,
 } from "lucide-react";
 import type { DdlItem } from "@/lib/types";
 
 interface Props {
   ddls: DdlItem[];
-  onRequestCreate: (presetDate?: string) => void;
+  onRequestCreate: (presetDate?: string, presetTime?: string) => void;
   onRequestEdit: (ddl: DdlItem) => void;
+  /** C1 CalendarRail 迷你月历跳转:prop 变化时切到 day view */
+  jumpToDay?: string | null;
+  /** C4 拖动事件改时间 */
+  onMoveEvent?: (id: string, newDate: string, newTime: string) => void;
 }
 
 const WEEK_LABELS = ["一", "二", "三", "四", "五", "六", "日"];
 
-type ViewMode = "month" | "day";
+type ViewMode = "month" | "week" | "day";
 
-export default function CalendarPanel({ ddls, onRequestCreate, onRequestEdit }: Props) {
+export default function CalendarPanel({ ddls, onRequestCreate, onRequestEdit, jumpToDay, onMoveEvent }: Props) {
   const [view, setView] = useState<ViewMode>("month");
   const [selectedDate, setSelectedDate] = useState<string>(isoDate(new Date()));
+
+  // C1 外部跳转:jumpToDay 变化时切到 day
+  useEffect(() => {
+    if (jumpToDay) {
+      setSelectedDate(jumpToDay);
+      setView("day");
+    }
+  }, [jumpToDay]);
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -63,6 +75,22 @@ export default function CalendarPanel({ ddls, onRequestCreate, onRequestEdit }: 
     );
   }
 
+  if (view === "week") {
+    return (
+      <WeekView
+        date={selectedDate}
+        ddls={ddls}
+        ddlMap={ddlMap}
+        onBack={() => setView("month")}
+        onEnterDay={enterDay}
+        onCreate={() => onRequestCreate(selectedDate)}
+        onCreateAt={(iso, hour) => onRequestCreate(iso, `${String(hour).padStart(2, "0")}:00`)}
+        onEditEvent={onRequestEdit}
+        onMoveEvent={onMoveEvent}
+      />
+    );
+  }
+
   return (
     <MonthView
       ddls={ddls}
@@ -70,6 +98,7 @@ export default function CalendarPanel({ ddls, onRequestCreate, onRequestEdit }: 
       cursor={cursor}
       onCursorChange={setCursor}
       onEnterDay={enterDay}
+      onEnterWeek={(iso: string) => { setSelectedDate(iso); setView("week"); }}
       onCreate={() => onRequestCreate()}
       onEditEvent={onRequestEdit}
     />
@@ -80,13 +109,14 @@ export default function CalendarPanel({ ddls, onRequestCreate, onRequestEdit }: 
 // Month View
 // ============================================================
 function MonthView({
-  ddls, ddlMap, cursor, onCursorChange, onEnterDay, onCreate, onEditEvent,
+  ddls, ddlMap, cursor, onCursorChange, onEnterDay, onEnterWeek, onCreate, onEditEvent,
 }: {
   ddls: DdlItem[];
   ddlMap: Map<string, DdlItem[]>;
   cursor: Date;
   onCursorChange: (d: Date) => void;
   onEnterDay: (iso: string) => void;
+  onEnterWeek?: (iso: string) => void;
   onCreate: () => void;
   onEditEvent: (d: DdlItem) => void;
 }) {
@@ -162,6 +192,29 @@ function MonthView({
             <NavBtn onClick={goNext} aria="下一月">
               <ChevronRight size={16} />
             </NavBtn>
+            {/* C2 Week View 入口 */}
+            {onEnterWeek && (
+              <button
+                onClick={() => onEnterWeek(todayIso)}
+                title="切换到周视图"
+                style={{
+                  padding: "7px 12px",
+                  border: "1px solid var(--color-border)",
+                  background: "var(--color-bg)",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: "var(--color-text-muted)",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <LayoutGrid size={13} /> Week
+              </button>
+            )}
             <PrimaryBtn onClick={onCreate} icon={<Plus size={14} />} label="New Event" />
           </div>
         </header>
@@ -928,4 +981,266 @@ function formatHour(h: number): string {
   if (h < 12) return `${h} AM`;
   if (h === 12) return "12 PM";
   return `${h - 12} PM`;
+}
+
+// ============================================================
+// C2 Week View — 7 列 × 24h 时间轴
+// ============================================================
+function WeekView({
+  date, ddls, ddlMap, onBack, onEnterDay, onCreate, onCreateAt, onEditEvent, onMoveEvent,
+}: {
+  date: string;
+  ddls: DdlItem[];
+  ddlMap: Map<string, DdlItem[]>;
+  onBack: () => void;
+  onEnterDay: (iso: string) => void;
+  onCreate: () => void;
+  /** C3 点空时段创建带 presetDate + presetTime */
+  onCreateAt?: (iso: string, hour: number) => void;
+  onEditEvent: (d: DdlItem) => void;
+  /** C4 拖动事件改时间 */
+  onMoveEvent?: (id: string, newDate: string, newTime: string) => void;
+}) {
+  // 计算所选日期所在周的 7 天（周一开始）
+  const weekDays = useMemo(() => {
+    const d = new Date(date);
+    const dow = (d.getDay() + 6) % 7;
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - dow);
+    monday.setHours(0, 0, 0, 0);
+    const days: { iso: string; day: number; weekday: string; month: number }[] = [];
+    for (let i = 0; i < 7; i++) {
+      const dt = new Date(monday);
+      dt.setDate(monday.getDate() + i);
+      days.push({
+        iso: isoDate(dt),
+        day: dt.getDate(),
+        weekday: WEEK_LABELS[i],
+        month: dt.getMonth() + 1,
+      });
+    }
+    return days;
+  }, [date]);
+
+  const todayIso = isoDate(new Date());
+  const HOUR_START = 6;
+  const HOUR_END = 24; // 6 AM-11 PM,18 行
+  const ROW_HEIGHT = 36;
+
+  const weekLabel = `${weekDays[0].iso} → ${weekDays[6].iso}`;
+  const eventsInWeek = weekDays.flatMap((d) => ddlMap.get(d.iso) ?? []);
+
+  return (
+    <div style={{ height: "100%", overflow: "auto", padding: "24px 24px 40px", background: "var(--color-bg)" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+        {/* Header */}
+        <header
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 18,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              onClick={onBack}
+              style={{
+                width: 32, height: 32, borderRadius: 6, border: "1px solid var(--color-border)",
+                background: "var(--color-bg)", cursor: "pointer", color: "var(--color-text-muted)",
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+              }}
+              aria-label="返回月视图"
+            >
+              <ArrowLeft size={14} />
+            </button>
+            <div>
+              <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text)", margin: 0 }}>
+                Week View
+              </h1>
+              <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: "2px 0 0" }}>
+                {weekLabel} · 共 {eventsInWeek.length} 件事
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onCreate}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "8px 14px", borderRadius: 8, border: "none",
+              background: "var(--color-primary)", color: "white",
+              fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            <Plus size={14} /> New Event
+          </button>
+        </header>
+
+        {/* 7 列 × 时间轴网格 */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "48px repeat(7, 1fr)",
+            border: "1px solid var(--color-border)",
+            borderRadius: 10,
+            overflow: "hidden",
+            background: "var(--color-bg)",
+          }}
+        >
+          {/* 表头:空角 + 7 个日期 */}
+          <div style={{ background: "var(--color-surface)", borderBottom: "1px solid var(--color-border)" }} />
+          {weekDays.map((d) => {
+            const isToday = d.iso === todayIso;
+            return (
+              <button
+                key={d.iso}
+                onClick={() => onEnterDay(d.iso)}
+                style={{
+                  background: "var(--color-surface)",
+                  border: "none",
+                  borderLeft: "1px solid var(--color-border-soft)",
+                  borderBottom: "1px solid var(--color-border)",
+                  padding: "10px 8px",
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  textAlign: "center",
+                }}
+                title="点击进入 Day View"
+              >
+                <div style={{ fontSize: 10, color: "var(--color-text-muted)", marginBottom: 2 }}>
+                  星期{d.weekday}
+                </div>
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 28, height: 28,
+                    borderRadius: "50%",
+                    background: isToday ? "var(--color-primary)" : "transparent",
+                    color: isToday ? "white" : "var(--color-text)",
+                    fontWeight: isToday ? 700 : 600,
+                    fontSize: 14,
+                  }}
+                >
+                  {d.day}
+                </div>
+              </button>
+            );
+          })}
+
+          {/* 时间轴行 */}
+          {Array.from({ length: HOUR_END - HOUR_START }).map((_, idx) => {
+            const hour = HOUR_START + idx;
+            return (
+              <React.Fragment key={hour}>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "var(--color-text-faint)",
+                    padding: "4px 6px",
+                    textAlign: "right",
+                    borderBottom: "1px solid var(--color-border-soft)",
+                    height: ROW_HEIGHT,
+                    background: "var(--color-surface)",
+                  }}
+                >
+                  {formatHour(hour)}
+                </div>
+                {weekDays.map((d) => {
+                  // 取该日该小时内的事件
+                  const cellEvents = (ddlMap.get(d.iso) ?? []).filter((e) => {
+                    const t = e.dueTime || "23:59";
+                    const eh = parseInt(t.split(":")[0], 10);
+                    return eh === hour;
+                  });
+                  return (
+                    <div
+                      key={`${d.iso}-${hour}`}
+                      // C3 空格点击创建
+                      onClick={(ev) => {
+                        // 只有点中"空白"区域(非事件按钮)才创建
+                        if ((ev.target as HTMLElement).tagName === "DIV" && onCreateAt) {
+                          onCreateAt(d.iso, hour);
+                        }
+                      }}
+                      // C4 接收拖入事件
+                      onDragOver={(ev) => {
+                        if (onMoveEvent) {
+                          ev.preventDefault();
+                          (ev.currentTarget as HTMLDivElement).style.background = "var(--color-primary-soft)";
+                        }
+                      }}
+                      onDragLeave={(ev) => {
+                        (ev.currentTarget as HTMLDivElement).style.background =
+                          d.iso === todayIso ? "color-mix(in srgb, var(--color-primary) 3%, transparent)" : "transparent";
+                      }}
+                      onDrop={(ev) => {
+                        if (!onMoveEvent) return;
+                        ev.preventDefault();
+                        (ev.currentTarget as HTMLDivElement).style.background =
+                          d.iso === todayIso ? "color-mix(in srgb, var(--color-primary) 3%, transparent)" : "transparent";
+                        const id = ev.dataTransfer.getData("text/plain");
+                        if (id) onMoveEvent(id, d.iso, `${String(hour).padStart(2, "0")}:00`);
+                      }}
+                      style={{
+                        borderLeft: "1px solid var(--color-border-soft)",
+                        borderBottom: "1px solid var(--color-border-soft)",
+                        height: ROW_HEIGHT,
+                        padding: 2,
+                        position: "relative",
+                        background: d.iso === todayIso ? "color-mix(in srgb, var(--color-primary) 3%, transparent)" : "transparent",
+                        cursor: onCreateAt ? "cell" : "default",
+                      }}
+                      title={onCreateAt ? `点击创建 · ${d.iso} ${String(hour).padStart(2, "0")}:00` : ""}
+                    >
+                      {cellEvents.map((e) => (
+                        <button
+                          key={e.id}
+                          // C4 事件可拖动
+                          draggable={!!onMoveEvent}
+                          onDragStart={(ev) => {
+                            ev.dataTransfer.setData("text/plain", e.id);
+                            ev.dataTransfer.effectAllowed = "move";
+                          }}
+                          onClick={(ev) => { ev.stopPropagation(); onEditEvent(e); }}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            padding: "2px 5px",
+                            borderRadius: 4,
+                            border: "none",
+                            borderLeft: `3px solid ${
+                              e.completed
+                                ? "var(--color-text-faint)"
+                                : "var(--color-primary)"
+                            }`,
+                            background: "var(--color-primary-soft)",
+                            color: "var(--color-primary)",
+                            fontSize: 10,
+                            fontWeight: 500,
+                            cursor: onMoveEvent ? "grab" : "pointer",
+                            fontFamily: "inherit",
+                            textAlign: "left",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            opacity: e.completed ? 0.5 : 1,
+                            textDecoration: e.completed ? "line-through" : "none",
+                          }}
+                          title={`${e.taskName} · ${e.dueTime || "23:59"}${onMoveEvent ? "（可拖动改时间）" : ""}`}
+                        >
+                          {e.dueTime} {e.taskName}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 }

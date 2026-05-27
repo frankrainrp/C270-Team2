@@ -6,7 +6,7 @@
 // ============================================================
 
 import React from "react";
-import { Plus, Pencil, Trash2, X, Check, Sparkles } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Check, Sparkles, BookOpen } from "lucide-react";
 import type { PendingBatch, PendingChange } from "@/lib/pending";
 
 interface ConfirmCardProps {
@@ -283,6 +283,16 @@ function describeChange(ch: PendingChange): {
       bg: "rgba(59,130,246,0.12)",
       fg: "var(--color-info)",
       subline: patched.length > 0 ? `修改 ${patched.join(" · ")}` : undefined,
+    };
+  }
+  if (ch.kind === "create-note") {
+    const n = ch.noteDraft;
+    const preview = n.content.replace(/\s+/g, " ").slice(0, 60);
+    return {
+      icon: <BookOpen size={13} />,
+      bg: "rgba(168,85,247,0.12)", // 紫色区别于 task（绿）
+      fg: "#9333ea",
+      subline: `📝 笔记 · ${n.content.length} 字${n.tags?.length ? ` · #${n.tags.join(" #")}` : ""}${preview ? ` · ${preview}…` : ""}`,
     };
   }
   return {

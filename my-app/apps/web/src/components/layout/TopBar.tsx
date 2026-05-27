@@ -6,8 +6,9 @@
 // ============================================================
 
 import React, { useState } from "react";
-import { Search, Bell, ChevronDown, User as UserIcon, LogOut, CreditCard, LayoutGrid } from "lucide-react";
-import type { NavId } from "@/lib/types";
+import { Bell, ChevronDown, User as UserIcon, LogOut, CreditCard, LayoutGrid, Settings } from "lucide-react";
+import type { NavId, DdlItem, Note, ChatMessage } from "@/lib/types";
+import GlobalSearch from "./GlobalSearch";
 
 const TABS: { id: NavId; label: string }[] = [
   { id: "chat", label: "Chat" },
@@ -21,11 +22,21 @@ interface TopBarProps {
   onNavChange: (id: NavId) => void;
   miniAppsOpen?: boolean;
   onToggleMiniApps?: () => void;
+  // 全局搜索数据源
+  ddls?: DdlItem[];
+  notes?: Note[];
+  messages?: ChatMessage[];
+  /** B3: 搜索结果点击后透传给 page.tsx,用于跳转 + 高亮目标 */
+  onSearchJump?: (target: NavId, refId?: string) => void;
+  /** Epic 3 偏好设置入口 */
+  onOpenPreferences?: () => void;
 }
 
-export default function TopBar({ activeNav, onNavChange, miniAppsOpen, onToggleMiniApps }: TopBarProps) {
+export default function TopBar({
+  activeNav, onNavChange, miniAppsOpen, onToggleMiniApps,
+  ddls = [], notes = [], messages = [], onSearchJump, onOpenPreferences,
+}: TopBarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [searchFocus, setSearchFocus] = useState(false);
 
   return (
     <header
@@ -118,50 +129,16 @@ export default function TopBar({ activeNav, onNavChange, miniAppsOpen, onToggleM
 
       {/* ── 右：搜索 / 通知 / 用户 ── */}
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-        {/* 搜索框 */}
-        <div
-          style={{
-            width: 240,
-            height: 32,
-            background: "var(--color-surface)",
-            border: `1px solid ${searchFocus ? "var(--color-primary)" : "var(--color-border)"}`,
-            borderRadius: 8,
-            display: "flex",
-            alignItems: "center",
-            padding: "0 10px",
-            gap: 8,
-            transition: "border-color 0.15s",
+        {/* 全局搜索（接 ddls/notes/messages） */}
+        <GlobalSearch
+          ddls={ddls}
+          notes={notes}
+          messages={messages}
+          onJump={(target, refId) => {
+            if (onSearchJump) onSearchJump(target, refId);
+            else onNavChange(target);
           }}
-        >
-          <Search size={14} color="var(--color-text-faint)" />
-          <input
-            placeholder="Search..."
-            onFocus={() => setSearchFocus(true)}
-            onBlur={() => setSearchFocus(false)}
-            style={{
-              flex: 1,
-              border: "none",
-              background: "transparent",
-              outline: "none",
-              fontSize: 13,
-              color: "var(--color-text)",
-              width: 0,
-            }}
-          />
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 500,
-              color: "var(--color-text-faint)",
-              border: "1px solid var(--color-border)",
-              borderRadius: 4,
-              padding: "1px 5px",
-              background: "var(--color-bg)",
-            }}
-          >
-            ⌘K
-          </span>
-        </div>
+        />
 
         {/* 学习工具抽屉切换 */}
         <button
@@ -278,6 +255,11 @@ export default function TopBar({ activeNav, onNavChange, miniAppsOpen, onToggleM
                     feng@example.com
                   </p>
                 </div>
+                <MenuBtn
+                  icon={<Settings size={14} />}
+                  label="偏好设置"
+                  onClick={() => { setShowUserMenu(false); onOpenPreferences?.(); }}
+                />
                 <MenuBtn icon={<CreditCard size={14} />} label="账单管理" />
                 <MenuBtn icon={<LogOut size={14} />} label="退出登录" danger />
               </div>
@@ -293,14 +275,17 @@ function MenuBtn({
   icon,
   label,
   danger,
+  onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   danger?: boolean;
+  onClick?: () => void;
 }) {
   const [hov, setHov] = useState(false);
   return (
     <button
+      onClick={onClick}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{

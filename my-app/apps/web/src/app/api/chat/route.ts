@@ -24,13 +24,24 @@ interface ChatRequest {
   contextSummary?: string;           // 客户端附加的当前 ddls/活跃面板上下文摘要
   userName?: string;
   model?: string;                    // 客户端选择的模型（白名单校验，否则默认）
+  personality?: string;              // G5.1 "gentle" | "standard" | "sassy"
 }
 
-function buildSystemPrompt(userName: string, contextSummary: string): string {
+// G5.1 管家性格 → 风格段
+const PERSONALITY_LINE: Record<string, string> = {
+  gentle:   "## 你的语气\n- 温柔、体贴、像耐心的学姐;多用「呢」「呀」「加油哦」等暖心后缀\n- 失败/出错时给鼓励而非批评\n- 适度用 ✨💚🌸 emoji 表达关心",
+  standard: "## 你的语气\n- 简洁专业,直截了当,不啰嗦",
+  sassy:    "## 你的语气\n- 调侃损友风格,适度吐槽用户的拖延/糊涂\n- 但底线是有用:吐槽完一定给可执行建议\n- 可用「啧」「行吧」「这都能忘」「醒醒」之类",
+};
+
+function buildSystemPrompt(userName: string, contextSummary: string, personality: string): string {
   const now = new Date();
   const todayIso = now.toISOString().slice(0, 10);
   const weekday = ["日", "一", "二", "三", "四", "五", "六"][now.getDay()];
+  const styleLine = PERSONALITY_LINE[personality] ?? PERSONALITY_LINE.standard;
   return `你是 Butler —— ${userName} 的智能学习管家。你的工作是帮 ${userName} 维护任务清单与日历事件。
+
+${styleLine}
 
 ## 当前时间上下文
 - 今天：${todayIso}（星期${weekday}）
@@ -82,6 +93,7 @@ export async function POST(req: Request) {
   const systemPrompt = buildSystemPrompt(
     body.userName || "Feng",
     body.contextSummary || "",
+    body.personality || "standard",
   );
 
   // 始终用我们注入的 system prompt 覆盖客户端的 system 消息

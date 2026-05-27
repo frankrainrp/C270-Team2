@@ -7,13 +7,14 @@
 // ============================================================
 
 import Dexie, { type Table } from "dexie";
-import type { DdlItem, ChatMessage, StoredBlob, ChatSession } from "./types";
+import type { DdlItem, ChatMessage, StoredBlob, ChatSession, Note } from "./types";
 
 export class ButlerDB extends Dexie {
   ddls!: Table<DdlItem, string>;          // 主键 id
   messages!: Table<ChatMessage, string>;  // 主键 id（消息历史）
   blobs!: Table<StoredBlob, string>;      // 主键 id（附件文件二进制）
   sessions!: Table<ChatSession, string>;  // 主键 id（多会话）
+  notes!: Table<Note, string>;            // 主键 id（笔记，v5 起）
 
   constructor() {
     super("butler-db");
@@ -60,6 +61,14 @@ export class ButlerDB extends Dexie {
           d.status = d.completed ? "done" : "todo";
         }
       });
+    });
+    // v5: 新增 notes 表（浏览器内简易 Markdown 笔记）
+    this.version(5).stores({
+      ddls: "&id, dueDate, completed, status, source",
+      messages: "&id, sessionId, timestamp, role",
+      blobs: "&id, createdAt",
+      sessions: "&id, updatedAt",
+      notes: "&id, updatedAt, pinned",
     });
   }
 }

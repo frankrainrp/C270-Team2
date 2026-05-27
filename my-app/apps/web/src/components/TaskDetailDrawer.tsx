@@ -9,12 +9,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   X, Trash2, Users, Link2, FolderOpen, Upload,
-  FileText, Image as ImageIcon, File as FileIcon,
+  FileText, Image as ImageIcon, File as FileIcon, BookOpen, Unlink,
 } from "lucide-react";
-import type { DdlItem, DdlAttachment, TaskStatus, TaskPriority } from "@/lib/types";
+import type { DdlItem, DdlAttachment, TaskStatus, TaskPriority, Note } from "@/lib/types";
 
 export type EditingTarget =
-  | { mode: "create"; presetDate?: string }
+  | { mode: "create"; presetDate?: string; presetTime?: string }
   | { mode: "edit"; item: DdlItem };
 
 export interface FormPayload {
@@ -43,6 +43,15 @@ interface Props {
   onCancel: () => void;
   onSubmit: (data: FormPayload) => void;
   onDelete?: (id: string) => void;
+  // B1 跨面板联动
+  /** 当前任务关联的 Note（已 lookup 好）；只在 edit 模式 + DdlItem.noteId 有值时传 */
+  linkedNote?: Note | null;
+  /** 创建空笔记并立即关联到当前 task,然后跳 Notes Tab */
+  onCreateLinkedNote?: (taskId: string) => void;
+  /** 跳到 Notes Tab 并打开指定 note */
+  onJumpToNote?: (noteId: string) => void;
+  /** 解除关联（DdlItem.noteId 置空） */
+  onUnlinkNote?: (taskId: string) => void;
 }
 
 const STATUS_OPTIONS: { v: TaskStatus; label: string; color: string }[] = [
@@ -57,14 +66,54 @@ const PRIORITY_OPTIONS: { v: TaskPriority; label: string; color: string }[] = [
   { v: "high", label: "高", color: "var(--color-danger)" },
 ];
 
-export default function TaskDetailDrawer({ target, onCancel, onSubmit, onDelete }: Props) {
+// Epic 5.3 任务快捷模板:常用学生场景一键预填
+interface TaskTemplate {
+  id: string;
+  label: string;
+  emoji: string;
+  patch: () => Partial<FormPayload>;
+}
+const TASK_TEMPLATES: TaskTemplate[] = [
+  {
+    id: "quiz",
+    label: "Quiz",
+    emoji: "📝",
+    patch: () => ({ weight: 10, priority: "med",  tags: ["quiz"], description: "复习考点 + 1 套模拟" }),
+  },
+  {
+    id: "paper",
+    label: "Paper",
+    emoji: "📄",
+    patch: () => ({ weight: 30, priority: "high", tags: ["paper"], description: "提纲 → 初稿 → 润色 → 提交" }),
+  },
+  {
+    id: "project",
+    label: "Project",
+    emoji: "🚀",
+    patch: () => ({ weight: 25, priority: "high", tags: ["project"], description: "拆任务,分工(若小组)", isGroupWork: true }),
+  },
+  {
+    id: "reading",
+    label: "Reading",
+    emoji: "📖",
+    patch: () => ({ weight: null, priority: "low",  tags: ["reading"], description: "记笔记 + 关键结论 3 句" }),
+  },
+];
+
+export default function TaskDetailDrawer({
+  target, onCancel, onSubmit, onDelete,
+  linkedNote, onCreateLinkedNote, onJumpToNote, onUnlinkNote,
+}: Props) {
   const isEdit = target.mode === "edit";
   const init = isEdit ? target.item : null;
   const initialDate = isEdit ? target.item.dueDate : (target.presetDate ?? todayIso());
+  const initialTime = isEdit
+    ? target.item.dueTime
+    : (target.mode === "create" && target.presetTime) || "23:59";
 
   const [taskName, setTaskName] = useState(init?.taskName ?? "");
   const [dueDate, setDueDate] = useState(initialDate);
-  const [dueTime, setDueTime] = useState(init?.dueTime ?? "23:59");
+  const [dueTime, setDueTime] = useState(initialTime);
   const [weight, setWeight] = useState<string>(init?.weight != null ? String(init.weight) : "");
   const [description, setDescription] = useState(init?.description ?? "");
   const [isGroupWork, setIsGroupWork] = useState<boolean>(init?.isGroupWork ?? false);
@@ -174,6 +223,63 @@ export default function TaskDetailDrawer({ target, onCancel, onSubmit, onDelete 
 
           {/* Body */}
           <div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: 14 }}>
+            {/* Epic 5.3 任务快捷模板(仅新建模式) */}
+            {!isEdit && (
+              <div>
+                <span
+                  style={{
+                    fontSize: 11, fontWeight: 600, color: "var(--color-text-muted)",
+                    letterSpacing: 0.4, display: "block", marginBottom: 6,
+                  }}
+                >
+                  快捷模板
+                </span>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {TASK_TEMPLATES.map((tpl) => (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      onClick={() => {
+                        const p = tpl.patch();
+                        if (p.weight !== undefined) setWeight(p.weight === null ? "" : String(p.weight));
+                        if (p.priority !== undefined) setPriority((p.priority as TaskPriority) ?? "");
+                        if (p.tags !== undefined) setTagsInput((p.tags ?? []).join(", "));
+                        if (p.description !== undefined) setDescription(p.description ?? "");
+                        if (p.isGroupWork !== undefined) setIsGroupWork(!!p.isGroupWork);
+                        if (!taskName) nameRef.current?.focus();
+                      }}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        padding: "5px 10px",
+                        borderRadius: 6,
+                        border: "1px solid var(--color-border)",
+                        background: "var(--color-bg)",
+                        color: "var(--color-text)",
+                        fontSize: 12,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                      onMouseEnter={(e) => {
+                        const el = e.currentTarget as HTMLButtonElement;
+                        el.style.borderColor = "var(--color-primary)";
+                        el.style.background = "var(--color-primary-soft)";
+                      }}
+                      onMouseLeave={(e) => {
+                        const el = e.currentTarget as HTMLButtonElement;
+                        el.style.borderColor = "var(--color-border)";
+                        el.style.background = "var(--color-bg)";
+                      }}
+                    >
+                      <span>{tpl.emoji}</span>
+                      {tpl.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <Field label="任务名">
               <input
                 ref={nameRef}
@@ -282,6 +388,94 @@ export default function TaskDetailDrawer({ target, onCancel, onSubmit, onDelete 
             </Field>
 
             <AttachmentsEditor attachments={attachments} setAttachments={setAttachments} />
+
+            {/* B1 关联笔记（仅 edit 模式 + 父组件传入 callbacks 时显示） */}
+            {isEdit && init && (onCreateLinkedNote || linkedNote) && (
+              <Field label="关联笔记">
+                {linkedNote ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      background: "var(--color-primary-soft)",
+                      border: "1px solid color-mix(in srgb, var(--color-primary) 25%, transparent)",
+                    }}
+                  >
+                    <BookOpen size={14} color="var(--color-primary)" style={{ flexShrink: 0 }} />
+                    <span
+                      style={{
+                        flex: 1,
+                        fontSize: 13,
+                        color: "var(--color-text)",
+                        fontWeight: 500,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {linkedNote.title || "(无标题)"}
+                    </span>
+                    {onJumpToNote && (
+                      <button
+                        type="button"
+                        onClick={() => onJumpToNote(linkedNote.id)}
+                        title="在 Notes 打开"
+                        style={smallBtnStyle()}
+                      >
+                        打开
+                      </button>
+                    )}
+                    {onUnlinkNote && (
+                      <button
+                        type="button"
+                        onClick={() => onUnlinkNote(init.id)}
+                        title="解除关联"
+                        style={smallBtnStyle(true)}
+                      >
+                        <Unlink size={11} />
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  onCreateLinkedNote && (
+                    <button
+                      type="button"
+                      onClick={() => onCreateLinkedNote(init.id)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px dashed var(--color-border)",
+                        background: "var(--color-surface)",
+                        color: "var(--color-text-muted)",
+                        fontSize: 12,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        width: "100%",
+                        justifyContent: "center",
+                      }}
+                      onMouseEnter={(e) => {
+                        const el = e.currentTarget as HTMLButtonElement;
+                        el.style.borderColor = "var(--color-primary)";
+                        el.style.color = "var(--color-primary)";
+                      }}
+                      onMouseLeave={(e) => {
+                        const el = e.currentTarget as HTMLButtonElement;
+                        el.style.borderColor = "var(--color-border)";
+                        el.style.color = "var(--color-text-muted)";
+                      }}
+                    >
+                      <BookOpen size={13} /> 创建关联笔记
+                    </button>
+                  )
+                )}
+              </Field>
+            )}
           </div>
 
           {/* Footer */}
@@ -608,5 +802,24 @@ function smallBtn(primary: boolean): React.CSSProperties {
     color: primary ? "white" : "var(--color-text-muted)",
     fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
     flexShrink: 0,
+  };
+}
+
+// B1 关联笔记内联小按钮
+function smallBtnStyle(danger?: boolean): React.CSSProperties {
+  return {
+    padding: "3px 8px",
+    borderRadius: 5,
+    border: `1px solid ${danger ? "var(--color-danger)" : "var(--color-primary)"}`,
+    background: "var(--color-bg)",
+    color: danger ? "var(--color-danger)" : "var(--color-primary)",
+    fontSize: 11,
+    fontWeight: 500,
+    cursor: "pointer",
+    fontFamily: "inherit",
+    flexShrink: 0,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 3,
   };
 }

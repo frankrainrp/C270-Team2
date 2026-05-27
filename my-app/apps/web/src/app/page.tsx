@@ -18,18 +18,24 @@ import CalendarPanel from "@/components/CalendarPanel";
 import NotesPanel from "@/components/NotesPanel";
 import TaskDetailDrawer, { type EditingTarget, type FormPayload } from "@/components/TaskDetailDrawer";
 import AttachmentPreview from "@/components/AttachmentPreview";
-import type { ChatMessage, ChatSession, ProcessingPipeline, DdlItem, NavId, UploadedFile, DdlAttachment } from "@/lib/types";
+import NotesPreview from "@/components/NotesPreview";
+import KeyboardShortcutsHelp from "@/components/KeyboardShortcutsHelp";
+import PreferencesPanel, { applyStoredPreferences, getStoredPersonality } from "@/components/PreferencesPanel";
+import OnboardingTour from "@/components/OnboardingTour";
+import type { ChatMessage, ChatSession, ProcessingPipeline, DdlItem, NavId, UploadedFile, DdlAttachment, Note } from "@/lib/types";
 import { INITIAL_STEPS } from "@/lib/mock-pipeline";
 import { streamChat, type ApiMessage } from "@/lib/chat-client";
 import { createToolExecutor } from "@/lib/tool-executor";
-import { type PendingBatch, type PendingChange, makeBatch, makeChangeId, applyBatch } from "@/lib/pending";
+import { type PendingBatch, type PendingChange, makeBatch, makeChangeId, applyBatch, extractNoteDrafts } from "@/lib/pending";
 import type { ButlerPose } from "@/components/ButlerCharacter";
 import { type AiModelId, DEFAULT_MODEL_ID, MODEL_STORAGE_KEY, isValidModelId } from "@/lib/ai-models";
 import type { TaskViewId } from "@/components/layout/TasksRail";
+import { useToast } from "@/components/Toast";
 
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 
 export default function HomePage() {
+  const toast = useToast();
   const [activeNav, setActiveNav] = useState<NavId>("chat");
   const [messages, setMessages] = useState<ChatMessage[]>([]);  // 全 session 共池，渲染时按 activeSessionId 过滤
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -45,10 +51,29 @@ export default function HomePage() {
   const currentBatchIdRef = useRef<string | null>(null);
   // PDF pipeline 完成时短暂高亮 pointout 姿势（5s 后回 standing/serving）
   const [pointoutHold, setPointoutHold] = useState(false);
+  // AI 生成阶段（用于派生 butlerPose 的 thinking / thinking-hard / idea / rare-thinking）
+  // phase=null 表示当前没有 AI 在跑；phase 推进顺序：thinking → thinking-hard（思考模式）→ idea → thinking
+  // rareRoll：每次 send 开始抽一次（仅 7-9am × 6.1%），sticky 整个生成期
+  const [aiActivity, setAiActivity] = useState<{
+    phase: "thinking" | "thinking-hard" | "idea" | null;
+    rareRoll: boolean;
+  }>({ phase: null, rareRoll: false });
+  // idea 是"reasoning→content 过渡"的一闪而过状态，1s 后自动切回 thinking
+  const ideaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 停止生成：handleSend 时 new AbortController() 存入，handleStopGeneration abort
+  const abortRef = useRef<AbortController | null>(null);
+
+  // 早上 7-9 点 × 6.1% 概率，命中时整个生成期的 thinking/thinking-hard 显示 rare-thinking
+  const rollRare = useCallback(() => {
+    const hour = new Date().getHours();
+    return hour >= 7 && hour < 9 && Math.random() < 0.061;
+  }, []);
   // 学习工具抽屉
   const [miniAppsOpen, setMiniAppsOpen] = useState(false);
   // Tasks 当前 view
   const [taskView, setTaskView] = useState<TaskViewId>("active");
+  // Notes 浏览器版（Dexie v5）
+  const [notes, setNotes] = useState<Note[]>([]);
   // AI 模型选择（localStorage 持久化）
   const [selectedModel, setSelectedModel] = useState<AiModelId>(DEFAULT_MODEL_ID);
   useEffect(() => {
@@ -78,13 +103,15 @@ export default function HomePage() {
       try {
         const { getDb } = await import("@/lib/db");
         const db = getDb();
-        const [ddlRows, sessRows, msgRows] = await Promise.all([
+        const [ddlRows, sessRows, msgRows, noteRows] = await Promise.all([
           db.ddls.toArray(),
           db.sessions.toArray(),
           db.messages.toArray(),
+          db.notes.toArray(),
         ]);
         if (cancelled) return;
         if (ddlRows.length > 0) setDdls(ddlRows);
+        if (noteRows.length > 0) setNotes(noteRows);
 
         // sessions 排序（最近活跃在前）
         const sortedSessions = [...sessRows].sort((a, b) => b.updatedAt - a.updatedAt);
@@ -154,6 +181,60 @@ export default function HomePage() {
       }
     })();
   }, [sessions, hydrated]);
+
+  // 持久化：notes 变化 → bulkPut
+  useEffect(() => {
+    if (!hydrated) return;
+    (async () => {
+      try {
+        const { getDb } = await import("@/lib/db");
+        const db = getDb();
+        await db.transaction("rw", db.notes, async () => {
+          await db.notes.clear();
+          if (notes.length > 0) await db.notes.bulkPut(notes);
+        });
+      } catch (e) {
+        console.warn("[db] notes sync failed:", e);
+      }
+    })();
+  }, [notes, hydrated]);
+
+  // Notes CRUD
+  const handleCreateNote = useCallback((): Note => {
+    const now = Date.now();
+    const fresh: Note = {
+      id: "note-" + uid(),
+      title: "",
+      content: "",
+      createdAt: now,
+      updatedAt: now,
+    };
+    setNotes((prev) => [fresh, ...prev]);
+    return fresh;
+  }, []);
+
+  const handleUpdateNote = useCallback((id: string, patch: Partial<Note>) => {
+    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)));
+  }, []);
+
+  const handleDeleteNote = useCallback((id: string) => {
+    const snapshot = notes.find((n) => n.id === id);
+    if (!snapshot) return;
+    setNotes((prev) => prev.filter((n) => n.id !== id));
+    toast.success(`已删除笔记「${snapshot.title || "(无标题)"}」`, {
+      action: {
+        label: "撤销",
+        onClick: () => setNotes((prev) => [snapshot, ...prev]),
+      },
+    });
+  }, [notes, toast]);
+
+  // 已触发过 AI 开屏问候的 session（防重复）
+  const greetedSessionsRef = useRef<Set<string>>(new Set());
+  // 已请求过自动标题的 session（防重复触发）
+  const titleRequestedRef = useRef<Set<string>>(new Set());
+  // Epic 5.4 已推送过 deadline 通知的 task id（防重复）
+  const deadlineNotifiedRef = useRef<Set<string>>(new Set());
 
   // 持久化：messages 变化 → 整体替换（pipeline 类消息不持久化，避免重启后挂着旧 pipelineId）
   useEffect(() => {
@@ -408,9 +489,15 @@ export default function HomePage() {
     setPendingBatches((prev) => {
       const batch = prev[batchId];
       if (!batch || batch.status !== "pending") return prev;
+      // 1. 应用 ddls 相关 changes
       const { next, stats } = applyBatch(ddlsRef.current, batch);
       setDdls(next);
-      console.log("[pending] accepted batch", batchId, stats);
+      // 2. 应用 create-note changes（B2 跨面板联动）
+      const noteDrafts = extractNoteDrafts(batch);
+      if (noteDrafts.length > 0) {
+        setNotes((prevNotes) => [...noteDrafts, ...prevNotes]);
+      }
+      console.log("[pending] accepted batch", batchId, stats, noteDrafts.length > 0 ? `+${noteDrafts.length} notes` : "");
       return { ...prev, [batchId]: { ...batch, status: "accepted" } };
     });
   }, []);
@@ -435,18 +522,36 @@ export default function HomePage() {
   }, []);
 
   // ---------- Butler 姿势：派生 ----------
+  // 优先级（高 → 低）：
+  //   1. pointoutHold（PDF 完成 5s 内高亮）
+  //   2. PDF 待核实
+  //   3. AI 在生成（按 aiActivity.phase + rareRoll）
+  //   4. AI 待核实（ai-chat pending）
+  //   5. 默认 standing
   const butlerPose: ButlerPose = useMemo(() => {
     if (pointoutHold) return "pointout";
+
     const hasPdfPending = Object.values(pendingBatches).some(
       (b) => b.origin === "pdf-extract" && b.status === "pending",
     );
+    if (hasPdfPending) return "pointout";
+
+    if (isLoading && aiActivity.phase) {
+      // idea 优先级最高（一闪即过的灵感时刻）
+      if (aiActivity.phase === "idea") return "idea";
+      // thinking-hard / thinking 在 rare 命中时替换为 rare-thinking
+      if (aiActivity.rareRoll) return "rare-thinking";
+      if (aiActivity.phase === "thinking-hard") return "thinking-hard";
+      return "thinking";
+    }
+
     const hasAiPending = Object.values(pendingBatches).some(
       (b) => b.origin === "ai-chat" && b.status === "pending",
     );
-    if (hasPdfPending) return "pointout";
     if (isLoading || hasAiPending) return "serving";
+
     return "standing";
-  }, [pointoutHold, pendingBatches, isLoading]);
+  }, [pointoutHold, pendingBatches, isLoading, aiActivity]);
 
   // ---------- Tool 执行器（稳定 ref） ----------
   const executeToolCall = useMemo(
@@ -474,6 +579,10 @@ export default function HomePage() {
     const tail = items.length > 20 ? `\n（仅显示最近 20 条，总共 ${items.length} 条）` : "";
     return `当前任务/事件列表：\n${lines.join("\n")}${tail}`;
   }, []);
+
+  // 历史消息截断上限：避免长会话 input token 线性爆炸（system prompt 已含 contextSummary）
+  // 10 条 ≈ 5 轮对话足够保留近期上下文；早期内容可通过 UI 历史回看
+  const HISTORY_LIMIT = 10;
 
   // ---------- 发送 ----------
   const handleSend = useCallback(async () => {
@@ -507,26 +616,63 @@ export default function HomePage() {
     setIsLoading(true);
     currentBatchIdRef.current = null; // 新一轮 send：清掉旧 batchId，让首个 tool_call 时建新 batch
 
+    // 初始化 AI 活动状态：默认 thinking（Flash 模式 content 流），rareRoll 一次抽定
+    const rare = rollRare();
+    setAiActivity({ phase: "thinking", rareRoll: rare });
+    let contentStarted = false; // 当前轮 send 是否已进入 content 流（用于触发 idea 一闪）
+    if (ideaTimerRef.current) {
+      clearTimeout(ideaTimerRef.current);
+      ideaTimerRef.current = null;
+    }
+
     // 把当前 session 的 UI 历史消息转成 API 格式
-    const historyApi: ApiMessage[] = [...messages, userUiMsg]
+    const allHistory: ApiMessage[] = [...messages, userUiMsg]
       .filter((m) => m.sessionId === sid && (m.role === "user" || m.role === "assistant") && m.content)
       .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
-    // 流式回调：动态创建 UI assistant 消息 + 增量更新
+    // 截断到最近 HISTORY_LIMIT 条；如截断后首条是 assistant 则继续往后 trim
+    // 保证首条 role=user（DeepSeek/OpenAI API 严格要求）
+    let trimmed = allHistory.slice(-HISTORY_LIMIT);
+    while (trimmed.length > 0 && trimmed[0].role !== "user") {
+      trimmed = trimmed.slice(1);
+    }
+    const historyApi = trimmed;
+    if (allHistory.length > historyApi.length) {
+      console.log(`[chat] history truncated: ${allHistory.length} → ${historyApi.length}`);
+    }
+
+    // 流式回调：动态创建 UI assistant 消息 + 增量更新（content / reasoning 共用同一条消息）
     let currentAssistantId: string | null = null;
-    const onDelta = (delta: string) => {
+    const ensureAssistant = (patch: { content?: string; reasoning?: string }) => {
       if (!currentAssistantId) {
         const id = uid();
         currentAssistantId = id;
         setMessages((prev) => [
           ...prev,
-          { id, sessionId: sid, role: "assistant", content: delta, timestamp: new Date() },
+          {
+            id,
+            sessionId: sid,
+            role: "assistant",
+            content: patch.content ?? "",
+            reasoning: patch.reasoning,
+            timestamp: new Date(),
+          },
         ]);
       } else {
         const id = currentAssistantId;
-        setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, content: m.content + delta } : m)));
+        setMessages((prev) => prev.map((m) => {
+          if (m.id !== id) return m;
+          const next = { ...m };
+          if (patch.content) next.content = m.content + patch.content;
+          if (patch.reasoning) next.reasoning = (m.reasoning ?? "") + patch.reasoning;
+          return next;
+        }));
       }
     };
+
+    // 创建可中止控制器（用户点 stop 按钮 → abortRef.current.abort()）
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
       await streamChat({
@@ -535,9 +681,31 @@ export default function HomePage() {
         userName: "Feng",
         includeTools: true,
         model: selectedModel,
+        personality: getStoredPersonality(),
+        signal: controller.signal,
         executeToolCall,
         callbacks: {
-          onContentDelta: onDelta,
+          onContentDelta: (d) => {
+            // 首次进入 content 流 → idea 一闪 1s → 回 thinking
+            if (!contentStarted) {
+              contentStarted = true;
+              setAiActivity((a) => ({ ...a, phase: "idea" }));
+              ideaTimerRef.current = setTimeout(() => {
+                setAiActivity((a) => (a.phase === "idea" ? { ...a, phase: "thinking" } : a));
+                ideaTimerRef.current = null;
+              }, 1000);
+            }
+            ensureAssistant({ content: d });
+          },
+          onReasoningDelta: (d) => {
+            // reasoning_content 出现 → 升级到 thinking-hard（仅 content 未开始时）
+            if (!contentStarted) {
+              setAiActivity((a) =>
+                a.phase === "thinking-hard" ? a : { ...a, phase: "thinking-hard" },
+              );
+            }
+            ensureAssistant({ reasoning: d });
+          },
           onAssistantMessage: () => {
             // 一轮 assistant 消息收尾。下一轮（若有 tool call 后）会重新建立新的 UI 消息
             currentAssistantId = null;
@@ -545,6 +713,17 @@ export default function HomePage() {
           onToolCallStart: (call) => {
             // eslint-disable-next-line no-console
             console.log("[tool] start", call.function.name, call.function.arguments);
+            // 1.3 实时提示用户:Butler 正在调什么工具
+            const labels: Record<string, string> = {
+              create_item: "正在新建任务草稿",
+              update_item: "正在修改任务草稿",
+              delete_item: "正在准备删除",
+              toggle_complete: "正在勾选完成",
+              list_items: "正在查询任务列表",
+              create_note: "正在生成笔记草稿",
+            };
+            const label = labels[call.function.name] ?? `正在调用 ${call.function.name}`;
+            toast.info(`⚙ Butler ${label}…`, { id: "ai-tool-call", duration: 1500 });
           },
           onToolCallEnd: (call, result) => {
             // eslint-disable-next-line no-console
@@ -553,16 +732,225 @@ export default function HomePage() {
           onError: (err) => {
             setMessages((prev) => [
               ...prev,
-              { id: uid(), sessionId: sid, role: "assistant", content: `❌ 出错了：${err.message}`, timestamp: new Date() },
+              { id: uid(), sessionId: sid, role: "assistant", content: `❌ 出错了：${err.message}`, isError: true, timestamp: new Date() },
             ]);
           },
         },
       });
+    } catch (err) {
+      // AbortError 静默（用户主动 stop）；其他错误已通过 onError 上报，这里仅吞掉防止 unhandled rejection
+      if (err instanceof Error && err.name !== "AbortError" && err.name !== "DOMException") {
+        console.warn("[chat] streamChat error:", err);
+      }
     } finally {
       setIsLoading(false);
       currentBatchIdRef.current = null;
+      abortRef.current = null;
+      if (ideaTimerRef.current) {
+        clearTimeout(ideaTimerRef.current);
+        ideaTimerRef.current = null;
+      }
+      setAiActivity({ phase: null, rareRoll: false });
     }
-  }, [inputValue, attachedFiles, isLoading, messages, runRealPipeline, executeToolCall, buildContextSummary, touchActiveSession, selectedModel]);
+  }, [inputValue, attachedFiles, isLoading, messages, runRealPipeline, executeToolCall, buildContextSummary, touchActiveSession, selectedModel, rollRare, toast]);
+
+  // 停止生成：触发当前 AbortController.abort()；finally 会自动清理状态
+  const handleStopGeneration = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
+
+  // G: AI 自动生成会话标题 — 首轮对话完成后调一次 V4 Flash 总结 4-8 字
+  const generateSessionTitle = useCallback(async (sid: string, userText: string, assistantText: string) => {
+    let title = "";
+    try {
+      await streamChat({
+        messages: [{
+          role: "user",
+          content: `请根据下面这段对话生成一个 4-8 个汉字的中文标题,直接输出标题文本本身,不要任何解释、标点、引号、emoji 或前后缀。\n\n用户:${userText.slice(0, 200)}\nAI:${assistantText.slice(0, 200)}`,
+        }],
+        userName: "Feng",
+        includeTools: false,
+        model: "deepseek-v4-flash",
+        executeToolCall: async () => ({ ok: false, message: "not allowed" }),
+        callbacks: {
+          onContentDelta: (d) => { title += d; },
+          onError: () => { /* 静默,不阻塞 */ },
+        },
+      });
+    } catch { /* ignore */ }
+    // 清理:去标点 / 引号 / 换行,限制 20 字
+    const cleaned = title.replace(/["""《》「」<>【】[\]:：。.!！?？\n\r\s]/g, "").trim().slice(0, 20);
+    if (cleaned && cleaned !== "新对话") {
+      setSessions((prev) => prev.map((s) => (s.id === sid && s.title === "新对话" ? { ...s, title: cleaned } : s)));
+    }
+  }, []);
+
+  // 监听:当 session 有 1 user + 1 真实 assistant 且 title 仍是默认值 → 自动生成
+  useEffect(() => {
+    if (isLoading || !hydrated) return;
+    const sid = activeSessionIdRef.current;
+    if (!sid) return;
+    if (titleRequestedRef.current.has(sid)) return;
+    const session = sessions.find((s) => s.id === sid);
+    if (!session || session.title !== "新对话") return;
+    const sessMsgs = messages.filter((m) => m.sessionId === sid && (m.role === "user" || m.role === "assistant"));
+    const lastUser = [...sessMsgs].reverse().find((m) => m.role === "user");
+    const lastAssistant = [...sessMsgs].reverse().find((m) => m.role === "assistant" && !m.isError && m.content.length > 5);
+    if (!lastUser || !lastAssistant) return;
+    titleRequestedRef.current.add(sid);
+    generateSessionTitle(sid, lastUser.content, lastAssistant.content);
+  }, [isLoading, hydrated, sessions, messages, generateSessionTitle]);
+
+  // 重新生成 / 错误重试：删除指定 assistant 消息及其之后的所有消息,
+  // 找到它前面最近的 user 消息内容,塞回 inputValue 并触发 send。
+  // 用 setTimeout(0) 让 setState 先 flush 再调 handleSend（拿到截断后的 messages）
+  const handleRegenerate = useCallback((assistantMessageId: string) => {
+    if (isLoading) return;
+    const sid = activeSessionIdRef.current;
+    if (!sid) return;
+    const idx = messages.findIndex((m) => m.id === assistantMessageId);
+    if (idx < 0) return;
+    // 找前面最近的 user 消息
+    let userIdx = -1;
+    for (let i = idx - 1; i >= 0; i--) {
+      if (messages[i].sessionId === sid && messages[i].role === "user") { userIdx = i; break; }
+    }
+    if (userIdx < 0) return;
+    const userContent = messages[userIdx].content;
+    // 截断：保留到 userIdx-1（去掉那条 user + 后面所有，因为待会儿 send 会重新加这条 user）
+    setMessages((prev) => prev.slice(0, userIdx));
+    setInputValue(userContent);
+    // 下一 tick 触发 send（让 React flush state）
+    setTimeout(() => {
+      // 使用 ref 拿到最新 handleSend 不方便，直接通过 button click
+      const btn = document.querySelector("#send-btn") as HTMLButtonElement | null;
+      btn?.click();
+    }, 50);
+  }, [isLoading, messages]);
+
+  // ---------- 开屏问候：纯本地代码生成（零 token / 零 API 调用 / 瞬间显示） ----------
+  // 用户原话:「确保一上来的那句问候不消耗 token 只靠代码实现」
+  const buildLocalGreeting = useCallback((items: DdlItem[]): string => {
+    const hour = new Date().getHours();
+    const timeOfDay =
+      hour < 6 ? "深夜好" :
+      hour < 11 ? "早上好" :
+      hour < 14 ? "中午好" :
+      hour < 18 ? "下午好" : "晚上好";
+    const emoji =
+      hour < 6 ? "🌙" :
+      hour < 11 ? "☀️" :
+      hour < 14 ? "🌤️" :
+      hour < 18 ? "🌥️" : "🌃";
+
+    const todo = items.filter((d) => !d.completed && (d.status ?? "todo") !== "done");
+    if (todo.length === 0) {
+      return `${timeOfDay}，Feng！你目前的任务清单是空的,没有待办事项或日历事件。祝你今天轻松自在 ${emoji}`;
+    }
+
+    // 找最近未过期的 deadline（按日期升序,只看今天及之后）
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const withDate = todo
+      .filter((d) => d.dueDate)
+      .map((d) => ({ ...d, ts: new Date(d.dueDate).getTime() }))
+      .sort((a, b) => a.ts - b.ts);
+    const upcoming = withDate.find((d) => d.ts >= today.getTime());
+
+    if (upcoming) {
+      return `${timeOfDay}，Feng！你目前有 **${todo.length}** 个未完成任务，最近的是「${upcoming.taskName}」（${upcoming.dueDate}）。加油 ${emoji}`;
+    }
+    return `${timeOfDay}，Feng！你有 **${todo.length}** 个未完成任务。继续加油 ${emoji}`;
+  }, []);
+
+  const triggerGreeting = useCallback((sid: string) => {
+    // 直接 setMessages,不走 API、不设 isLoading、不动状态机
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: uid(),
+        sessionId: sid,
+        role: "assistant",
+        content: buildLocalGreeting(ddlsRef.current),
+        timestamp: new Date(),
+      },
+    ]);
+  }, [buildLocalGreeting]);
+
+  // 监听条件触发问候：hydrated 完成 + 当前在 chat tab + 当前 session 完全空（无 user/assistant 历史）+ 未触发过
+  useEffect(() => {
+    if (!hydrated) return;
+    if (isLoading) return;
+    if (activeNav !== "chat") return;
+    const sid = activeSessionId;
+    if (!sid) return;
+    if (greetedSessionsRef.current.has(sid)) return;
+
+    const sessionRealMsgs = messages.filter(
+      (m) => m.sessionId === sid && (m.role === "user" || m.role === "assistant"),
+    );
+    if (sessionRealMsgs.length > 0) {
+      // 已有真实对话历史，跳过 + 标记
+      greetedSessionsRef.current.add(sid);
+      return;
+    }
+
+    // 触发问候
+    greetedSessionsRef.current.add(sid);
+    triggerGreeting(sid);
+  }, [hydrated, isLoading, activeNav, activeSessionId, messages, triggerGreeting]);
+
+  // ---------- Epic 5.4 临近 deadline 浏览器通知（本地代码,零 token）----------
+  // hydrate 完成后,每 60s 扫描一次未完成且 24h 内截止的任务
+  // 用浏览器 Notification API（需用户授权）+ Toast 双通道提醒
+  useEffect(() => {
+    if (!hydrated) return;
+    const check = () => {
+      const now = Date.now();
+      const horizon = now + 24 * 3600 * 1000;
+      for (const d of ddlsRef.current) {
+        if (d.completed || (d.status ?? "todo") === "done") continue;
+        if (!d.dueDate) continue;
+        if (deadlineNotifiedRef.current.has(d.id)) continue;
+        const dueTs = new Date(`${d.dueDate}T${d.dueTime || "23:59"}:00`).getTime();
+        if (dueTs >= now && dueTs <= horizon) {
+          const hoursLeft = Math.round((dueTs - now) / 3600000);
+          deadlineNotifiedRef.current.add(d.id);
+          // Toast 一定弹
+          toast.warning(`⏰ 「${d.taskName}」还有约 ${hoursLeft} 小时截止`, {
+            duration: 10000,
+            action: { label: "查看", onClick: () => handleJumpToTask(d.id) },
+          });
+          // 浏览器 Notification(可选,需授权)
+          if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+            try {
+              new Notification("Butler · 临近截止", {
+                body: `${d.taskName} · ${d.dueDate} ${d.dueTime || "23:59"}（约 ${hoursLeft}h）`,
+                icon: "/assets/logo.png",
+                tag: `deadline-${d.id}`,
+              });
+            } catch { /* silent */ }
+          }
+        }
+      }
+    };
+    // hydrate 后 3s 跑首次（避免和开屏问候撞）
+    const t0 = setTimeout(check, 3000);
+    const interval = setInterval(check, 60 * 1000);
+    return () => { clearTimeout(t0); clearInterval(interval); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
+
+  // 首次进入时静默请求 Notification 权限（拒绝就走 Toast 兜底）
+  useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission === "default") {
+      // 延 5s 避免开屏就弹权限请求
+      const t = setTimeout(() => {
+        Notification.requestPermission().catch(() => { /* silent */ });
+      }, 5000);
+      return () => clearTimeout(t);
+    }
+  }, []);
 
   // ---------- 多会话操作 ----------
   const handleNewChat = useCallback(() => {
@@ -598,6 +986,12 @@ export default function HomePage() {
   }, []);
 
   const handleDeleteSession = useCallback((id: string) => {
+    // snapshot 整个 session（含其下所有 messages）用于撤销
+    const sessionSnapshot = sessions.find((s) => s.id === id);
+    if (!sessionSnapshot) return;
+    const messagesSnapshot = messages.filter((m) => m.sessionId === id);
+    const prevActive = activeSessionIdRef.current;
+
     // 1. 清掉它所有 messages
     setMessages((prev) => prev.filter((m) => m.sessionId !== id));
     // 2. 从 sessions 移除；若它是 active，挑剩下最新的；若空，自动建一个
@@ -621,7 +1015,18 @@ export default function HomePage() {
       }
       return remaining;
     });
-  }, []);
+
+    toast.success(`已删除会话「${sessionSnapshot.title}」`, {
+      action: {
+        label: "撤销",
+        onClick: () => {
+          setSessions((prev) => [sessionSnapshot, ...prev.filter((s) => s.id !== sessionSnapshot.id)]);
+          setMessages((prev) => [...prev, ...messagesSnapshot]);
+          setActiveSessionId(prevActive);
+        },
+      },
+    });
+  }, [sessions, messages, toast]);
 
   // session 列表的显示顺序（最近活跃在前）
   const orderedSessions = useMemo(
@@ -657,6 +1062,235 @@ export default function HomePage() {
   const [editing, setEditing] = useState<EditingTarget | null>(null);
   // 附件预览 modal
   const [previewing, setPreviewing] = useState<DdlAttachment | null>(null);
+  // 任务备注 markdown 预览 modal
+  const [previewNotes, setPreviewNotes] = useState<DdlItem | null>(null);
+  // B1/B3 跨面板跳转：从 Tasks 跳 Notes 时指定要选中的 note
+  const [notesSelectId, setNotesSelectId] = useState<string | null>(null);
+  // Epic 2.3 快捷键帮助面板
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // Epic 3 偏好设置 modal
+  const [prefsOpen, setPrefsOpen] = useState(false);
+  // C1 CalendarRail 迷你月历跳转目标
+  const [calendarJumpDay, setCalendarJumpDay] = useState<string | null>(null);
+
+  // Epic 3 mount 时立即 apply localStorage 偏好(主题/字号)
+  useEffect(() => { applyStoredPreferences(); }, []);
+
+  // G2.1 streak 状态(显示给 TodayHero)
+  const [streakDays, setStreakDays] = useState(0);
+
+  // G5.2 学习习惯识别:基于 messages 时间戳 + ddls.dueTime 派生「最佳时段」
+  const bestHourLabel = useMemo(() => {
+    if (!hydrated) return null;
+    const buckets: Record<string, number> = { 早晨: 0, 上午: 0, 中午: 0, 下午: 0, 傍晚: 0, 晚上: 0, 深夜: 0 };
+    const classify = (h: number) =>
+      h < 6 ? "深夜" : h < 9 ? "早晨" : h < 12 ? "上午" : h < 14 ? "中午" : h < 17 ? "下午" : h < 19 ? "傍晚" : h < 23 ? "晚上" : "深夜";
+    for (const m of messages) {
+      if (m.role !== "user") continue;
+      const ts = m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp as unknown as string);
+      const h = ts.getHours();
+      buckets[classify(h)]++;
+    }
+    const total = Object.values(buckets).reduce((a, b) => a + b, 0);
+    if (total < 5) return null; // 样本不足
+    const top = Object.entries(buckets).sort((a, b) => b[1] - a[1])[0];
+    if (!top || top[1] < 2) return null;
+    return top[0];
+  }, [hydrated, messages]);
+  // G2.1 hydrate 后 touchStreak;若是新一天 toast 一下
+  useEffect(() => {
+    if (!hydrated) return;
+    (async () => {
+      const { touchStreak } = await import("@/lib/streak");
+      const { newDay, broken, state } = touchStreak();
+      setStreakDays(state.currentDays);
+      if (newDay && state.currentDays > 1 && !broken) {
+        toast.success(`🔥 连续打开 Butler ${state.currentDays} 天!继续保持`, { duration: 5000 });
+      } else if (newDay && broken) {
+        toast.info(`👋 欢迎回来,重新开始 streak`);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
+
+  // G2.2 成就解锁检测:ddls/notes/streak 变化时跑
+  useEffect(() => {
+    if (!hydrated) return;
+    (async () => {
+      const { detectNewUnlocks, getUnlockedSet, saveUnlockedSet, ACHIEVEMENTS } = await import("@/lib/streak");
+      const unlocked = getUnlockedSet();
+      const ctx = {
+        ddlsTotal: ddls.length,
+        ddlsDone: ddls.filter((d) => d.completed || (d.status ?? "todo") === "done").length,
+        notesTotal: notes.length,
+        streakDays,
+        longestStreak: streakDays,
+      };
+      const newly = detectNewUnlocks(ctx, unlocked);
+      if (newly.length === 0) return;
+      for (const a of newly) unlocked.add(a.id);
+      saveUnlockedSet(unlocked);
+      // 弹解锁 Toast(每个 0.5s 错开)
+      newly.forEach((a, i) => {
+        setTimeout(() => {
+          toast.success(`${a.emoji} 解锁成就「${a.label}」— ${a.desc}`, { duration: 6000 });
+        }, i * 500);
+      });
+      void ACHIEVEMENTS; // 仅为静默 lint
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, ddls, notes, streakDays]);
+  // B3 全局搜索跳转后高亮目标（每次设置 2s 后自动清空,触发 CSS 闪烁动画）
+  const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Epic 2 全局快捷键:⌘N 新建当前 Tab 项 / ? 快捷键帮助 / Esc 关一切
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const tag = target?.tagName?.toLowerCase();
+      const isInput = tag === "input" || tag === "textarea" || target?.isContentEditable;
+
+      // ⌘N / Ctrl+N: 新建当前 Tab 项
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        if (activeNav === "chat") handleNewChat();
+        else if (activeNav === "tasks") setEditing({ mode: "create" });
+        else if (activeNav === "calendar") setEditing({ mode: "create" });
+        else if (activeNav === "notes") {
+          const fresh = handleCreateNote();
+          setNotesSelectId(fresh.id);
+        }
+        return;
+      }
+      // Esc: 兜底关闭层级最高的浮层
+      if (e.key === "Escape") {
+        if (shortcutsOpen) { setShortcutsOpen(false); return; }
+        if (previewNotes) { setPreviewNotes(null); return; }
+        if (previewing) { setPreviewing(null); return; }
+        if (editing) { setEditing(null); return; }
+        if (miniAppsOpen) { setMiniAppsOpen(false); return; }
+        return;
+      }
+      // ?: 帮助面板（非输入框）
+      if (!isInput && e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        setShortcutsOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [activeNav, shortcutsOpen, previewNotes, previewing, editing, miniAppsOpen, handleNewChat, handleCreateNote]);
+
+  // B3 搜索结果点击：根据 target 类型切 Tab + 设置高亮 / 选中
+  const handleSearchJump = useCallback((target: NavId, refId?: string) => {
+    setActiveNav(target);
+    if (!refId) return;
+    if (target === "tasks") {
+      // 清旧 timer + 设置新 highlight + 2s 后清空
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+      setHighlightTaskId(refId);
+      highlightTimerRef.current = setTimeout(() => setHighlightTaskId(null), 2000);
+    } else if (target === "notes") {
+      setNotesSelectId(refId);
+    } else if (target === "chat") {
+      setActiveSessionId(refId);
+    }
+  }, []);
+
+  // ---------- B1 跨面板：任务↔笔记关联 handlers ----------
+  // 创建空笔记 + 立即关联到任务 + 切到 Notes Tab 并选中新笔记
+  const handleCreateLinkedNote = useCallback((taskId: string) => {
+    const task = ddlsRef.current.find((d) => d.id === taskId);
+    if (!task) return;
+    const now = Date.now();
+    const fresh: Note = {
+      id: "note-" + uid(),
+      title: task.taskName, // 默认用任务名作为笔记标题
+      content: `# ${task.taskName}\n\n`,
+      createdAt: now,
+      updatedAt: now,
+    };
+    setNotes((prev) => [fresh, ...prev]);
+    setDdls((prev) => prev.map((d) => (d.id === taskId ? { ...d, noteId: fresh.id } : d)));
+    setEditing(null); // 关闭抽屉
+    setNotesSelectId(fresh.id);
+    setActiveNav("notes");
+  }, []);
+
+  // 跳到 Notes 并打开指定 note
+  const handleJumpToNote = useCallback((noteId: string) => {
+    setEditing(null);
+    setNotesSelectId(noteId);
+    setActiveNav("notes");
+  }, []);
+
+  // 解除关联（不删笔记）
+  const handleUnlinkNote = useCallback((taskId: string) => {
+    setDdls((prev) => prev.map((d) => (d.id === taskId ? { ...d, noteId: undefined } : d)));
+  }, []);
+
+  // 从 Notes 跳到 Tasks 并打开 TaskDetailDrawer
+  const handleJumpToTask = useCallback((taskId: string) => {
+    const target = ddlsRef.current.find((d) => d.id === taskId);
+    if (!target) return;
+    setActiveNav("tasks");
+    setEditing({ mode: "edit", item: target });
+  }, []);
+
+  // C4 拖动改时间:快速 patch dueDate + dueTime（不走 TaskDetailDrawer）
+  const handleMoveEvent = useCallback((id: string, newDate: string, newTime: string) => {
+    setDdls((prev) => prev.map((d) => (d.id === id ? { ...d, dueDate: newDate, dueTime: newTime } : d)));
+    toast.info(`已移动到 ${newDate} ${newTime}`);
+  }, [toast]);
+
+  // G1.1 一键填入 Demo 数据(激活新用户;支持 Undo)
+  const handleLoadDemo = useCallback(async () => {
+    const { buildDemoData } = await import("@/lib/demo-data");
+    const { ddls: demoDdls, notes: demoNotes } = buildDemoData();
+    const prevDdls = ddlsRef.current;
+    const prevNotes = notes;
+    setDdls((p) => [...p, ...demoDdls]);
+    setNotes((p) => [...demoNotes, ...p]);
+    toast.success(`已加入 ${demoDdls.length} 个示例任务 + ${demoNotes.length} 篇笔记`, {
+      duration: 8000,
+      action: {
+        label: "撤销",
+        onClick: () => {
+          setDdls(prevDdls);
+          setNotes(prevNotes);
+        },
+      },
+    });
+  }, [notes, toast]);
+
+  // B4 笔记 `- [ ] todo` 自动同步到 Tasks（单向）
+  // 1. 为每个新 todo 创建一个 task,默认 dueDate="待定",source="笔记自动同步"
+  // 2. task.noteId 自动关联回这个笔记
+  // 3. 更新 note.syncedTodos 防重复
+  const handleAutoExtractTodos = useCallback((noteId: string, newTodos: string[]) => {
+    if (newTodos.length === 0) return;
+    const newTasks: DdlItem[] = newTodos.map((text) => ({
+      id: uid(),
+      taskName: text,
+      weight: null,
+      dueDate: "",
+      dueTime: "23:59",
+      description: "",
+      isGroupWork: false,
+      source: "笔记自动同步",
+      completed: false,
+      status: "todo",
+      noteId,
+    }));
+    setDdls((prev) => [...prev, ...newTasks]);
+    // 把这些 todo 文本加入笔记的 syncedTodos
+    setNotes((prev) => prev.map((n) => {
+      if (n.id !== noteId) return n;
+      return { ...n, syncedTodos: [...(n.syncedTodos ?? []), ...newTodos] };
+    }));
+    console.log(`[B4] auto-synced ${newTodos.length} todo(s) from note ${noteId}`);
+  }, []);
 
   const handleSubmitEdit = useCallback((data: FormPayload) => {
     // 计算被移除的 blob 附件，编辑后清理孤立 blob
@@ -682,35 +1316,68 @@ export default function HomePage() {
   const handleDeleteDdl = useCallback((id: string) => {
     // 任务删除时连带清理它的 blob 附件
     const target = ddlsRef.current.find((d) => d.id === id);
-    const blobIds = target?.attachments?.filter((a) => a.kind === "blob").map((a) => a.ref) ?? [];
-    if (blobIds.length > 0) {
-      import("@/lib/blobs").then(({ deleteBlobs }) => deleteBlobs(blobIds));
-    }
+    if (!target) return;
+    // 注意:暂不立刻清 blob — 等 5s 撤销窗口过后再清。简化版:撤销不恢复 blob（已存的 ref 仍有效）
     setDdls((prev) => prev.filter((d) => d.id !== id));
     setEditing(null);
-  }, []);
+    toast.success(`已删除任务「${target.taskName}」`, {
+      action: {
+        label: "撤销",
+        onClick: () => setDdls((prev) => [...prev, target]),
+      },
+    });
+  }, [toast]);
 
   // ---------- 导出/导入 ----------
   const handleExportIcs = useCallback(async () => {
     const { downloadIcs } = await import("@/lib/ics-export");
     const r = downloadIcs(ddlsRef.current);
-    if (r.count === 0) alert("当前没有可导出的事件（待定任务会被跳过）");
-  }, []);
+    if (r.count === 0) {
+      toast.warning("当前没有可导出的事件（待定任务会被跳过）");
+    } else {
+      toast.success(`已导出 ${r.count} 条事件为 .ics`);
+    }
+  }, [toast]);
 
   const handleExportJson = useCallback(async () => {
     const { exportToJson } = await import("@/lib/json-export");
     exportToJson(ddlsRef.current);
-  }, []);
+    toast.success(`已导出 ${ddlsRef.current.length} 条任务为 .json`);
+  }, [toast]);
+
+  // G1.4 导入 .ics 课表文件 → 批量创建任务
+  const handleImportIcs = useCallback(async () => {
+    const { pickIcsFile, parseIcs, icsEventsToDdls } = await import("@/lib/ics-import");
+    const file = await pickIcsFile();
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const events = parseIcs(text);
+      if (events.length === 0) {
+        toast.warning("没有从 .ics 文件中解析到事件");
+        return;
+      }
+      const newDdls = icsEventsToDdls(events, file.name);
+      const prevSnap = ddlsRef.current;
+      setDdls((p) => [...p, ...newDdls]);
+      toast.success(`已导入 ${newDdls.length} 个事件来自「${file.name}」`, {
+        duration: 8000,
+        action: { label: "撤销", onClick: () => setDdls(prevSnap) },
+      });
+    } catch (e) {
+      toast.error("解析 .ics 失败:" + (e instanceof Error ? e.message : String(e)));
+    }
+  }, [toast]);
 
   const handleImportJson = useCallback(async () => {
     const { pickJsonFile, importFromFile } = await import("@/lib/json-export");
     const file = await pickJsonFile();
     if (!file) return;
     const r = await importFromFile(file, ddlsRef.current);
-    if (r.ok !== true) { alert("导入失败：" + r.error); return; }
+    if (r.ok !== true) { toast.error("导入失败:" + r.error); return; }
     setDdls(r.merged);
-    alert(`导入完成：新增 ${r.added} 条，更新 ${r.updated} 条`);
-  }, []);
+    toast.success(`导入完成:新增 ${r.added} 条,更新 ${r.updated} 条`);
+  }, [toast]);
 
   // ---------- 渲染 ----------
   return (
@@ -730,10 +1397,28 @@ export default function HomePage() {
         onNavChange={(id) => setActiveNav(id)}
         miniAppsOpen={miniAppsOpen}
         onToggleMiniApps={() => setMiniAppsOpen((v) => !v)}
+        ddls={ddls}
+        notes={notes}
+        messages={messages}
+        onSearchJump={handleSearchJump}
+        onOpenPreferences={() => setPrefsOpen(true)}
       />
 
       {/* 学习工具抽屉（fixed 浮在右侧，不阻塞主区操作） */}
-      <MiniAppsDrawer open={miniAppsOpen} onClose={() => setMiniAppsOpen(false)} />
+      <MiniAppsDrawer
+        open={miniAppsOpen}
+        onClose={() => setMiniAppsOpen(false)}
+        ddls={ddls}
+        onAppendTaskNote={(taskId, line) => {
+          setDdls((prev) => prev.map((d) => {
+            if (d.id !== taskId) return d;
+            const oldNotes = d.notes ?? "";
+            const newNotes = oldNotes ? `${oldNotes}\n${line}` : line;
+            return { ...d, notes: newNotes };
+          }));
+          toast.info(`已追加到任务备注`);
+        }}
+      />
 
       {/* 主体：左栏 + 内容区 */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
@@ -757,9 +1442,18 @@ export default function HomePage() {
             />
           )}
           {activeNav === "calendar" && (
-            <CalendarRail onCreateEvent={() => setEditing({ mode: "create" })} />
+            <CalendarRail
+              onCreateEvent={() => setEditing({ mode: "create" })}
+              ddls={ddls}
+              onJumpToDay={(iso) => {
+                // 用 timestamp 避免相同 iso 二次点击不触发 useEffect
+                setCalendarJumpDay(iso + "#" + Date.now());
+              }}
+            />
           )}
-          {activeNav === "notes" && <NotesRail />}
+          {activeNav === "notes" && (
+            <NotesRail notes={notes} onCreate={handleCreateNote} />
+          )}
         </LeftRail>
 
         <main
@@ -786,11 +1480,19 @@ export default function HomePage() {
               inputValue={inputValue}
               onInputChange={setInputValue}
               onSend={handleSend}
+              onStop={handleStopGeneration}
+              onRegenerate={handleRegenerate}
               attachedFiles={attachedFiles}
               onAttach={handleAttach}
               onRemoveAttachment={handleRemoveAttachment}
               selectedModel={selectedModel}
               onSelectModel={handleSelectModel}
+              ddls={ddls}
+              onJumpToTask={handleJumpToTask}
+              onLoadDemo={handleLoadDemo}
+              hasAnyData={ddls.length > 0 || notes.length > 0}
+              streakDays={streakDays}
+              bestHourLabel={bestHourLabel}
             />
           )}
           {activeNav === "tasks" && (
@@ -802,19 +1504,35 @@ export default function HomePage() {
               onRequestEdit={(d) => setEditing({ mode: "edit", item: d })}
               onRequestDelete={handleDeleteDdl}
               onRequestPreview={(a) => setPreviewing(a)}
+              onRequestNotesPreview={(d) => setPreviewNotes(d)}
               onExportIcs={handleExportIcs}
               onExportJson={handleExportJson}
               onImportJson={handleImportJson}
+              onImportIcs={handleImportIcs}
+              highlightTaskId={highlightTaskId}
             />
           )}
           {activeNav === "calendar" && (
             <CalendarPanel
               ddls={ddls}
-              onRequestCreate={(presetDate) => setEditing({ mode: "create", presetDate })}
+              onRequestCreate={(presetDate, presetTime) => setEditing({ mode: "create", presetDate, presetTime })}
               onRequestEdit={(d) => setEditing({ mode: "edit", item: d })}
+              jumpToDay={calendarJumpDay ? calendarJumpDay.split("#")[0] : null}
+              onMoveEvent={handleMoveEvent}
             />
           )}
-          {activeNav === "notes" && <NotesPanel />}
+          {activeNav === "notes" && (
+            <NotesPanel
+              notes={notes}
+              onCreate={handleCreateNote}
+              onUpdate={handleUpdateNote}
+              onDelete={handleDeleteNote}
+              ddls={ddls}
+              selectActiveId={notesSelectId}
+              onJumpToTask={handleJumpToTask}
+              onAutoExtractTodos={handleAutoExtractTodos}
+            />
+          )}
 
           {editing && (
             <TaskDetailDrawer
@@ -822,12 +1540,35 @@ export default function HomePage() {
               onCancel={() => setEditing(null)}
               onSubmit={handleSubmitEdit}
               onDelete={handleDeleteDdl}
+              linkedNote={
+                editing.mode === "edit" && editing.item.noteId
+                  ? notes.find((n) => n.id === editing.item.noteId) ?? null
+                  : null
+              }
+              onCreateLinkedNote={handleCreateLinkedNote}
+              onJumpToNote={handleJumpToNote}
+              onUnlinkNote={handleUnlinkNote}
             />
           )}
 
           {previewing && (
             <AttachmentPreview attachment={previewing} onClose={() => setPreviewing(null)} />
           )}
+
+          {previewNotes && (
+            <NotesPreview
+              title={previewNotes.taskName}
+              notes={previewNotes.notes ?? ""}
+              onClose={() => setPreviewNotes(null)}
+            />
+          )}
+
+          {/* Epic 2.3 快捷键帮助面板（? 触发） */}
+          <KeyboardShortcutsHelp open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+          {/* Epic 3 偏好设置 modal */}
+          <PreferencesPanel open={prefsOpen} onClose={() => setPrefsOpen(false)} />
+          {/* G1.3 首次使用 Tour(自动检测 localStorage) */}
+          <OnboardingTour />
         </main>
       </div>
     </div>

@@ -1,7 +1,958 @@
 # 📋 项目进度记录 — 智能多模态学习管家
 
-> 每一次有效改动都记录在此文件中，按时间倒序排列（最新在最上方）。  
+> 每一次有效改动都记录在此文件中，按时间倒序排列（最新在最上方）。
 > 格式：`## [序号] YYYY-MM-DD HH:mm — 改动标题`
+
+## 📚 全部条目索引（点标题跳详细内容）
+
+| # | 标题 | 主要产出 |
+|---|---|---|
+| [045] | G2 留存 + G3 传播 + G5 AI 差异化 | streak / 成就 / PWA / 分享卡 / 管家性格 3 档 / 习惯识别 |
+| [044] | G1 激活率提升 | Demo 数据 / 大拖拽 / Tour / .ics 导入 |
+| [043] | Calendar C3+C4 | Week 空格点击创建 + 事件拖拽改时间 |
+| [042] | Calendar C1+C2 | 迷你月历 + Week 视图 |
+| [041] | UI/UX 增值 6 Epic 之 4/5/2/6/3 | TodayHero/StatsApp/键盘/Empty 人格化/偏好设置 |
+| [040] | Epic 1 反馈循环 | Toast 系统 + 删除 Undo + AI tool 实时提示 |
+| [039] | 跨面板联动 B2/B1/B3/B4 | AI create_note / 任务↔笔记 / 搜索高亮 / checkbox 同步 |
+| [038] | 开屏问候零 token + AI 气泡贴边 | buildLocalGreeting / 去 800 容器 |
+| [037] | 标准 AI 对话布局 | 气泡左对齐 + ConfirmCard 居中浮顶 + 0.33 倍率 |
+| [036] | Chat 缺口 F/A/D/E/G 五件套 | 中文 IME / 停止 / 复制+重生成 / Retry / 自动标题 |
+| [035] | 历史消息截断 10 条 | input token 线性爆炸防护 |
+| [034] | AI 气泡居中 + Flash 隐藏思考面板 | V4 Flash CoT 特性解释 |
+| [033] | 4 新姿势 + AI 活动状态机 + 缺资产降级 | 7 姿势 + rare-thinking 彩蛋 + onError fallback |
+| [032] | 管家居中 + 输入框背后 + 0.75 倍率 | scale 模式重构 + bottom-center 对齐 |
+| [031] | 思考模式可见化 | reasoning_content 折叠面板 |
+| [030] | 模型切换 2 bug 修复 | 精简下拉 + state-only 视觉 |
+| [029] | 基础功能补全 5 件套 | AI tool 字段 / Markdown 预览 / 开屏问候 / Notes 真版 / 全局搜索 |
+| [028] | 多模态 OCR | Mistral / unpdf 路由 / 图片+扫描件 |
+| [027] | 上下文分区 + PNG trim + 动画计划 | docs/* 分区 / Rive 选定 |
+| [022]-[026] | UI 重构 Stage C-E + Mini Apps + Stage C.2 + 模型切换 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
+| [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
+
+> **接班 AI 提示**: 只看「最新一条」推算下一步即可。下面 5 条 [041]-[045] 是最近一个工作日的进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [045] 2026-05-25 — G2 留存 + G3 传播 + G5 AI 差异化 三件套一次性完成
+
+> 用户「按推荐顺序全部 6 Pillar」。继 [044] G1 激活后,本条收尾剩余 3 个增长支柱。
+
+### G2 留存机制
+
+| 子项 | 文件 | 说明 |
+|---|---|---|
+| **G2.1 streak 连续天数** | `lib/streak.ts`(新)+ TodayHero 加 🔥 chip | localStorage 存 lastActiveDate/currentDays/longestDays;每次 hydrate 后 touchStreak,新一天 toast「连续 N 天」+ 断签提示「重新开始」 |
+| **G2.2 成就系统** | `lib/streak.ts` `ACHIEVEMENTS[8]` | 初心者/执行者/勤勉/高产/随手记/3 日坚持/习惯养成/月度狂热;page.tsx useEffect 检测 + 解锁 Toast 错开 0.5s 弹 |
+| **G2.4 PWA manifest** | `public/manifest.webmanifest`(新)+ `layout.tsx metadata.manifest` | 装机:short_name "Butler"、theme_color 墨绿、display standalone |
+
+### G3 传播闭环
+
+| 子项 | 文件 | 说明 |
+|---|---|---|
+| **G3.1 .ics footer 水印** | `lib/ics-export.ts` | 每条 VEVENT DESCRIPTION 加「—— Powered by Butler · 智能学习管家 https://butler.app」;用户导入手机日历后被动看到 |
+| **G3.2 学习报告分享卡** | `mini-apps/ShareCard.tsx`(新) + MiniAppsDrawer 加入口 | 540×800 竖版 SVG 海报:本周完成度大数字 + 累计/进行中 chip + 7 天柱图 + Butler 品牌 footer;长按/右键保存,适合朋友圈/小红书分享 |
+
+### G5 AI 差异化
+
+| 子项 | 文件 | 说明 |
+|---|---|---|
+| **G5.1 管家角色化(3 档)** | `PreferencesPanel.tsx` 加 personality 段;`chat-client.ts` + `chat/route.ts` 透传;`buildSystemPrompt` 加 PERSONALITY_LINE | gentle 温柔学姐(「呢」「呀」+ ✨💚🌸) / standard 标准 / sassy 损友(「啧」「行吧」+ 吐槽);localStorage `butler.personality`;切换立刻生效 |
+| **G5.2 学习习惯识别** | `page.tsx` `bestHourLabel` useMemo + TodayHero chip | 本地统计 messages 时间戳 → 7 时段分桶(深夜/早晨/上午/.../晚上),样本 ≥5 时显示「⚡ 你 X 最高效」 |
+
+### 📂 新建文件汇总
+
+- `lib/streak.ts`
+- `public/manifest.webmanifest`
+- `components/mini-apps/ShareCard.tsx`
+
+### ✅ 验证
+
+`tsc --noEmit` EXIT=0(每个 Pillar 后单独验证)
+
+### 📊 5 个增长支柱完成度对照
+
+| Pillar | 状态 | 关键产出 |
+|---|---|---|
+| **G1 激活率** | ✅ [044] | Demo 数据 / 大拖拽 / Tour / .ics 导入 |
+| **G2 留存** | ✅ [045] | streak / 成就 / PWA |
+| **G3 传播** | ✅ [045] | ics 水印 / 分享卡 |
+| **G5 AI 差异化** | ✅ [045] | 管家 3 性格 / 习惯识别 |
+| G4 变现 | ❌ Phase 4 后做 | — |
+
+### 🚦 下一步候选
+
+- Phase 3 Tauri 桌面壳启动(系统通知 + 本地 Obsidian Vault)
+- 你给 4 张新姿势 PNG 接入
+- Notes 92% → 100%(`[[wikilink]]` + 全文搜索)
+- 别的方向
+
+### 💾 备份建议
+
+`backup-044-activation` 之后,本次紧跟。建议 tag:`backup-045-growth-pillars`
+
+---
+
+## [044] 2026-05-25 — G1 激活率提升:Demo 数据 + 大拖拽 + Tour + .ics 导入
+
+> 用户增长 5 支柱中选了 G1(激活率)。一次性收尾 4 子项,把"新用户进来 30 秒决定留不留"的体验补齐。
+
+### 📂 新建文件
+
+| 文件 | 说明 |
+|---|---|
+| `lib/demo-data.ts` | `buildDemoData()` 生成 3 门课 × 8 任务 + 2 笔记(C245 数据结构 / ECON101 经济学 / ENG201 学术英语);全部基于今天 + N 天派生,deadline 始终未来 |
+| `lib/ics-import.ts` | `parseIcs(raw)` 手写 .ics 解析(SUMMARY/DTSTART/DESCRIPTION + RFC 5545 line-folding + 文本转义);`icsEventsToDdls()` 转 DdlItem;`pickIcsFile()` 浏览器文件选 |
+| `components/OnboardingTour.tsx` | 5 步 Tour:暗色遮罩 + anchor 高亮框(墨绿描边 + pulse 动画) + tooltip(5 个位置策略) + 进度条 + 上/下/跳过 + localStorage 防重复 |
+
+### 📂 改动文件
+
+| 文件 | 改动 |
+|---|---|
+| `app/page.tsx` | `handleLoadDemo` 一键 push demo ddls + notes + Toast 带 Undo;`handleImportIcs` 选文件 → parse → 批量 setDdls + Undo;`onLoadDemo` / `hasAnyData` 透传给 ChatCanvas;渲染 `<OnboardingTour />` |
+| `components/ChatCanvas.tsx` | (1) 欢迎屏文案分支:`hasAnyData` 时用原文,否则"第一次见面"加强 CTA;(2) `DropHeroZone` 子组件:280×140 虚线大拖拽热区(墨绿描边 + 拖入高亮 + 点击 fileInput) + 「没课件?Demo →」按钮 |
+| `components/TasksPanel.tsx` | 工具栏加「导入 ICS」按钮(条件渲染 `onImportIcs` 时显示);label 区分「导入 JSON」 |
+
+### 🎯 用户激活路径(改进后)
+
+```
+新用户进入
+  ↓
+看到欢迎屏:管家说"第一次见面" + TodayHero + DropHeroZone(高对比)
+  ↓
+1.5s 后 Tour 启动 → 5 步走完核心路径(管家/4 Tab/输入/模型/搜索)
+  ↓
+3 个进入路径任选其一:
+  (a) 拖 PDF 课件 → OCR + AI 提取 DDL
+  (b) 上传 .ics 课表 → 一键批量导入
+  (c) Demo 数据 → 立刻"有东西可玩"
+  ↓
+TodayHero 显示真实数据 + 跨面板联动起作用
+```
+
+### ✅ 验证
+
+`tsc --noEmit` EXIT=0
+
+### 🚦 G1 子项收尾对照
+
+| # | 子项 | 状态 |
+|---|---|---|
+| G1.1 | Demo 数据一键填充 | ✅ |
+| G1.2 | 欢迎屏大拖拽热区 + 强引导 | ✅ |
+| G1.3 | 5 步 Tour | ✅ |
+| G1.4 | .ics 导入 | ✅ |
+| G1.5 | 短视频 GIF 引导 | ❌ 需资源 |
+
+### 📊 完整度
+
+| 维度 | 之前 | 现在 |
+|---|---|---|
+| **激活漏斗** | 进来无引导 | 5 步 Tour + Demo + 大 CTA + .ics 入口 |
+| **空状态价值** | TodayHero「无 deadline」 | + Demo + DropHero + Tour |
+
+### 💾 备份建议
+
+`backup-043-calendar-100` 之后,本次紧跟。建议 tag:`backup-044-activation`
+
+### 🚦 下一步候选
+
+- G2 留存机制(streak + 周报 + 成就)
+- G3 传播闭环(分享卡)
+- G5 AI 差异化(角色化管家 + 习惯识别)
+- 别的方向(Phase 3 Tauri / 资产替换)
+
+---
+
+## [043] 2026-05-25 — Calendar C3+C4:Week 视图空格点击创建 + 事件拖拽改时间
+
+> 继 [042] C1/C2 把 Calendar 推到 90% 后,补齐最后 10% 的拖拽支持,Calendar 现达 100%。
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/TaskDetailDrawer.tsx` | 修改 | `EditingTarget.create` 新增 `presetTime?: string`;`initialTime` 派生从 prop 取（落到表单的 dueTime 输入框） |
+| `apps/web/src/components/CalendarPanel.tsx` | 修改 | (1) `Props.onRequestCreate` 签名加 `presetTime`;新增 `onMoveEvent` prop;(2) WeekView 加 `onCreateAt(iso, hour)` callback;时间格 onClick 触发(target.tagName==="DIV" 判定空白区);(3) WeekView 事件 button 加 `draggable + onDragStart` 存 itemId 到 dataTransfer;(4) 时间格加 `onDragOver/onDragLeave/onDrop` 视觉反馈(墨绿浅底)+ emit onMoveEvent |
+| `apps/web/src/app/page.tsx` | 修改 | 新增 `handleMoveEvent(id, newDate, newTime)`:setDdls map patch + toast.info;`onRequestCreate` 透传 presetTime;`onMoveEvent` 传给 CalendarPanel |
+
+### 🎯 交互细节
+
+- **C3 点空格创建**:Week 视图任意小时格鼠标变 `cell` 指针;点击空白处 → New Event modal 自动预填日期 + 整点时间;点击已有事件 stopPropagation 避免误触发
+- **C4 拖动事件改时间**:任意事件 hover 鼠标变 `grab`;拖到任意目标时间格 → 蓝绿色高亮反馈 → 释放即 update + Toast 提示「已移动到 YYYY-MM-DD HH:00」
+- **数据流**:不走 ConfirmCard 核实(用户主动操作,信任度高);走 setDdls + Toast info,可惜暂未做 Undo(同 Tasks 删除有 Undo,这里后续可加)
+
+### ✅ 验证
+
+`tsc --noEmit` EXIT=0
+
+### 📊 完整度
+
+| Tab | 之前 | 现在 |
+|---|---|---|
+| Calendar | ~90% | **~100%** |
+
+DayView 的拖拽未做（暂保留原有静态时间轴）;后续可考虑把 WeekView 的拖拽机制复用到 DayView。
+
+### 💾 备份建议
+
+`backup-042-calendar-90` 之后,本次紧跟。建议 tag:`backup-043-calendar-100`
+
+### 🚦 下一步候选
+
+- Phase 3 Tauri 桌面壳启动（接 Notes 本地 Vault / 系统通知 / 文件路径）
+- 你给 4 张新姿势 PNG(thinking / thinking-hard / idea / rare-thinking)接入
+- DayView 拖拽（复用 WeekView 机制）
+- 别的方向
+
+---
+
+## [042] 2026-05-25 — Calendar C1+C2:迷你月历 + Week 视图
+
+> 继 [041] 6 Epic 收尾后,把 Calendar 75% 推到 ~90%。
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/layout/CalendarRail.tsx` | 重写 | C1 真实迷你月历:7×6 网格 + 上下月切换 + 今日墨绿圆 + 有事件日期下方小圆点;点击日期 emit `onJumpToDay(iso)` |
+| `apps/web/src/components/CalendarPanel.tsx` | 修改 | (1) `ViewMode` 加 `"week"`;(2) `jumpToDay` prop + useEffect 监听外部跳转切到 day view;(3) MonthView header 加「Week」按钮跳到本周视图;(4) 新增 `WeekView` 子组件(~180 行):7 列 × 24h 时间轴(6AM-11PM),今日列浅墨绿背景,事件按 dueTime 落格,点击编辑 |
+| `apps/web/src/app/page.tsx` | 修改 | 新增 `calendarJumpDay` state(用 `iso#timestamp` 防同 iso 二次点击不触发);CalendarRail / CalendarPanel 接入 |
+
+### 🎯 交互
+
+- **迷你月历**:CalendarRail 一直可见,任意月份任意日期一键跳 Day View
+- **Week 视图**:月视图 header 点 [Week] → 进入;7 天时间轴显示一周所有事件,直观看到密度
+- **Day View 返回**:同时也是 Week View 的返回点(都返回到 month)
+
+### ✅ 验证
+
+`tsc --noEmit` EXIT=0
+
+### 📊 完整度
+
+| Tab | 之前 | 现在 |
+|---|---|---|
+| Calendar | ~75% | **~90%** |
+
+剩余 10%:Day View 拖拽创建 / 事件拖动改时间(HTML5 drag&drop,工作量中-大,后续可做)
+
+### 💾 备份建议
+
+`backup-041-uiux-all-epics` 之后,本次紧跟。建议 tag:`backup-042-calendar-90`
+
+---
+
+## [041] 2026-05-25 — UI/UX 增值计划 Epic 4/5/2/6/3 一次性收尾
+
+> 用户「按推荐顺序全部 6 Epic」。继 [040] Epic 1 反馈循环后，本条一次记录剩余 5 个 Epic（仪表盘 / 学生场景 / 键盘 / 微交互 / 个性化）共 16 个子项。
+
+### Epic 4 — 仪表盘 / 数据感知
+
+| # | 子项 | 文件 |
+|---|---|---|
+| 4.1 | **TodayHero 今日聚焦卡** | `components/TodayHero.tsx`(新)+ ChatCanvas 欢迎屏接入。本地数据派生:今日日期/星期 + 3 个统计 chip(今日/本周/累计完成)+ 本周完成率环形 + 最近 deadline 倒计时(色彩按 daysLeft 升级) |
+| 4.2 | **Deadline 紧急度色彩升级** | `TasksPanel.tsx` 新增 `computeUrgency(d)`:任务行左侧色条按 daysLeft 派生(<1 红 / <3 橙 / <7 黄 / else 绿),无 deadline 退回 priority |
+| 4.3 | **StatsApp Mini App** | `components/mini-apps/StatsApp.tsx`(新)+ MiniAppsDrawer 加 BarChart3 入口。累计完成/未完成大数字 + 7 天完成趋势 SVG 条形图 + Top 3 tag 完成率条 |
+| 4.4 | **Tasks 顶部 tag chip 聚合** | TasksPanel 头部加 `tagStats` useMemo,显示 Top 12 tag 的 `#tag · done/total · 进度条`(完成率达 100% 显示 success 色) |
+
+### Epic 5 — 学生场景
+
+| # | 子项 | 文件 |
+|---|---|---|
+| 5.1 | **FocusTimer ↔ Task 联动** | FocusTimer 加 `linkedTaskId` 下拉(未完成任务列表)+ 结束时 emit `onAppendTaskNote(taskId, "- 专注 25 min · MM-DD HH:MM")` → page.tsx 把行追加到 task.notes;同时 toast.info 反馈 |
+| 5.3 | **任务模板 4 选 1** | TaskDetailDrawer 顶部加 4 个 emoji 模板按钮(Quiz 📝 / Paper 📄 / Project 🚀 / Reading 📖),点击预填 weight/priority/tags/description/isGroupWork |
+| 5.4 | **临近 deadline 浏览器通知** | page.tsx hydrate 后每 60s 扫描未来 24h 截止的未完成任务,Toast warning + 浏览器 Notification API(可选授权);`deadlineNotifiedRef` Set 防重复;5s 后静默请求 Notification 权限 |
+
+### Epic 2 — 键盘体验
+
+| # | 子项 | 文件 |
+|---|---|---|
+| 2.1 | **全局快捷键** | page.tsx useEffect 监听 keydown:`⌘N` 按当前 Tab 新建会话/任务/事件/笔记;`Esc` 兜底关 shortcuts/previewNotes/previewing/editing/miniApps |
+| 2.3 | **? 快捷键帮助 modal** | `components/KeyboardShortcutsHelp.tsx`(新)。3 组(全局/Tasks/Chat 输入)分组列出,kbd 样式按键;Esc 关闭 |
+
+### Epic 6 — 微交互打磨
+
+| # | 子项 | 文件 |
+|---|---|---|
+| 6.5 | **Empty state 人格化** | TasksPanel `EmptyState` 加管家小气泡「☕ 放假了？让我陪你休息一下」墨绿底圆角;NotesPanel `EmptyHero` 加「💡 在 Chat 里说『帮我记一条笔记』我也能帮你写」 |
+
+(6.1 skeleton / 6.2 Tour / 6.3 拖拽 / 6.4 管家追光标 — 当前 hydrate 速度足够快、用户暗示足够、花哨细节优先级低,暂不做)
+
+### Epic 3 — 个性化
+
+| # | 子项 | 文件 |
+|---|---|---|
+| 3.1 | **亮/暗主题切换** | globals.css 加 `html[data-theme="dark"]` 覆盖墨绿系（primary `#5FB58F` 浅墨绿 + bg `#0F172A` 深 slate）|
+| 3.2 | **字体大小档位** | globals.css `--font-base` 变量 + `html[data-font-size]` 3 档（sm 13 / md 14 / lg 16）;body 用 `var(--font-base)` |
+| — | **PreferencesPanel modal** | `components/PreferencesPanel.tsx`(新)。亮/暗 segmented + 字号 segmented;localStorage 持久化(butler.theme / butler.fontSize);`applyStoredPreferences()` mount 时立即生效防闪烁 |
+| — | **TopBar 用户菜单加入口** | 用户菜单顶部加「⚙️ 偏好设置」MenuBtn → 打开 PreferencesPanel |
+
+### 📂 新建文件汇总
+
+- `components/TodayHero.tsx`
+- `components/mini-apps/StatsApp.tsx`
+- `components/KeyboardShortcutsHelp.tsx`
+- `components/PreferencesPanel.tsx`
+
+### ✅ 验证
+
+`tsc --noEmit` EXIT=0(每个 Epic 后单独验证)
+
+### 🎯 完整度更新
+
+| Tab | 之前 | 现在 |
+|---|---|---|
+| Chat | ~100% | ~100% + Hero 卡 / 键盘 / 偏好 |
+| Tasks | ~97% | **~99%**(deadline 色彩 + tag 聚合 + 模板 + 通知) |
+| Notes | ~92% | ~92% + 人格化 Empty |
+| Calendar | ~75% | ~75%(下一步候选) |
+| **跨面板** | ~80% | ~80% |
+| **平台增值** | 0% | **Toast 系统 + Undo / 偏好 / 键盘 / 通知 / Stats 全新增** |
+
+### 🚦 已完成的 6 Epic 完整清单（[040] + [041]）
+
+```
+✅ Epic 1 反馈循环（[040]）  4 子项 Toast / Undo / AI 实时提示 / 替换 alert
+✅ Epic 4 仪表盘             4 子项 TodayHero / 紧急度 / StatsApp / Tag 聚合
+✅ Epic 5 学生场景            3 子项 FocusTimer↔Task / 模板 / Deadline 通知
+✅ Epic 2 键盘体验            2 子项 全局快捷键 / 帮助面板
+✅ Epic 6 微交互              1 子项 Empty 人格化
+✅ Epic 3 个性化              4 子项 暗色 / 字号 / Panel / 用户菜单入口
+```
+
+### 💾 备份建议
+
+`backup-040-feedback-loop` 之后,本次紧跟。建议 tag:`backup-041-uiux-all-epics`
+
+---
+
+## [040] 2026-05-25 — Epic 1 反馈循环:Toast 系统 + 删除 Undo + AI tool 实时提示
+
+> 用户「按推荐顺序全部 6 Epic」第一个 Epic — 替换全部 alert()、删除带撤销、AI 调工具时浮提示。
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/Toast.tsx` | 新建 | ToastProvider + useToast hook;4 档（success/info/warning/error）;支持 action 按钮（用于 Undo）;同 id 覆盖防堆叠;顶右 stack + 滑入动画 |
+| `apps/web/src/app/layout.tsx` | 修改 | 根布局 wrap `<ToastProvider>` |
+| `apps/web/src/app/page.tsx` | 修改 | (1) `handleDeleteDdl / handleDeleteNote / handleDeleteSession` 都保存 snapshot + 弹 Toast「已删除 [撤销]」5s;(2) ICS/JSON 导入导出 alert → toast.success/warning/error;(3) AI tool 调用时 `onToolCallStart` 弹 1.5s info toast「⚙ Butler 正在查询任务列表…」按工具名分类提示 |
+| `apps/web/src/components/mini-apps/FocusTimer.tsx` | 修改 | 倒计时结束 alert → toast.success「🎉 专注时段结束」8s 持续显示 |
+
+### ✅ Epic 1 收尾
+
+- `tsc --noEmit` 通过
+- 项目内 `grep alert\\(` 已为 0
+- Undo 实测:删任务后 5s 内点撤销 → setDdls 恢复
+
+---
+
+## [039] 2026-05-25 — 跨面板联动四件套 B2/B1/B3/B4 一次性完成
+
+> 用户「跨面板联动这个要首先完成」+ 「全部四项推荐」+「按照顺序全部完成」。这是从"4 个独立面板"升级为"互联 Personal Learning OS"的关键一步。
+
+### 🎯 4 项联动一览
+
+| 项 | 用户场景 | 工作流 |
+|---|---|---|
+| **B2** AI create_note tool | 「帮我把这段话记成笔记」 | AI 调 tool → ConfirmCard 紫色 BookOpen 卡 → 用户接受 → 落 Notes 表 |
+| **B1** 任务 ↔ 笔记双向关联 | 任务里加备忘 / 笔记反查相关任务 | TaskDetailDrawer「📝 创建关联笔记」一键创空笔记+关联+跳 Notes；NotesPanel 顶部显示关联任务并点跳 Tasks |
+| **B3** 全局搜索跳转高亮 | 搜索后想立刻看到目标在哪 | 点击搜索结果 → 切 Tab + scrollIntoView + 2 秒黄色脉冲闪烁动画 |
+| **B4** 笔记 `- [ ] todo` → Tasks | 笔记里随手记 todo,自动入任务清单 | 笔记内写 `- [ ] xxx` → 1.2s 防抖 → 自动建 task（带 noteId 回链）+ `syncedTodos` 去重防重复 |
+
+### 📂 涉及文件总览
+
+| 文件 | 改动量 | 内容 |
+|---|---|---|
+| `apps/web/src/lib/types.ts` | +2 字段 | `DdlItem.noteId?: string` / `Note.syncedTodos?: string[]` |
+| `apps/web/src/lib/pending.ts` | +1 kind | `PendingCreateNote` + `extractNoteDrafts(batch)` helper |
+| `apps/web/src/lib/ai-tools.ts` | +1 tool | 第 6 个 tool `create_note` + `CreateNoteArgs` 类型 |
+| `apps/web/src/lib/tool-executor.ts` | +1 case | `execCreateNote` 入 pending 队列 |
+| `apps/web/src/components/ConfirmCard.tsx` | +1 分支 | `describeChange` 渲染 create-note（紫色 BookOpen + 字数 + 标签 + 内容预览） |
+| `apps/web/src/components/TaskDetailDrawer.tsx` | +1 Field | 关联笔记 UI:已关联显示标题+「打开」「解除」;未关联显示「📝 创建关联笔记」虚线按钮 |
+| `apps/web/src/components/NotesPanel.tsx` | +2 features | (1) 顶部关联任务条（Link2 + 任务名 chip 可跳）;(2) 1.2s 防抖扫描 `- [ ] todo` 正则 emit 给 page;(3) `selectActiveId` 外部跳转选中 |
+| `apps/web/src/components/TasksPanel.tsx` | +highlight | `highlightTaskId` prop,rowRefs map,scrollIntoView,行加 `.task-row-flash` className |
+| `apps/web/src/components/layout/TopBar.tsx` | +1 prop | `onSearchJump(target, refId)` 透传 |
+| `apps/web/src/app/page.tsx` | +5 handlers | `handleCreateLinkedNote` / `handleJumpToNote` / `handleUnlinkNote` / `handleJumpToTask` / `handleSearchJump` / `handleAutoExtractTodos`;`highlightTaskId` state + 2s timer;`notesSelectId` state |
+| `apps/web/src/app/globals.css` | +1 keyframe | `@keyframes search-flash`（2s 黄色脉冲 + inset shadow）|
+
+### 🎨 关键设计决策
+
+**B2 走 ConfirmCard 核实**:AI 不直接落库,符合现有"AI 写操作必须用户确认"的红线。Note 类型有独立紫色 + BookOpen 图标,与 Task 的绿色 Plus 区分。
+
+**B1 反向关联用反查而非存储**:Note 没存 `taskIds[]`,而是 `ddls.filter(d => d.noteId === note.id)` 即时反查 — 单一信息源,避免双向同步死锁。
+
+**B3 高亮 CSS 而非 React 状态**:`highlightTaskId` 设置后 2s 由 page.tsx 清空,期间对应 row 加 `.task-row-flash` className,CSS 动画自然衰减 — 无需在每个组件维护"几秒后取消高亮"的子计时器。
+
+**B4 单向同步**:只做"笔记 → 任务",反向（任务勾选回写笔记 checkbox）暂不做 — 避免双向同步循环触发。`Note.syncedTodos[]` 记录已同步文本作为幂等 key,删除笔记某行 todo 不会重建任务（防止"我删了你又给我添回来"）。新任务自动 `noteId = 笔记 id`,形成回链。
+
+### ✅ 验证
+
+- `tsc --noEmit` 通过（4 次,每项独立验证后再下一项）
+- preview eval:
+  - B3 `@keyframes search-flash` ✓ 注入 globals.css
+  - B4 正则 `/^[\s　]*[-*]\s+\[\s\]\s+(.+?)\s*$/gm` 测试通过：`- [ ] 写论文` / `* [ ] 复习数据结构` 都匹配,`- [x] xxx` 已勾选跳过
+
+### 🚦 跨面板联动全景图
+
+```
+       ┌───────────────────────────────────────────┐
+       │            TopBar 全局搜索                │
+       │      ↓ (B3 跳转 + 闪烁高亮 2s)            │
+       │  ┌────────┬─────────┬───────────┐         │
+       │  │ Chat   │  Tasks  │  Notes    │         │
+       │  │        │   ↑↓ B1 关联 ↕      │         │
+       │  │  AI    │  Tasks  ←─ B4 ──   │ Notes  │
+       │  │   ↓ B2 │         │  自动建  │         │
+       │  │ create │         │   task   │         │
+       │  │ _note  │         │          │         │
+       │  └────────┴─────────┴──────────┴─────────┘
+       │            ↑ ConfirmCard 居中浮顶（B2 走核实）
+       └───────────────────────────────────────────┘
+```
+
+### 📊 Butler 完整度更新
+
+| Tab | 之前 | 现在 |
+|---|---|---|
+| Chat | ~100% | ~100% |
+| Tasks | ~95% | **~97%**（接 B1 关联笔记 + B3 搜索高亮 + B4 笔记同步入） |
+| Notes | ~80% | **~92%**（接 B1 关联任务 + B2 AI 创建 + B4 同步出） |
+| Calendar | ~75% | ~75% |
+| **跨面板** | 0% | **80%**（4 项全做完;`[[wikilink]]` 等长尾延后） |
+
+### 💾 备份建议
+
+`backup-038-stitched-bubble` 之后,本次紧跟。建议 tag:`backup-039-cross-panel`
+
+### 🚦 下一步候选
+
+- 等用户决定:(1) Calendar 75% → 95% / (2) Phase 3 Tauri 启动 / (3) 资产替换 / (4) 其他
+
+---
+
+## [038] 2026-05-25 — 开屏问候零 token + AI 气泡彻底贴边
+
+> 用户：「确保一上来的那句问候不消耗 token 只靠代码实现 / 然后目前来看应该是 ai 回复的内容那里还有多余的容器删除掉这样对话框就能彻底的贴边了」。
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/app/page.tsx` | 重写 triggerGreeting | (1) 删除 streamChat 调用 + 全部 SSE callback 累积逻辑（~70 行）；(2) 新增 `buildLocalGreeting(items)` helper：根据 hour 派生时段（深夜/早上/中午/下午/晚上）+ emoji,过滤 todo 数量,找最近未过期 deadline,拼 markdown 字符串；(3) triggerGreeting 改为同步直接 `setMessages` 添加一条 assistant 消息,不调任何 API |
+| `apps/web/src/components/ChatCanvas.tsx` | 修改 | 历史消息流 wrapper 去掉 `maxWidth: CONTENT_MAX` + `margin: "0 auto"`,气泡直接占主区全宽（减 32px padding）；AI 气泡 maxWidth:90% 仍生效防大屏过宽,但小屏下能彻底贴 main 左边 |
+
+### 🎯 开屏问候本地生成示例
+
+```
+[time<6]    深夜好,Feng！你目前的任务清单是空的... 🌙
+[time<11]   早上好,Feng！你目前有 3 个未完成任务,最近的是「数据结构 Quiz」(2026-05-26)。加油 ☀️
+[time<14]   中午好,Feng！... 🌤️
+[time<18]   下午好,Feng！... 🌥️
+[time>=18]  晚上好,Feng！... 🌃
+```
+
+### ✅ 验证
+
+- `tsc --noEmit` 通过（EXIT=0）
+- preview eval + fetch 拦截器：新建 session 触发 greeting → **`apiCalled: 0`** ✓
+- 生成内容："下午好,Feng！你目前的任务清单是空的,没有待办事项..." ✓
+- `bubbleLeftFromMain: 32`（精确等于 main padding-left,**彻底贴边**）✓
+- `bubbleWidth: 598`（约 90% × main 内宽 666,合理）
+
+### 💰 成本影响
+
+| 场景 | 之前 | 现在 |
+|---|---|---|
+| 每次新 chat session 开屏 | 1 次 V4 调用（~200 input + ~50 output token） | **0 token** |
+| 思考模式开屏 | 含 reasoning_content（更多 token） | 0 token |
+| 响应时间 | 1-3 秒（API 延迟） | **<10ms 瞬间** |
+
+### 🎨 布局对照
+
+| 元素 | 距 main 左 |
+|---|---|
+| 主区 padding-left | 32px |
+| 之前：800 居中容器后气泡 | 大屏可能 200-400px+（视窗口宽） |
+| **现在：气泡直接贴 main padding** | **32px**（精确） |
+
+副作用零：输入区仍 maxWidth: 800 居中（用户未要求改），欢迎屏 ButlerBubble 仍居中（这是 isEmpty 分支单独的布局）。
+
+---
+
+## [037] 2026-05-25 — 标准 AI 对话布局：气泡左对齐 + 核实卡居中浮顶 + 管家二次缩减到 0.33
+
+> 用户：「ai 回复靠最左边（标准的 ai 对话）/ 只有那种选择的也就是选择是否加入 task 把卡片放在人物上方 / 现在人物基于现在的大小再次缩减到 0.6 倍」。
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/ButlerCharacter.tsx` | 修改 | default `scale: number = 0.55 → 0.33`（= 0.55 × 0.6 二次缩减）；standing 像素从 206×602 → **123×361** |
+| `apps/web/src/components/ChatCanvas.tsx` | 修改 | (1) `ButlerBubble` outer div `justifyContent: "center" → "flex-start"`,AI 气泡回归**标准 ChatGPT 左对齐**；(2) `ConfirmCard` 渲染处包一层 `<div style={{ justifyContent: "center" }}>` 让**核实卡独立居中浮在管家上方**,区别于普通 AI 消息,强调"等你决策" |
+
+### 🎯 布局对照（最终态）
+
+| 元素 | 位置 |
+|---|---|
+| 用户气泡 | 右对齐（不变） |
+| AI 普通回复气泡 | **左对齐**（[037] 回归标准） |
+| ConfirmCard 核实卡 | **居中浮在管家头顶**（[037] 新独立） |
+| 管家 | 主区底部水平居中,scale=0.33（小角色站底） |
+| InputPod | 居中,自带白底压在管家腿/脚上 |
+
+### ✅ 验证
+
+- `tsc --noEmit` 通过（EXIT=0）
+- preview eval：standing 实测 123×361（0.33 倍率精确 ✓）
+- preview eval：ButlerBubble wrapper `justify-content: flex-start` ✓
+- 截图：AI 气泡贴左 / 用户气泡贴右 / 管家小角色站底,整体类 ChatGPT 标准对话流
+
+### 🚦 备注
+
+ConfirmCard 居中渲染逻辑写好,实际触发需要有 `pendingBatches`（PDF 上传或 AI 调 create/update/delete tool）。下次有 PDF 上传或 AI 操作 task 时会自动看到居中浮顶效果。
+
+---
+
+## [036] 2026-05-25 — Chat 缺口 F/A/D/E/G 五件套一次性完成
+
+> 用户「H 不需要做剩下的按照优先级顺序全部完成」。一次性补齐：F 中文 IME / A 停止生成 / D 复制+重新生成 / E 错误 retry / G AI 自动标题。
+
+### 📂 涉及文件（按改动量大→小）
+
+| 文件 | 操作 | 改动要点 |
+|---|---|---|
+| `apps/web/src/app/page.tsx` | 修改 | (A) `abortRef = useRef<AbortController>`,handleSend 创建 controller 传 signal,handleStopGeneration abort()；try-catch AbortError 静默；finally 清 abortRef；(D+E) handleRegenerate 找 assistantMessageId → 前面最近 user → slice 截断 + setInputValue + setTimeout 50ms 触发 send-btn click；(E) onError 标 `isError: true`；(G) generateSessionTitle 用 streamChat 调 Flash 生成 4-8 字标题 + cleanup 正则去标点；useEffect 监听 sessions/messages,title=="新对话" + 有 1 user + 1 真实 assistant 时一次性请求；titleRequestedRef 防重复 |
+| `apps/web/src/components/ChatCanvas.tsx` | 修改 | (D+E) 新增 `MessageToolbar` 组件（copy + regenerate 按钮,copy 2 状态切换 "已复制" 1.5s）；`ButlerBubble` 加 `isError` / `onRegenerate` props,error 时墨绿描边变红色 + 工具栏永显；非流式且 content 非空时渲染 toolbar；外层 div 加 `.bubble-wrap` class；style 加 `.bubble-wrap:hover .msg-toolbar { opacity: 1 !important; }`；(A) 透传 `onStop` 给 InputPod |
+| `apps/web/src/components/InputPod.tsx` | 修改 | (F) handleKeyDown 加 `e.nativeEvent.isComposing` + `keyCode === 229` 双重检查；(A) 新增 `onStop?` prop,`isLoading && onStop` 时渲染方形 Stop 按钮（深色背景 + Square icon）替代圆形 ArrowUp |
+| `apps/web/src/lib/chat-client.ts` | 修改 | (A) fetch catch 识别 AbortError/DOMException → 直接 throw 不上报 onError（避免用户主动中止时显示 "网络请求失败"）|
+| `apps/web/src/lib/types.ts` | 修改 | `ChatMessage` 加 `isError?: boolean`（标识错误消息,UI 红边 + 永显 retry）|
+
+### 🎯 细节决策
+
+**A 停止按钮**：圆形 → 方形深色，是 ChatGPT / Claude 标准；AbortController 在 finally 自动清理；abort 触发后流式状态机和 idea timer 都被 finally 正确 cleanup。
+
+**D+E 工具栏交互**：
+- 普通 AI 消息：hover 显示 [复制 / 重新生成]
+- 错误消息：红色边框 + 永显 [复制 / 重试]，按钮文本和颜色都变红
+- 流式中（isTyping）和空 content 时**不渲染工具栏**（避免半成品被复制 / 重新生成尚未完成的消息）
+- 复制后按钮变绿 ✓「已复制」1.5s，再回原状
+
+**E retry 实现**：用 `setTimeout(50)` + 模拟 send-btn click,绕开 React 状态批量更新 race（直接调 handleSend 会用 stale closure 的 messages）。
+
+**G AI 自动标题**：
+- 触发条件：`hydrated && !isLoading && session.title === "新对话" && 有 1 user + 1 非错误 assistant (content > 5 字)`
+- titleRequestedRef Set 防止 useEffect 多次触发同一 session
+- 用 V4 Flash（最便宜 + 标题不需要思考）
+- prompt 严格限制「4-8 个汉字 / 直接输出 / 不要标点 emoji 解释」
+- 后处理正则去 `""【】[]:：。.!?\n\r\s` + slice(0,20) 兜底
+- 仅当 title 仍为「新对话」时更新（避免覆盖用户手动改的）
+
+### ✅ 验证
+
+| 项 | 验证方式 | 结果 |
+|---|---|---|
+| **F** IME 防误触发 | preview eval 触发 composing keydown,检查 onSend 是否调 | `composingEnterIgnored: true` ✓ |
+| **A** stop 按钮显示 | send 后 800ms 查 `#stop-btn` | `aria-label="停止生成"` ✓ |
+| **A** abort 静默 | 点 stop 后查 `hasErrorBubble` | `false` ✓ |
+| **D** 工具栏存在 | querySelector copy/regenerate 文本按钮 | 每条 AI 消息都有 ✓ |
+| **D** hover CSS | scan stylesheets 找规则 | `.bubble-wrap:hover .msg-toolbar { opacity: 1 !important; }` ✓ |
+| **G** 标题函数注册 | 监听 useEffect 已加 + Dexie 题已有「介绍下你自己」 | function + effect 就位 ✓ |
+| tsc --noEmit | 全量类型检查 | EXIT=0 ✓ |
+
+### 🚦 Chat 部分缺口收尾
+
+| # | 项 | 状态 |
+|---|---|---|
+| A | 停止生成按钮 | ✅ [036] |
+| B | 历史截断 10 条 | ✅ [035] |
+| D | 消息工具栏 | ✅ [036] |
+| E | 错误 retry | ✅ [036] |
+| F | 中文 IME | ✅ [036] |
+| G | AI 自动标题 | ✅ [036] |
+| H | 对话导出 | ❌ 用户决定不做 |
+
+**Chat 部分至此功能完整度 ≈ 100%**（剩 H 导出为可选未来工作）。
+
+### 💾 备份
+
+`backup-035-history-truncate` 之后,本次紧跟。建议下一备份点 tag：`backup-036-chat-complete`
+
+---
+
+## [035] 2026-05-25 — 历史消息截断到最近 10 条（token 效率收口）
+
+> 用户「继续做下一项代办」。承接 [034] 末尾「真想进一步加速：实施缺口 B 历史截断」。AGENT.md 早已写明「历史消息截断至最近 10 条」但 page.tsx 一直没实施。长会话时 input token 线性爆炸 → 首字延迟变长 + 成本变高。
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/app/page.tsx` | 修改 | (1) 新增常量 `HISTORY_LIMIT = 10`（约 5 轮对话,够保留近期上下文）；(2) `handleSend` 中 `historyApi` 计算后加截断：`slice(-10)` + while-loop trim 直到首条 role=user（DeepSeek/OpenAI API 严格要求首条 user）；(3) 截断时 console.log 提示便于调试 |
+
+### 🎯 算法要点
+
+```ts
+let trimmed = allHistory.slice(-HISTORY_LIMIT);
+while (trimmed.length > 0 && trimmed[0].role !== "user") {
+  trimmed = trimmed.slice(1);
+}
+```
+
+- `slice(-10)` 保留最近 10 条
+- while-loop 处理截断后首条变 assistant 的边界（API 报 400 风险）
+- 最坏情况：从 N 条截到 1 条（仅当前 user 消息）— 仍保证有效请求
+
+### ✅ 验证
+
+| 测试 | 期望 | 实测 | 通过 |
+|---|---|---|---|
+| 短历史 3 条 | 不截断,len=3 | 3 / first=user | ✓ |
+| 12 条均匀 u-a 交替 | 截到 10 / first=user | 10 / first=user | ✓ |
+| 11 条 → slice(-10) 首条 assistant → trim 1 → 9 条 | 9 / first=user | 9 / first=user | ✓ |
+| 边界:全 assistant | 截到空数组 | 0 | ✓ |
+| Live: fetch 拦截器捕获实际 body | 数量合理 + first=user | msgCount=2 / firstRole=user | ✓ |
+
+### 💰 Token 影响估算
+
+| 会话长度 | 之前 input token | 现在 input token | 节省 |
+|---|---|---|---|
+| 5 条对话 | ~500 (system 350 + history 150) | ~500 | 0% |
+| 20 条对话 | ~950 | ~650 | -32% |
+| 50 条对话 | ~2000 | ~650 | **-67%** |
+| 100 条对话 | ~4000 | ~650 | **-84%** |
+
+DeepSeek V4 Flash $0.028/M cache miss → 一个长会话每次发送省的 token 累积下来非常可观。
+
+### 🚦 后续可继续(Chat 缺口剩余)
+
+- **A** 停止生成按钮（streamChat 已有 AbortSignal,UI 接 AbortController 即可）
+- **D** AI 消息复制 + 重新生成（ButlerBubble hover 工具栏）
+- **E** 错误消息 retry 按钮
+- **F** 中文 IME 防 Enter 误触发
+- **G** AI 自动生成会话标题（首轮后调 V4 Flash 总结）
+- **H** 整段对话导出 .md / .json
+- *进阶*：超出 10 条时把更早内容压缩成 1 句"早期对话摘要"塞到 system prompt（rolling summary）
+
+### 💾 备份
+
+`backup-034-bubble-center` 之后,本次紧跟。
+
+---
+
+## [034] 2026-05-25 — AI 气泡居中浮在管家头顶 + Flash 模式隐藏思考面板
+
+> 用户反馈两个问题：(1)「为什么思考这么久看一下」(2)「对话框 ai 回复的内容靠着最左边」。
+
+### 🔍 思考慢的真相（不是 bug,是 V4 系列特性）
+
+实测 Dexie 数据：用户当前 selectedModel=null（默认 Flash,**没切到思考模式**）,但 reasoning 字段仍有 40 字符 CoT 内容：
+> "用户想让我介绍一下自己。这是一个轻松的问题,不需要调用工具。我直接回复介绍即可。"
+
+**根因**：DeepSeek V4 Flash 模型本身就带轻量 CoT,无论是否启用 thinking_mode 都会先跑一段 reasoning 再开始生成正文。客户端无法关闭（DeepSeek 模型层行为）。
+
+**用户感受到"慢"的原因**：
+- Flash 也得先跑 reasoning → 首字延迟 +1-2s
+- 不显示思考面板时,用户看不到这段过程,只看到"AI 卡了几秒"
+- **修复策略**：Flash 模式仍持久化 reasoning,但**不渲染思考折叠面板**（避免误导用户以为切到了思考模式）
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/ChatCanvas.tsx` | 修改 | (1) `ButlerBubble` outer div `justifyContent: flex-start` → `center`,AI 气泡居中浮在管家头上方（配合管家居中的视觉）；(2) `ButlerBubble` 新增 `showReasoning?: boolean` prop,默认 false；(3) 主组件派生 `showReasoning = !!(selectedModel && getModelMeta(selectedModel).thinking)`,传给所有 ButlerBubble 调用；(4) import `getModelMeta` from `@/lib/ai-models` |
+
+### 🎯 视觉效果对比
+
+| 维度 | 之前 | 现在 |
+|---|---|---|
+| AI 气泡水平对齐 | `flex-start` 贴主区左 32px padding | `center` 浮在管家头上方 |
+| User 气泡 | `flex-end` 贴右 | 不变（保持右） |
+| Flash 模式思考面板 | 显示「已思考」误导用户 | **不显示**（reasoning 仍持久化） |
+| Thinking 模式思考面板 | 显示「思考中…」→「已思考」 | 不变(只在 thinking 模式渲染) |
+| 漫画对话框效果 | 气泡贴左,远离居中管家 | **气泡正好在管家头顶**,典型漫画 bubble |
+
+### ✅ 验证
+
+- `tsc --noEmit` 通过(EXIT=0)
+- preview 截图确认:欢迎屏气泡居中浮于管家头部上方,3 张快捷卡片水平居中排开,无"已思考"按钮
+- DOM eval 确认:`justifyContent: "center"`,`hasReasoningPanel: false`
+
+### 🚦 副作用 / 后续
+
+- **历史 reasoning 不丢失**:Dexie 中已有的 reasoning 字段保留,切回 thinking 模式时该 session 历史中的旧 reasoning 仍可见
+- **如果需要进一步加速**:实施 PROGRESS [031] 列出的缺口 **B**（历史截断到 10 条），可显著降低 input token + 首字延迟
+- DeepSeek API 偶发后端慢(实测 30s+),非客户端可控
+
+### 💾 备份
+
+`backup-033-butler-poses` 之后,本次紧跟。
+
+---
+
+## [033] 2026-05-25 — 4 个新姿势 + AI 活动状态机 + 0.55 倍率 + 缺资产降级
+
+> 用户：「人物图片现在多加了一些逻辑：模型生成内容时（flash模式）用 thinking，thinking mode 的 thinking 时用 thinking-hard，准备开始输出答案时用 I-got-an-idea，然后 rare-thinking 在早上 7-9 点概率触发，条件触发使用代码实现。然后大小要改小一点。」
+
+### 🎭 4 个新姿势 + 状态机优先级（高→低）
+
+| 优先级 | Pose | 触发条件 |
+|---|---|---|
+| 1 | `pointout` | PDF pipeline 完成 5s 内（pointoutHold）|
+| 2 | `pointout` | 有 PDF 待核实（pdf-extract pending）|
+| 3 | `idea` | AI 生成中,reasoning→content 过渡的**首 1s 灵感闪现** |
+| 4 | `rare-thinking` | AI 生成中 × `7-9am` × `Math.random() < 0.061` 命中（彩蛋,替换 thinking/thinking-hard）|
+| 5 | `thinking-hard` | AI 生成中,V4 思考模式 reasoning_content 流中 |
+| 6 | `thinking` | AI 生成中,Flash 模式 content 流中（默认生成态）|
+| 7 | `serving` | AI 待核实（ai-chat pending）|
+| 8 | `standing` | 默认空闲 |
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/ButlerCharacter.tsx` | 重写 | (1) `ButlerPose` 类型加 4 个新值（`thinking` / `thinking-hard` / `idea` / `rare-thinking`）；(2) `POSES` 表预定 4 个新 src 路径（`butler-thinking.png` 等）+ 占位尺寸（先按 standing 374×1094 占位）；(3) **scale 默认 0.75 → 0.55**；(4) `useEffect` 主动检查 `naturalWidth === 0` → setErrored（防 SSR/cache 漏触发 onError）；(5) errored 时整个 pose 的 src + 尺寸都 fallback 到 standing |
+| `apps/web/src/app/page.tsx` | 修改 | (1) 新增 `aiActivity` state（`phase: thinking/thinking-hard/idea/null` + `rareRoll: boolean`）；(2) `ideaTimerRef` + `rollRare` helper（7-9am × 6.1%）；(3) `handleSend` / `triggerGreeting` 开始时 set thinking + rollRare，finally 清理 timer + reset state；(4) SSE callbacks：`onReasoningDelta` 首次升级 phase → thinking-hard；`onContentDelta` 首次 → idea + 1s timer 后回 thinking；(5) `butlerPose` useMemo 派生加入新 5 分支 |
+| `apps/web/src/components/ChatCanvas.tsx` | 修改 | 把 `<ButlerCharacter scale={0.75}>` 改为不传 scale,用默认 0.55 |
+
+### 🎯 核心实现细节
+
+**rareRoll sticky**：每次 send 开始抽**一次**,sticky 整个生成期（避免 thinking 期内 pose 闪烁切换）。命中时整个生成期的 thinking/thinking-hard 都替换为 rare-thinking。
+
+**idea 1s 一闪**：用 `setTimeout(1000)` + `ideaTimerRef` 跟踪,防止：
+- 多轮 tool call 期间重复触发（用 `contentStarted` flag）
+- finally cleanup 时未清 timer 导致状态泄漏
+
+**Flash vs Thinking 模式自动区分**：完全靠 SSE 流是否带 `reasoning_content` 判断,无需读 `selectedModel`：
+- Flash → 只有 onContentDelta → thinking → idea → thinking
+- Thinking → 先 onReasoningDelta 多次（thinking-hard）→ 后 onContentDelta（idea → thinking）
+
+**缺资产降级（关键）**：用户尚未提供 4 张新 PNG,组件用双重保险：
+- `<img onError>` 兜底
+- `useEffect` mount 后 + 500ms 后两次主动 check `naturalWidth === 0`（防 SSR/cache 漏触发）
+- 命中时整个 pose 的 src 替换为 standing 资产 + 用 standing 尺寸渲染（防 broken-img 图标 + 拉伸）
+
+### ✅ 验证
+
+- `tsc --noEmit` 通过（EXIT=0）
+- preview reload + 量 DOM：standing 206×602 / serving 376×552 / pointout 261×587（全部 0.55 倍率精确）
+- 4 个新 pose（thinking 等）`src` 经 useEffect 检测后全部回退到 `butler-standing.png`（`naturalW=374`）✓
+- AI send 触发后状态机切换序列由用户实测验证（preview eval 超时 30s 是 AI 慢,非代码 bug）
+
+### 🚦 用户下一步
+
+提供 4 张 PNG 资产到 `apps/web/public/assets/`：
+- `butler-thinking.png` — 一般思考姿势（手放下巴 / 望远）
+- `butler-thinking-hard.png` — 深度思考（皱眉 / 紧握 / 闭眼）
+- `butler-idea.png` — 灵光一现（食指上举 / 头顶灯泡 / 眼睛发亮）
+- `butler-rare-thinking.png` — 彩蛋姿势（喝咖啡 / 伸懒腰 / 看晨报）
+
+放进去后,改 `ButlerCharacter.tsx` `POSES` 表里对应的 `w/h` 为真实尺寸（PowerShell `[System.Drawing.Image]::FromFile()` 量出来）。
+
+### 💾 备份
+
+`backup-032-butler-centered` 之后,本次紧跟。
+
+---
+
+## [032] 2026-05-25 — 管家居中 + 输入框背后 + 0.75 倍率统一
+
+> 用户原话:「人物现在放在对话框的正中间输入框的后面 所有大小 按照站立的这张的svg 的0.75倍率放」。当前 ButlerCharacter 用 `fillContainer` 模式占满左下 260px 栏，需要改为水平居中 + 固定 0.75 倍率 + 输入框前置图层。
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/ButlerCharacter.tsx` | **重写** | 移除 `fillContainer` / `size` props,改为 `scale: number = 0.75`；新增 `POSES` 元数据表记录 3 张 PNG 原始尺寸（standing 374×1094 / serving 683×1003 / pointout 475×1067）；容器尺寸 = `MAX_W × scale × MAX_H × scale` = 512×820 固定；三姿势 `position:absolute bottom:0 left:50% translateX(-50%)`,按各自原始尺寸 × scale 渲染,opacity 切换；脚底基准对齐让 pose 切换不抖动；阴影椭圆同步缩窄 |
+| `apps/web/src/components/ChatCanvas.tsx` | 修改 | (1) 删除 `BUTLER_GUTTER = 260`,改为 `CONTENT_MAX = 800`；(2) 管家容器从左下 `left:0 width:260 height:100%` 改为 `bottom:0 left:50% translateX(-50%)`,调用 `<ButlerCharacter scale={0.75} />`；(3) 历史区 padding `24px 32px 14px ${BUTLER_GUTTER + 12}px` → 对称 `24px 32px 14px`,内部消息流加 `maxWidth: CONTENT_MAX, margin: 0 auto` 居中；(4) 输入区同样改对称 + InputPod 外包居中 wrapper；(5) 欢迎屏 `alignItems: flex-start` → `center`,卡片行 `justifyContent: center` |
+
+### 🎯 设计细节
+
+| 维度 | 之前 | 现在 |
+|---|---|---|
+| 管家位置 | 左下 260px 栏(`left:0 width:260`) | 主区水平正中 + 贴底(`bottom:0 left:50% translateX(-50%)`) |
+| 大小 | `fillContainer` 自适应栏宽 | **statically 0.75 ×**：standing 281×821 / serving 512×752 / pointout 356×800 |
+| z-index 层次 | 管家 1 / 历史 2 / 输入 2(但左偏让管家露出) | 管家 1 / 历史 2 / 输入 2,**InputPod 自带白底自然压在管家腿/脚上** |
+| 对话流布局 | 左 padding 272px 让位 | 对称 32px + `maxWidth: 800` 居中(类似 ChatGPT) |
+| 姿势切换 | 视觉位置偏移(随容器宽度变化) | **脚底基准对齐**,头部位置随姿势自然上下 |
+
+### 🔍 实现要点
+
+- **PNG 原始尺寸表**写在 ButlerCharacter 顶层 `POSES` 常量,以后调整 trim 边缘只需改这 3 个数字
+- **容器固定为 MAX 尺寸**(512×820)而非每张图变化大小,避免 pose 切换时父容器抖动撑开布局
+- **绝对定位 bottom-center** 是 anchor 关键:三张图脚底对齐,头部高度差通过透明上方区域自然消化
+- **保留 `withFx`** 开关:阴影椭圆 + opacity 过渡动画都受其控制(0.4s ease)
+
+### ✅ 验证
+
+- `tsc --noEmit` 通过(EXIT=0)
+- preview reload + 实测尺寸:`document.querySelectorAll('img[alt*="Butler"]')` 返回三张图各自 0.75 倍精确尺寸 ✓
+- 截图确认:管家居中 + 输入框白底压在脚踝 + AI 气泡浮在头上方 + 整体协调
+
+### 🚦 后续
+
+- 等用户给 Rive 分层 SVG 资产 → 接 `<ButlerRive scale={0.75} />` 替换 ButlerCharacter,接口完全兼容(同 pose / scale 字段)
+- 大屏(>1400px)可能想加 `CONTENT_MAX` 上限到 900;当前 800 在 1280×800 看着刚好
+- 极小窗口(<600px 宽)管家会顶满主区,后续移动端再针对性 hide 或缩到 0.5×
+
+### 💾 备份建议
+
+`backup-031-thinking-reasoning` 之后,本次紧跟。
+
+---
+
+## [031] 2026-05-25 — 思考模式可见化：reasoning_content 折叠面板
+
+> 用户决策：盘点 Chat 部分缺口后选「思考模式可见化（C）」。V4 思考模式（V4 Pro thinking）的 SSE 流原本携带 `reasoning_content` 字段被丢弃，用户切到思考模式只看到答案，看不到 CoT 推理过程，等于白付钱。
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/lib/types.ts` | 修改 | `ChatMessage` 新增 `reasoning?: string`（持久化随 messages 表自动跟进，无需 Dexie 版本升级） |
+| `apps/web/src/lib/chat-client.ts` | 修改 | (1) `SseChunk.choices[].delta` 类型加 `reasoning_content?: string`；(2) `StreamCallbacks` 加 `onReasoningDelta?: (delta: string) => void`；(3) 单轮解析循环里识别 `delta.reasoning_content` 并触发 callback |
+| `apps/web/src/app/page.tsx` | 修改 | `handleSend` 和 `triggerGreeting` 都把原本只处理 content 的 `onDelta` 重构为 `ensureAssistant({ content?, reasoning? })`：同一条 assistant message 同时承载 content 和 reasoning 增量；新增 `onReasoningDelta` 回调 |
+| `apps/web/src/components/ChatCanvas.tsx` | 修改 | (1) 新增 `ReasoningPanel` 子组件：浅灰底 + Brain 图标 + 折叠箭头，思考中显示「思考中…」+ 闪烁点，结束折叠成「已思考」可点开；(2) `ButlerBubble` 增加 `reasoning?` prop 并渲染面板；(3) 主消息流调用处传入 `msg.reasoning` |
+
+### 🎯 体验细节
+
+- **思考中**（reasoning 增量在流，content 还未开始）：面板默认**展开**，标题「思考中…」+ 闪烁点
+- **思考完成**（content 开始出现）：自动**折叠**成「已思考」
+- **用户手动 toggle**：以用户偏好为准（`forced` state 覆盖派生）
+- **历史消息**：刷新后 reasoning 跟随 messages 一起从 Dexie 加载，可随时点开复看
+- **非思考模型**（V4 Flash）：API 不返回 reasoning_content → `hasReasoning=false` → 面板不渲染，自然降级
+- 思考内容用 monospace 字体 + muted 颜色，与正文视觉区分
+- `max-height: 280px` + 自带滚动条，防长 CoT 撑爆气泡
+
+### ✅ 验证
+
+- `tsc --noEmit` 通过（`EXIT=0`）
+- preview_start + 实际触发开屏问候（用户当前在思考模式）→ Dexie 写入 `reasoning` 字段（72 字符 CoT）→ 主区折叠面板正确渲染「已思考」→ 点击展开内容完整可见
+- 截图确认视觉对齐墨绿设计语言
+
+### 🚦 后续可继续（chat 部分剩余缺口）
+
+- **A** 停止生成按钮（streamChat 已暴露 AbortSignal 接口）
+- **B** 历史消息截断到 10 条（AGENT.md 已写但 page.tsx 未实施 → token 浪费）
+- **D** AI 消息复制 + 重新生成（ButlerBubble hover 工具栏）
+- **E** 错误消息 retry 按钮
+- **F** 中文 IME 防 Enter 误触发
+- **G** AI 自动生成会话标题（首轮后调 V4 Flash 总结）
+- **H** 整段对话导出 .md / .json
+
+### 💾 备份
+
+- commit `ff0f6c0`（[030] 收尾）+ 本次基于其改
+
+---
+
+## [030] 2026-05-24 — 模型切换两个 bug 修复（精简下拉 + state-only 视觉）
+
+> 用户反馈："切换模型那里大小有问题，同时不能切换回来原来的模型"。两个 bug 都源于 InputPod 模型下拉项的实现。
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/InputPod.tsx` | 修改 | (1) 提取新组件 `ModelOption`：精简单行布局（3px 墨绿左条 + ●tier 圆点 + label + tagline + ✓ active 图标），单项 ~32px（原 80-100px）。(2) hover 视觉改用 `useState(hov)` 派生背景，**不再用 inline style.background 残留**——这是"切不回原模型"的根因。(3) 移除大的 28px `ModelIcon`（保留 6px `ModelDot`） |
+
+### 🐛 Bug 根因分析
+
+**Bug 1：下拉项太大**
+- 原因：每项渲染了完整描述（V4 Flash desc 100+ 字）+ tagline + 大图标 + "当前" 徽章
+- 280px 宽度装不下，强制换行 3-4 次 → 单项 80-100px 高 → 两项 200px → 遮挡气泡
+
+**Bug 2：切不回原模型**
+- 原因：`onMouseEnter` handler 写入 `e.currentTarget.style.background`，与 React 重渲染的 inline `background: isActive ? "var(--color-primary-soft)" : "transparent"` 互相覆盖
+- active 项被点击后视觉残留 hover 时的 `var(--color-surface)`，状态实际已经切换但 UI 看起来"没动"
+- 修复：完全去掉 `e.currentTarget.style` 写入，改用 React state `hov` 派生 background
+
+### ✅ 验证
+
+- `tsc --noEmit` 通过（`EXIT=0`）
+- 切换 V4 Flash ↔ V4 思考 视觉立刻反映（墨绿左条 + ✓ 移到新项）
+- 下拉总高度 ~70px（从 200px 降下来）
+
+### 🚦 下一步备份建议
+
+`backup-029-basics-done`（包含 [027]-[030]）
+
+---
+
+## [029] 2026-05-24 — 基础功能补全 5 件套：AI tool 字段 + Markdown 预览 + 开屏问候 + Notes 真版 + 全局搜索
+
+> 用户决策：先把所有基础功能做完再做细致优化。盘点出 5 个缺口，按"小到大"顺序逐个补齐（D → E → C → A → B）。
+
+### 📂 涉及文件（按 5 块分组）
+
+#### D. AI tool 加字段支持（C.2 字段扩展的自然延伸）
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/lib/ai-tools.ts` | 修改 | `create_item` / `update_item` schema 加 `status` / `tags` / `priority` / `notes`；CreateItemArgs / UpdateItemArgs 接口同步 |
+| `apps/web/src/lib/tool-executor.ts` | 修改 | execCreate 创建时设新字段；execUpdate patch 包含 status 时同步 completed |
+
+#### E. Markdown 备注预览
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/NotesPreview.tsx` | 新建 | 任务备注 markdown 渲染 modal（react-markdown + remark-gfm），自带 .md-preview CSS |
+| `apps/web/src/components/TasksPanel.tsx` | 修改 | 备注 chip 从 span 改 button + 加 `onRequestNotesPreview` prop；e.stopPropagation 防穿透到编辑 |
+| `apps/web/src/app/page.tsx` | 修改 | `previewNotes` state + render `<NotesPreview>` |
+
+#### C. AI 主动开屏问候
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/app/page.tsx` | 修改 | 新增 `triggerGreeting(sid)` callback（不入 user 消息，直接调 streamChat 让 AI 自动招呼）；新增 useEffect 监听 hydrated + activeNav=chat + 当前 session 完全空 → 触发；`greetedSessionsRef` Set 防重复 |
+
+#### A. Notes 浏览器内 Markdown 实版（最大块）
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/lib/types.ts` | 修改 | 新增 `Note { id, title, content, tags?, pinned?, createdAt, updatedAt, vaultPath? }` |
+| `apps/web/src/lib/db.ts` | 修改 | Dexie v4→v5：新增 `notes` 表（索引 updatedAt + pinned） |
+| `apps/web/src/components/NotesPanel.tsx` | **重写** | 真实双栏：左 280px 列表（按 pinned 排序 + 时间）+ 右编辑器（textarea 双模式 edit/preview，500ms 防抖保存）；标题 + 内容 + pin + 删除；Empty hero + Coming Tauri 提示 |
+| `apps/web/src/components/layout/NotesRail.tsx` | 修改 | 接 `notes` props，All Notes / Pinned 显示真实计数 + onCreate 触发 |
+| `apps/web/src/app/page.tsx` | 修改 | `notes` state + hydrate load + persist effect + handleCreateNote/Update/Delete |
+
+#### B. TopBar 全局搜索
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/layout/GlobalSearch.tsx` | 新建 | 240px 输入框 + 480px 高下拉浮层；搜 ddls / notes / messages（user+assistant）；按类型分组（任务/笔记/对话）+ 每组限计数；⌘K / Ctrl+K 快捷聚焦；Esc 关闭；点击跳转对应 Tab |
+| `apps/web/src/components/layout/TopBar.tsx` | 修改 | 用 GlobalSearch 替换原占位输入框；接收 ddls/notes/messages props |
+| `apps/web/src/app/page.tsx` | 修改 | TopBar 传 ddls/notes/messages |
+
+### 🎯 4 面板完整度（重要里程碑）
+
+| Tab | 之前 | 现在 |
+|---|---|---|
+| Chat | 90% | **95%** + 开屏问候 |
+| Tasks | 85% | **95%** + AI 字段全 + 备注预览 |
+| Calendar | 75% | 75%（未动） |
+| Notes | **0% 占位** | **80%** ✅ 浏览器内 Markdown 实版 |
+| **跨面板** | — | **+ TopBar 全局搜索接通** |
+
+### ✅ 验证
+
+- `tsc --noEmit` 通过（`EXIT=0`）每步都验
+- Dexie v4→v5 自动迁移（仅新增表，不影响存量）
+- Notes 编辑 500ms 防抖入 IDB
+- AI 开屏问候用 `greetedSessionsRef` 防重复，已有历史的 session 不触发
+- 搜索结果点击跳 Tab（refId 留位，未来加高亮）
+
+### 🚦 后续可继续
+
+- Notes：tags 编辑 + 笔记内 [[wikilink]] 跨链 + Phase 3 Tauri 接本地 Vault
+- 搜索：跳转后高亮匹配项 + 搜索历史
+- 开屏问候：可配置（用户可关 / 调频率）
+- AI 主动提醒：每天早上 push 今日概览
+- Calendar：Week 视图、拖拽创建
+
+### 💾 备份
+
+- commit `ff0f6c0` + tag `backup-028-ocr-models`（本次前）
 
 ---
 
@@ -405,7 +1356,9 @@ const APPS: MiniApp[] = [
 
 ## 📦 历史归档
 
-[001]-[021] 完整内容见 **[docs/progress/2026-05.md](docs/progress/2026-05.md)** （2026 年 5 月归档）
+- **[001]-[026]** 完整内容见 **[docs/progress/2026-05.md](docs/progress/2026-05.md)**（2026 年 5 月归档）
+- **[027]-[040]** 物理保留在本文件上方（共 14 条；下次大归档时迁出）
+- 按月索引：[docs/progress/INDEX.md](docs/progress/INDEX.md)
 
-按月索引：[docs/progress/INDEX.md](docs/progress/INDEX.md)
+> 接班 AI 只需 Read PROGRESS 第一条（offset=0, limit=100）即可获取当前状态;旧条目按需 Glob/Grep 关键字定位。
 

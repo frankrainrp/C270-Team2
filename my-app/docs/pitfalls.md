@@ -23,6 +23,7 @@
 | React 18 StrictMode 让 console.log 双触发，看起来"tool 调了 6 次"，实际只 1 次 | dev only，生产无影响。`setDdls` 内部按 id 去重 |
 | HMR 中间态 props 可能短暂 undefined（如 InputPod.value） | 加 fallback `value?.trim() ?? ""` |
 | `position: fixed` 内嵌组件想去掉 fixed 时父容器 layout 抖 | 改前先确认父容器有 `flex 1 / display:flex` |
+| `onMouseEnter` 写入 `e.currentTarget.style.X` 与 React 重渲染 inline style 竞争 → active 项视觉残留（PROGRESS [030] 模型切换 bug） | **完全用 `useState(hov)` 派生 background**，不要写 `e.currentTarget.style` |
 
 ---
 
@@ -62,8 +63,8 @@
 
 | 陷阱 | 解决方案 |
 |---|---|
-| `deepseek-chat` 模型未来弃用警告 | 已提供切换接口（`lib/ai-models.ts`），用户可选其他 |
-| `deepseek-reasoner` 不支持 tool_choice | 服务端自动跳过（`useTools = body.includeTools !== false && modelMeta.supportsTools`） |
+| 旧 `deepseek-chat` / `deepseek-reasoner` 2026-07-24 弃用 | 已统一迁到 V4 系列（`deepseek-v4-flash` + `deepseek-v4-pro` + thinking）；`AiModelMeta.apiModel` 字段存真实 API 名 |
+| OpenAI SDK 不识别 `thinking` 字段和 `reasoning_effort: "max"` | 用 `Record<string, unknown>` 收容 + cast 整个 createParams 为 SDK 类型；DeepSeek 后端识别 |
 | AI 流式 tool_calls 分片需要按 index 拼装 | 见 `chat-client.ts streamOneRound` 中 `toolCallsAcc Map` |
 | AI 在 dueDate 不明时会瞎猜 | system prompt 强约束「宁可漏标也不要瞎猜」 + tool-executor 允许空串 |
 | 模型切换时 cache hit 失效（system prompt 因 model 变化重新计费） | 实际 system prompt 不依赖 model，cache 应该命中。如果发现不命中先检查 prompt 是否随 model 变 |
@@ -80,4 +81,15 @@
 
 ---
 
-*最后更新：2026-05-24*
+## H. TypeScript
+
+| 陷阱 | 解决方案 |
+|---|---|
+| `Promise<X \| Y>` await 后 `if (!result.ok)` narrowing 失败（PROGRESS [028] OcrResponse 踩过） | 用 **显式比较** `if (result.ok !== true)` 或 `if (result.ok === false)`，强制 discriminated union narrow |
+| OpenAI SDK 的 `reasoning_effort` 类型不接受 `"max"`（只 high/low/medium） | 用 `Record<string, unknown>` 收容字段 + cast 整个 createParams 为 SDK 类型 |
+| stream 返回 `Stream<...> \| ChatCompletion` 联合类型，`for await` 报错 | `for await (const chunk of stream as AsyncIterable<unknown>)` |
+| interface vs type alias 在 discriminated union 上行为差异 | 一律用 `export type Foo = A \| B`，narrowing 更可靠 |
+
+---
+
+*最后更新：2026-05-24 — 加 H. TypeScript 段 + 模型 thinking 字段相关坑*

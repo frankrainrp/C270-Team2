@@ -22,37 +22,79 @@ pnpm add <pkg>
 
 ## 环境变量
 
-`apps/web/.env.local`（不提交 git）：
+`apps/web/.env.local`（不提交 git，模板见 `.env.local.example`）：
 
 ```env
-DEEPSEEK_API_KEY=sk-...                          # 必填
-DEEPSEEK_MODEL=deepseek-v4-flash                 # 可省，默认就是 V4 Flash
+# DeepSeek（必填）
+DEEPSEEK_API_KEY=sk-...
 DEEPSEEK_BASE_URL=https://api.deepseek.com/v1    # 可省
-```
+DEEPSEEK_MODEL=deepseek-v4-flash                 # 已不再读，仅备查；模型由前端 selectedModel 决定
 
-模板：`apps/web/.env.local.example`
+# Mistral OCR（可选，用于扫描件 PDF + 图片课件识别）
+MISTRAL_API_KEY=                                  # 申请：https://console.mistral.ai
+MISTRAL_BASE_URL=https://api.mistral.ai/v1
+OCR_PROVIDER=mistral                              # mistral / deepseek-vl(占位) / tesseract(占位)
+```
 
 ---
 
-## 模型切换（PROGRESS [026]）
+## 模型切换（PROGRESS [026]/[028]/[030]）
 
 ### 注册表（`lib/ai-models.ts`）
 
-| Model ID | 显示名 | tier | 工具调用 | 说明 |
-|---|---|---|---|---|
-| `deepseek-v4-flash`（默认） | DeepSeek V4 Flash | low（绿） | ✅ | 最便宜，日常对话 |
-| `deepseek-chat` | DeepSeek V3.1 | mid（黄） | ✅ | 复杂指令更好，贵 3-25× |
-| `deepseek-reasoner` | DeepSeek Reasoner | high（红） | ❌ | 深度推理 CoT，慢且贵 |
+**只保留 V4 系列**（旧 `deepseek-chat` / `deepseek-reasoner` 2026-07-24 弃用）：
+
+| id | apiModel | tier | 工具 | 思考 | 说明 |
+|---|---|---|---|---|---|
+| `deepseek-v4-flash`（默认） | `deepseek-v4-flash` | 🟢 low | ✅ | — | 最便宜，日常首选 |
+| `deepseek-v4-thinking` | `deepseek-v4-pro` | 🟡 mid | ✅ | `reasoning_effort: "high"` + `thinking: { type: "enabled" }` | 复杂分析/数学/逻辑 |
+
+### 思考模式怎么传
+
+`/api/chat/route.ts` 根据 `modelMeta.thinking` 透传非标准字段（OpenAI SDK 不识别 `thinking`，DeepSeek 后端识别）：
+
+```ts
+const thinkingExtras = modelMeta.thinking ? {
+  reasoning_effort: modelMeta.thinking.reasoningEffort,  // "high" | "max"
+  thinking: { type: "enabled" },
+} : {};
+const stream = await openai.chat.completions.create({
+  model: modelMeta.apiModel,
+  ...thinkingExtras,
+  ...
+} as Parameters<...>[0]);
+```
 
 ### 用户切换
 
-InputPod 底部 model badge 点击 → 弹出 280px 下拉，3 选 1。
+InputPod 底部 model badge → 紧凑下拉（3px 墨绿左条 + ●tier + label + ✓ active）。
 localStorage 持久化（key: `butler.selectedModel`）。
 
 ### 服务端校验
 
 `/api/chat` 收到 `body.model` 用 `isValidModelId()` 白名单校验，非法值降级 V4 Flash。
-Reasoner 自动禁用 tools（`supportsTools=false`）。
+
+---
+
+## OCR 多模态（PROGRESS [028]）
+
+### 路由策略
+
+| 文件 | 走 | 成本 |
+|---|---|---|
+| 文字 PDF | unpdf 本地 | ¥0 |
+| 扫描 PDF（unpdf 输出 < 50 字）| Mistral OCR | $0.001/页 |
+| jpg/png/webp/heic 等 | Mistral OCR | $0.001/张 |
+
+### Provider 注册表（`lib/ocr/providers.ts`）
+
+| Provider | 状态 | 价格 | 需要的 env |
+|---|---|---|---|
+| **Mistral OCR**（默认） | ✅ 已接入 | $0.001/页 | `MISTRAL_API_KEY` |
+| DeepSeek-VL | ⏳ 占位 | 复用 DeepSeek key | `DEEPSEEK_API_KEY` |
+| Tesseract.js | ⏳ 占位 | 0（10MB 模型一次下载） | — |
+
+切换：环境变量 `OCR_PROVIDER`。后两个待实现，架构留位。
 
 ---
 
@@ -81,9 +123,11 @@ const file = new File([blob], 'test.pdf', { type: 'application/pdf' });
 ## Dexie 数据库
 
 - 数据库名：`butler-db`
-- 当前 schema：v4
-- 表：`ddls` / `messages` / `blobs` / `sessions`
-- 升级路径：v3 → v4 自动 `completed=true → status="done"`
+- 当前 schema：**v5**
+- 表：`ddls` / `messages` / `sessions` / `blobs` / `notes`
+- 升级路径：
+  - v3 → v4：`completed=true → status="done"`
+  - v4 → v5：新增 `notes` 表（PROGRESS [029]）
 
 ### 清库（彻底重置）
 

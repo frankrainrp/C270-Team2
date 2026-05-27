@@ -15,10 +15,11 @@
 
 ## 1. 当前 Phase 与最新进度
 
-- **Phase 2 完成 ✅**（PROGRESS 最新 [026]）
+- **Phase 2 完成 ✅** + 基础功能 4 面板全部有真东西（PROGRESS 最新 **[045]**）；**Chat ~100% / Tasks ~99% / Notes ~92% / Calendar ~100% / 跨面板 ~80% / 平台层全新增 / 5 增长支柱 G1+G2+G3+G5 完成（streak / 成就 / 分享卡 / PWA / 管家角色化 / 习惯识别）**
 - UI 重构 5 stage 全部收尾（Stage A 顶 Tab → E 全局清理）
-- **管家形象 + ConfirmCard 核实门控 + Mini Apps Drawer + 模型切换 + Stage C.2 字段扩展** 都已落地
+- **管家形象 + ConfirmCard 核实门控 + Mini Apps Drawer + 模型切换 + Stage C.2 字段扩展 + 多模态 OCR + Notes 浏览器版 + 全局搜索 + AI 开屏问候 + 思考模式 reasoning 可见化** 都已落地
 - Phase 3（Tauri 桌面壳）/ Phase 4（Clerk + Neon 多租户）未启动
+- **阻塞中**：Rive 人物动画等用户提供分层 SVG 资产（详见 `docs/plans/animation.md`）
 
 ---
 
@@ -51,11 +52,19 @@
 
 ## 4. 不要回退的关键决策（一句话）
 
-- **DeepSeek-V4 Flash 默认**，用户可在 InputPod 切换 V3.1 / Reasoner（[`docs/setup.md`](docs/setup.md#模型切换) 详）
-- **客户端 unpdf + MiniLM 语义粗筛**（每张 PDF ~¥0.003）
-- **Dexie v4**（IndexedDB）单用户持久化，Phase 3 切 Tauri SQLite，Phase 4 切 Neon
-- **AI 写操作（create/update/delete）走 ConfirmCard 核实门控**，不直接落库（[`docs/architecture.md`](docs/architecture.md#待核实门控)）
-- **管家固定在 Chat 主区左下**（漫画式），AI 消息用 `ButlerBubble`（无头像、墨绿描边）
+- **DeepSeek 只用 V4 系列**：`deepseek-v4-flash`（默认）和 `deepseek-v4-pro` + 思考模式（旧 `deepseek-chat` / `deepseek-reasoner` **2026-07-24 弃用**）
+- **客户端 unpdf + MiniLM 语义粗筛**（文字 PDF ¥0.003/份）；**扫描件 / 图片走 Mistral OCR**（$0.001/页，需 `MISTRAL_API_KEY`）
+- **Dexie v5**（IndexedDB）单用户持久化：`ddls / messages / sessions / blobs / notes`。Phase 3 切 Tauri SQLite，Phase 4 切 Neon
+- **AI 写操作（create/update/delete）走 ConfirmCard 核实门控**，不直接落库
+- **AI tool 可设全部字段**：status / tags / priority / notes（PROGRESS [029] 起）
+- **管家居中贴主区底部**（[037] 起 scale 0.33），AI 消息墨绿描边 + 左对齐贴 padding（[038]）；ConfirmCard 独立居中浮顶
+- **管家 7 姿势状态机**（[033]）+ 7-9am × 6.1% rare-thinking 彩蛋（4 新姿势 PNG 未到时 fallback 到 standing）
+- **管家 3 性格**（gentle/standard/sassy）影响 system prompt，localStorage `butler.personality`
+- **Toast 全局通知系统**（[040]）取代所有 alert；删除/导入带 5s Undo
+- **首次访问 Tour**（[044] G1.3）自动启动，localStorage `butler.onboarded` 防重复
+- **streak + 成就**（[045] G2）localStorage 派生,8 个成就;TodayHero 显示 🔥
+- **PWA manifest**（[045] G2.4）支持装机
+- **Notes 浏览器版**（v5 起）双栏 + 防抖保存。Phase 3 接 Tauri 后会迁移到本地 Obsidian Vault（`vaultPath` 字段已留位）
 
 ---
 
@@ -78,32 +87,65 @@
 ```
 my-app/apps/web/src/
 ├── app/
-│   ├── page.tsx              ← ★ 顶层状态机
-│   ├── layout.tsx
-│   ├── globals.css           ← 设计 token（墨绿）
+│   ├── page.tsx              ← ★ 顶层状态机（含 notes / streak / aiActivity / abortRef / 拖拽 / Tour 等 ~20 state）
+│   ├── layout.tsx            ← ToastProvider + manifest + Inter 字体
+│   ├── globals.css           ← 设计 token（墨绿 + 暗色 dark theme） + font-base + search-flash 动画
 │   └── api/
-│       ├── chat/route.ts     ← 模型切换 + V4 Flash 流式 + 5 个 tool
-│       └── extract-ddls/...  ← PDF DDL 提取
+│       ├── chat/route.ts     ← V4 模型 + thinking + personality 3 档 + 6 个 tool（含 create_note）
+│       ├── extract-ddls/...  ← PDF DDL 提取（V4 Flash + tool_choice）
+│       └── ocr/route.ts      ← Mistral OCR 服务端代理
 ├── components/
-│   ├── ChatCanvas.tsx        ← 漫画式主区 + 管家浮动
-│   ├── ButlerCharacter.tsx   ← 3 姿势（standing/serving/pointout）+ Rive 预留
-│   ├── ConfirmCard.tsx       ← AI 写操作核实卡
-│   ├── TaskDetailDrawer.tsx  ← 右侧详情抽屉（替代 Modal）
-│   ├── TasksPanel.tsx / CalendarPanel.tsx / NotesPanel.tsx
-│   ├── MiniAppsDrawer.tsx    ← 右侧学习工具抽屉
-│   ├── mini-apps/FocusTimer.tsx
-│   └── layout/               ← TopBar + LeftRail + 4 Rail
+│   ├── ChatCanvas.tsx        ← 主区:管家居中贴底 0.33 倍率 + 气泡左对齐 + 输入框前置 + 欢迎屏 TodayHero+DropHero
+│   ├── ButlerCharacter.tsx   ← ★ 7 姿势 PNG（standing/serving/pointout/thinking/thinking-hard/idea/rare-thinking）+ scale 0.33 默认 + onError fallback
+│   ├── ConfirmCard.tsx       ← AI 写操作核实卡（含 create-note 紫色 BookOpen 分支）
+│   ├── NotesPreview.tsx      ← 任务备注 Markdown 预览 modal
+│   ├── TaskDetailDrawer.tsx  ← 右侧详情抽屉(status/tags/priority/附件/关联笔记/4 模板)
+│   ├── TasksPanel.tsx        ← Linear 列表 + view 过滤 + Deadline 紧急度色彩 + tag chip 聚合 + 高亮闪烁
+│   ├── CalendarPanel.tsx     ← 月 + Day + Week 视图（Week 含点空格创建 + 事件拖拽改时间）
+│   ├── NotesPanel.tsx        ← 浏览器版双栏（v5）+ 关联任务条 + checkbox 自动同步 Tasks
+│   ├── ProcessingPipeline.tsx ← PDF 4 步可视化
+│   ├── InputPod.tsx          ← 输入舱 + 模型下拉 + 中文 IME 防误 + Stop 按钮
+│   ├── AttachmentPreview.tsx ← URL/路径/Blob 3 类预览
+│   ├── MiniAppsDrawer.tsx    ← 学习工具抽屉（3 App: FocusTimer/StatsApp/ShareCard）
+│   ├── Toast.tsx             ← ★ 全局 Toast 通知（useToast hook，4 档 + action 按钮 Undo）
+│   ├── TodayHero.tsx         ← ★ Chat 欢迎屏「今日聚焦」+ streak 🔥 + 最佳时段 chip
+│   ├── KeyboardShortcutsHelp.tsx ← ★ ? 弹快捷键 modal
+│   ├── PreferencesPanel.tsx  ← ★ 偏好设置 modal（亮/暗主题 + 字号 + 管家性格 3 档）
+│   ├── OnboardingTour.tsx    ← ★ 首次 5 步引导（暗色遮罩 + pulse 高亮）
+│   ├── mini-apps/
+│   │   ├── FocusTimer.tsx    ← 番茄钟 + 关联任务下拉
+│   │   ├── StatsApp.tsx      ← ★ 7 天趋势 + Top tag
+│   │   └── ShareCard.tsx     ← ★ 540×800 竖版 SVG 分享海报
+│   └── layout/
+│       ├── TopBar.tsx        ← 56px 顶 Bar + 用户菜单(含偏好设置) + Apps 按钮
+│       ├── GlobalSearch.tsx  ← ⌘K 全局搜索(ddls/notes/messages) + 跳转高亮
+│       ├── LeftRail.tsx      ← 200px 容器
+│       ├── ChatRail.tsx      ← + New Chat + Recent Chats
+│       ├── TasksRail.tsx     ← 5 view 切换 + 计数
+│       ├── CalendarRail.tsx  ← ★ 真迷你月历（7×6 网格 + 上下月切换 + 今日墨绿圆 + 事件小点）
+│       └── NotesRail.tsx     ← All / Pinned + 计数
 └── lib/
-    ├── types.ts              ← ★ 所有共享类型（DdlItem/ChatSession/...）
-    ├── db.ts                 ← Dexie v4 schema
-    ├── ai-models.ts          ← 模型注册表
-    ├── ai-tools.ts           ← 5 个 AI tool 定义
-    ├── tool-executor.ts      ← tool_call → PendingChange
-    ├── pending.ts            ← 待核实模型
-    ├── chat-client.ts        ← SSE 流 + 多轮 tool 循环
-    ├── document-parser.ts    ← unpdf + 关键词过滤
-    ├── semantic-filter.ts    ← MiniLM CDN 粗筛
-    ├── blobs.ts / ics-export.ts / json-export.ts / mock-pipeline.ts
+    ├── types.ts              ← ★ DdlItem(+noteId) / ChatMessage(+reasoning+isError) / Note(+syncedTodos) / TaskStatus/Priority
+    ├── db.ts                 ← Dexie v5
+    ├── ai-models.ts          ← V4 Flash + V4 思考
+    ├── ai-tools.ts           ← 6 个 tool schema（+create_note）
+    ├── tool-executor.ts      ← 含 execCreateNote
+    ├── pending.ts            ← + PendingCreateNote 类型 + extractNoteDrafts
+    ├── chat-client.ts        ← SSE + 多轮 tool + reasoning_content + personality + AbortSignal
+    ├── document-parser.ts    ← 文字 PDF→unpdf;扫描/图片→OCR
+    ├── semantic-filter.ts    ← MiniLM CDN
+    ├── streak.ts             ← ★ G2 连续天数 + 8 个成就解锁
+    ├── demo-data.ts          ← ★ G1 一键 Demo（3 课 × 8 任务 + 2 笔记）
+    ├── ics-import.ts         ← ★ G1 .ics 课表文件解析
+    ├── ocr/
+    │   ├── providers.ts      ← OCR provider 注册表
+    │   └── index.ts          ← runOcr(file) + 50MB 硬拒
+    └── blobs.ts / ics-export.ts(含 Butler footer 水印) / json-export.ts / mock-pipeline.ts
+
+public/
+├── manifest.webmanifest      ← ★ PWA 装机
+└── assets/
+    └── butler-*.png          ← 当前 3 张（standing/serving/pointout）;4 新姿势 fallback 到 standing
 ```
 
 ---
@@ -119,4 +161,4 @@ my-app/apps/web/src/
 
 ---
 
-*最后更新：2026-05-24 — 重写为分区结构 (PROGRESS [027])*
+*最后更新：2026-05-25 — 同步 [045]:G2 留存 + G3 传播 + G5 AI 差异化(streak/成就/PWA/分享卡/管家角色化/习惯识别)*

@@ -10,7 +10,9 @@
 // ============================================================
 
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Pause, RotateCcw, Target } from "lucide-react";
+import { Play, Pause, RotateCcw, Target, Link2 } from "lucide-react";
+import { useToast } from "@/components/Toast";
+import type { DdlItem } from "@/lib/types";
 
 const PRESETS = [
   { label: "25 min", min: 25 },
@@ -18,11 +20,27 @@ const PRESETS = [
   { label: "60 min", min: 60 },
 ];
 
-export default function FocusTimer() {
+interface Props {
+  /** Epic 5.1 联动:当前任务列表,可选关联到具体 task */
+  ddls?: DdlItem[];
+  /** 结束时把"专注 25min"追加到 task.notes */
+  onAppendTaskNote?: (taskId: string, line: string) => void;
+}
+
+export default function FocusTimer({ ddls = [], onAppendTaskNote }: Props) {
+  const toast = useToast();
   const [totalSec, setTotalSec] = useState(25 * 60);  // 总时长
   const [remainSec, setRemainSec] = useState(25 * 60); // 剩余秒
   const [running, setRunning] = useState(false);
+  // Epic 5.1 关联任务
+  const [linkedTaskId, setLinkedTaskId] = useState<string | null>(null);
   const intervalRef = useRef<number | null>(null);
+  const totalSecRef = useRef(totalSec);
+  useEffect(() => { totalSecRef.current = totalSec; }, [totalSec]);
+  const linkedRef = useRef(linkedTaskId);
+  useEffect(() => { linkedRef.current = linkedTaskId; }, [linkedTaskId]);
+
+  const todoTasks = ddls.filter((d) => !d.completed && (d.status ?? "todo") !== "done").slice(0, 8);
 
   // 倒计时 tick
   useEffect(() => {
@@ -31,11 +49,14 @@ export default function FocusTimer() {
       setRemainSec((s) => {
         if (s <= 1) {
           setRunning(false);
-          if (typeof window !== "undefined") {
-            // 简单提醒：标题闪烁 + alert（Phase 3 接 Tauri Notification）
-            try {
-              alert("🎉 专注时段结束，记得休息一下！");
-            } catch {}
+          // 用 Toast 替代 alert（Phase 3 接 Tauri 后升级原生通知）
+          toast.success("🎉 专注时段结束,记得休息一下!", { duration: 8000 });
+          // Epic 5.1 把这次专注追加到关联任务的 notes
+          const tid = linkedRef.current;
+          if (tid && onAppendTaskNote) {
+            const min = Math.round(totalSecRef.current / 60);
+            const stamp = new Date().toLocaleString("zh-CN", { hour: "2-digit", minute: "2-digit", month: "2-digit", day: "2-digit" });
+            onAppendTaskNote(tid, `- 专注 ${min} min  ·  ${stamp}`);
           }
           return 0;
         }
@@ -174,6 +195,48 @@ export default function FocusTimer() {
           <RotateCcw size={16} />
         </CircleBtn>
       </div>
+
+      {/* Epic 5.1 关联任务选择器（只在有未完成任务时显示） */}
+      {todoTasks.length > 0 && (
+        <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
+          <label
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              color: "var(--color-text-muted)",
+              letterSpacing: 0.4,
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            <Link2 size={10} /> 关联任务（结束自动记录到任务备注）
+          </label>
+          <select
+            value={linkedTaskId ?? ""}
+            onChange={(e) => setLinkedTaskId(e.target.value || null)}
+            style={{
+              width: "100%",
+              padding: "6px 8px",
+              borderRadius: 6,
+              border: "1px solid var(--color-border)",
+              background: linkedTaskId ? "var(--color-primary-soft)" : "var(--color-bg)",
+              color: linkedTaskId ? "var(--color-primary)" : "var(--color-text-muted)",
+              fontSize: 12,
+              fontFamily: "inherit",
+              cursor: "pointer",
+              outline: "none",
+            }}
+          >
+            <option value="">— 不关联任务 —</option>
+            {todoTasks.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.taskName}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* 时长预设 */}
       <div style={{ display: "flex", gap: 6, marginTop: 4 }}>

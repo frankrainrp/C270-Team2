@@ -5,7 +5,7 @@
 // Stage C.1：视觉重做（墨绿设计语言，去玻璃 / 去 DecoLayered）
 // ============================================================
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   Check, FileText, Users, Inbox, Plus, Pencil, Trash2,
   CalendarPlus, Download, Upload, Link2, FolderOpen,
@@ -21,10 +21,16 @@ interface Props {
   onRequestEdit: (ddl: DdlItem) => void;
   onRequestDelete: (id: string) => void;
   onRequestPreview: (att: DdlAttachment) => void;
+  /** 点击「📝 备注」chip 时打开 markdown 预览 */
+  onRequestNotesPreview: (item: DdlItem) => void;
   onExportIcs: () => void;
   onExportJson: () => void;
   onImportJson: () => void;
+  /** G1.4 .ics 课表导入 */
+  onImportIcs?: () => void;
   view: TaskViewId;
+  /** B3 全局搜索跳转后高亮指定 task,触发 CSS 闪烁动画 + scrollIntoView */
+  highlightTaskId?: string | null;
 }
 
 const VIEW_TITLE: Record<TaskViewId, string> = {
@@ -58,6 +64,26 @@ function effectiveStatus(d: DdlItem): TaskStatus {
   return d.completed ? "done" : "todo";
 }
 
+// Epic 4.2 紧急度色彩(deadline 距今天数派生,优先于 priority)
+function computeUrgency(d: DdlItem): { color: string; title: string } | null {
+  if (d.completed || (d.status ?? "todo") === "done") return null;
+  if (d.dueDate) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const due = new Date(d.dueDate);
+    const days = (due.getTime() - today.getTime()) / 86400000;
+    if (days < 0) return { color: "var(--color-danger)", title: `已逾期 ${Math.abs(Math.floor(days))} 天` };
+    if (days < 1) return { color: "var(--color-danger)", title: "今日截止" };
+    if (days < 3) return { color: "#ea580c",            title: `${Math.ceil(days)} 天内截止` };
+    if (days < 7) return { color: "var(--color-warning)", title: `${Math.ceil(days)} 天内截止` };
+    return { color: "var(--color-success)", title: `${Math.ceil(days)} 天后截止` };
+  }
+  // 无 deadline 退回 priority
+  if (d.priority) {
+    return { color: PRIORITY_META[d.priority].color, title: `优先级 ${PRIORITY_META[d.priority].label}` };
+  }
+  return null;
+}
+
 const PRIORITY_META: Record<TaskPriority, { label: string; color: string }> = {
   high: { label: "高", color: "var(--color-danger)" },
   med: { label: "中", color: "var(--color-warning)" },
@@ -88,9 +114,19 @@ function classifyGroup(ddl: DdlItem): GroupKey {
 
 export default function TasksPanel({
   ddls, onToggleComplete, onRequestCreate, onRequestEdit, onRequestDelete,
-  onRequestPreview, onExportIcs, onExportJson, onImportJson, view,
+  onRequestPreview, onRequestNotesPreview, onExportIcs, onExportJson, onImportJson, onImportIcs, view,
+  highlightTaskId,
 }: Props) {
   const filteredDdls = useMemo(() => filterByView(ddls, view), [ddls, view]);
+
+  // B3 高亮目标 row 时 scrollIntoView（CSS 闪烁由 className 控制）
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  useEffect(() => {
+    if (highlightTaskId) {
+      const el = rowRefs.current[highlightTaskId];
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightTaskId]);
 
   const grouped = useMemo(() => {
     const g: Record<GroupKey, DdlItem[]> = { tbd: [], today: [], thisWeek: [], later: [], done: [] };
@@ -103,6 +139,23 @@ export default function TasksPanel({
 
   const totalActive = ddls.filter((d) => effectiveStatus(d) !== "done").length;
   const totalDone = ddls.filter((d) => effectiveStatus(d) === "done").length;
+
+  // Epic 4.4 按 tag 聚合统计 — 顶部 chip cloud
+  const tagStats = useMemo(() => {
+    const counts: Record<string, { total: number; done: number }> = {};
+    for (const d of ddls) {
+      const tags = d.tags ?? [];
+      for (const t of tags) {
+        if (!counts[t]) counts[t] = { total: 0, done: 0 };
+        counts[t].total++;
+        if (effectiveStatus(d) === "done") counts[t].done++;
+      }
+    }
+    return Object.entries(counts)
+      .map(([tag, s]) => ({ tag, ...s }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 12);
+  }, [ddls]);
 
   return (
     <div
@@ -152,10 +205,70 @@ export default function TasksPanel({
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <ToolbarBtn onClick={onExportIcs} icon={<CalendarPlus size={13} />} label="订阅日历" tooltip="下载 .ics → 导入手机/电脑系统日历自动提醒" />
             <ToolbarBtn onClick={onExportJson} icon={<Download size={13} />} label="导出" tooltip="导出全部任务为 JSON 文件备份" />
-            <ToolbarBtn onClick={onImportJson} icon={<Upload size={13} />} label="导入" tooltip="从 JSON 文件合并任务（按 ID 去重）" />
+            <ToolbarBtn onClick={onImportJson} icon={<Upload size={13} />} label="导入 JSON" tooltip="从 JSON 文件合并任务（按 ID 去重）" />
+            {onImportIcs && (
+              <ToolbarBtn onClick={onImportIcs} icon={<CalendarPlus size={13} />} label="导入 ICS" tooltip="从 .ics 课表文件批量导入事件" />
+            )}
             <PrimaryBtn onClick={onRequestCreate} icon={<Plus size={14} />} label="New Task" />
           </div>
         </header>
+
+        {/* Epic 4.4 tag chip 聚合(完成率显示) */}
+        {tagStats.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 6,
+              marginBottom: 16,
+            }}
+          >
+            {tagStats.map((t) => {
+              const ratio = t.total > 0 ? Math.round((t.done / t.total) * 100) : 0;
+              return (
+                <span
+                  key={t.tag}
+                  title={`#${t.tag} · ${t.done}/${t.total} 已完成`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    padding: "3px 8px",
+                    borderRadius: 12,
+                    fontSize: 11,
+                    fontFamily: "inherit",
+                    border: "1px solid var(--color-border)",
+                    background: "var(--color-surface)",
+                    color: "var(--color-text-muted)",
+                  }}
+                >
+                  <span style={{ color: "var(--color-primary)", fontWeight: 600 }}>
+                    #{t.tag}
+                  </span>
+                  <span>{t.done}/{t.total}</span>
+                  <span
+                    style={{
+                      width: 28, height: 3,
+                      borderRadius: 2,
+                      background: "var(--color-border)",
+                      position: "relative",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: 0, left: 0, height: "100%",
+                        width: `${ratio}%`,
+                        background: ratio === 100 ? "var(--color-success)" : "var(--color-primary)",
+                      }}
+                    />
+                  </span>
+                </span>
+              );
+            })}
+          </div>
+        )}
 
         {ddls.length === 0 ? (
           <EmptyState onCreate={onRequestCreate} />
@@ -175,6 +288,9 @@ export default function TasksPanel({
                   onEdit={onRequestEdit}
                   onDelete={onRequestDelete}
                   onPreview={onRequestPreview}
+                  onNotesPreview={onRequestNotesPreview}
+                  highlightId={highlightTaskId ?? null}
+                  rowRefs={rowRefs}
                 />
               );
             })}
@@ -189,7 +305,8 @@ export default function TasksPanel({
 // 分组
 // ============================================================
 function TaskGroup({
-  groupKey, items, onToggle, onEdit, onDelete, onPreview,
+  groupKey, items, onToggle, onEdit, onDelete, onPreview, onNotesPreview,
+  highlightId, rowRefs,
 }: {
   groupKey: GroupKey;
   items: DdlItem[];
@@ -197,6 +314,9 @@ function TaskGroup({
   onEdit: (ddl: DdlItem) => void;
   onDelete: (id: string) => void;
   onPreview: (att: DdlAttachment) => void;
+  onNotesPreview: (item: DdlItem) => void;
+  highlightId?: string | null;
+  rowRefs?: React.MutableRefObject<Record<string, HTMLDivElement | null>>;
 }) {
   const meta = GROUP_META[groupKey];
   return (
@@ -248,7 +368,10 @@ function TaskGroup({
             onEdit={onEdit}
             onDelete={onDelete}
             onPreview={onPreview}
+            onNotesPreview={onNotesPreview}
             isLast={idx === items.length - 1}
+            highlight={item.id === highlightId}
+            rowRef={(el) => { if (rowRefs) rowRefs.current[item.id] = el; }}
           />
         ))}
       </div>
@@ -260,19 +383,24 @@ function TaskGroup({
 // 单条任务
 // ============================================================
 function TaskRow({
-  item, onToggle, onEdit, onDelete, onPreview, isLast,
+  item, onToggle, onEdit, onDelete, onPreview, onNotesPreview, isLast, highlight, rowRef,
 }: {
   item: DdlItem;
   onToggle: (id: string) => void;
   onEdit: (ddl: DdlItem) => void;
   onDelete: (id: string) => void;
   onPreview: (att: DdlAttachment) => void;
+  onNotesPreview: (item: DdlItem) => void;
   isLast: boolean;
+  highlight?: boolean;
+  rowRef?: (el: HTMLDivElement | null) => void;
 }) {
   const [hov, setHov] = useState(false);
   const displayDate = formatDate(item.dueDate);
   return (
     <div
+      ref={rowRef}
+      className={highlight ? "task-row-flash" : ""}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
@@ -287,19 +415,23 @@ function TaskRow({
     >
       <Checkbox checked={item.completed} onClick={() => onToggle(item.id)} />
 
-      {/* Priority 色块（左侧细条） */}
-      {item.priority && (
-        <span
-          title={`优先级 ${PRIORITY_META[item.priority].label}`}
-          style={{
-            width: 3,
-            height: 28,
-            borderRadius: 2,
-            background: PRIORITY_META[item.priority].color,
-            flexShrink: 0,
-          }}
-        />
-      )}
+      {/* Epic 4.2 紧急度色块(deadline 优先,无 deadline 则用 priority,都无则不显示) */}
+      {(() => {
+        const u = computeUrgency(item);
+        if (!u) return null;
+        return (
+          <span
+            title={u.title}
+            style={{
+              width: 3,
+              height: 28,
+              borderRadius: 2,
+              background: u.color,
+              flexShrink: 0,
+            }}
+          />
+        );
+      })()}
 
       <div
         style={{ flex: 1, minWidth: 0, cursor: "pointer" }}
@@ -387,8 +519,13 @@ function TaskRow({
         {(item.attachments?.length || item.notes) && (
           <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
             {item.notes && (
-              <span
-                title={item.notes}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNotesPreview(item);
+                }}
+                title="点击查看完整备注"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -400,10 +537,12 @@ function TaskRow({
                   fontSize: 10,
                   color: "var(--color-warning)",
                   fontWeight: 500,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
                 }}
               >
-                备注
-              </span>
+                📝 备注
+              </button>
             )}
             {item.attachments?.map((att) => (
               <AttachmentChip
@@ -683,10 +822,27 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       <p style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text)", margin: "0 0 6px" }}>
         还没有任何任务
       </p>
-      <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: "0 0 16px" }}>
+      <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: "0 0 8px" }}>
         切到 <strong style={{ color: "var(--color-text)" }}>Chat</strong> 上传课件，或点下方按钮手动添加
       </p>
-      <PrimaryBtn onClick={onCreate} icon={<Plus size={14} />} label="New Task" />
+      {/* Epic 6.5 管家小气泡 */}
+      <p
+        style={{
+          fontSize: 12,
+          fontStyle: "italic",
+          color: "var(--color-primary)",
+          background: "var(--color-primary-soft)",
+          padding: "6px 12px",
+          borderRadius: 14,
+          display: "inline-block",
+          margin: "0 0 16px",
+        }}
+      >
+        ☕「放假了？让我陪你休息一下」— Butler
+      </p>
+      <div>
+        <PrimaryBtn onClick={onCreate} icon={<Plus size={14} />} label="New Task" />
+      </div>
     </div>
   );
 }
