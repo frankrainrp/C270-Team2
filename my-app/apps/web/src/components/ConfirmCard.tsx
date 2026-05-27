@@ -49,7 +49,7 @@ export default function ConfirmCard({ batch, onAccept, onReject, onDropChange }:
             border: `1px solid ${isPending ? "var(--color-primary)" : "var(--color-border)"}`,
             borderRadius: 12,
             padding: 14,
-            boxShadow: isPending ? "0 4px 12px rgba(27,61,47,0.08)" : "none",
+            boxShadow: isPending ? "var(--shadow-card-hover)" : "none",
             opacity: isRejected ? 0.55 : 1,
           }}
         >
@@ -244,7 +244,7 @@ function ChangeRow({
           }}
           onMouseEnter={(e) => {
             const el = e.currentTarget as HTMLButtonElement;
-            el.style.background = "rgba(220,38,38,0.1)";
+            el.style.background = "var(--color-danger-soft)";
             el.style.color = "var(--color-danger)";
           }}
           onMouseLeave={(e) => {

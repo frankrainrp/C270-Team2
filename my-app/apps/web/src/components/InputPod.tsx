@@ -110,8 +110,8 @@ export default function InputPod({
             position: "absolute", inset: 0, zIndex: 10,
             display: "flex", alignItems: "center", justifyContent: "center",
             pointerEvents: "none",
-            background: "rgba(99,102,241,0.04)",
-            color: "#6366f1", fontSize: 13, fontWeight: 600,
+            background: "var(--color-primary-soft)",
+            color: "var(--color-primary)", fontSize: 13, fontWeight: 600,
             letterSpacing: 0.2,
           }}>
             释放即可上传文档
@@ -153,7 +153,7 @@ export default function InputPod({
               outline: "none",
               border: "none",
               fontSize: 14,
-              color: "#111",
+              color: "var(--color-text)",
               lineHeight: 1.6,
               minHeight: 44,
               maxHeight: 200,
@@ -235,11 +235,11 @@ export default function InputPod({
               style={{
                 width: 32, height: 32, borderRadius: 8,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                border: "none", cursor: "pointer", background: "transparent", color: "#9ca3af",
+                border: "none", cursor: "pointer", background: "transparent", color: "var(--color-text-faint)",
                 transition: "all 0.15s",
               }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,0,0,0.05)"; (e.currentTarget as HTMLButtonElement).style.color = "#374151"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--color-surface)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text-faint)"; }}
             >
               <Paperclip size={15} />
             </button>
@@ -327,9 +327,9 @@ function FileChip({ file, onRemove }: { file: UploadedFile; onRemove: () => void
       style={{
         display: "flex", alignItems: "center", gap: 8,
         padding: "5px 8px 5px 8px", borderRadius: 8,
-        background: "rgba(0,0,0,0.04)",
-        border: "1px solid rgba(0,0,0,0.06)",
-        fontSize: 12, color: "#374151",
+        background: "var(--color-surface)",
+        border: "1px solid var(--color-border-soft)",
+        fontSize: 12, color: "var(--color-text)",
         maxWidth: 220,
         transition: "background 0.15s",
       }}
@@ -339,7 +339,7 @@ function FileChip({ file, onRemove }: { file: UploadedFile; onRemove: () => void
         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
         fontWeight: 500, maxWidth: 140,
       }}>{file.name}</span>
-      <span style={{ color: "#9ca3af", fontSize: 10, flexShrink: 0 }}>
+      <span style={{ color: "var(--color-text-faint)", fontSize: 10, flexShrink: 0 }}>
         {formatSize(file.size)}
       </span>
       <button
@@ -347,8 +347,8 @@ function FileChip({ file, onRemove }: { file: UploadedFile; onRemove: () => void
         onClick={onRemove}
         style={{
           width: 18, height: 18, borderRadius: 4, border: "none",
-          background: hov ? "rgba(0,0,0,0.08)" : "transparent",
-          cursor: "pointer", color: "#6b7280",
+          background: hov ? "var(--color-border-soft)" : "transparent",
+          cursor: "pointer", color: "var(--color-text-muted)",
           display: "flex", alignItems: "center", justifyContent: "center",
           flexShrink: 0, transition: "background 0.15s",
         }}

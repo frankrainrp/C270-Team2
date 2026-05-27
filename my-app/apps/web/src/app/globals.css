@@ -33,14 +33,35 @@
     --radius-card: 10px;
     --radius-modal: 12px;
 
+    /* [048] Phase A: 主题感知阴影（light = 墨绿微淡阴影；dark = 纯黑深阴影）*/
+    --shadow-card: 0 1px 2px rgba(0,0,0,0.03);
+    --shadow-card-hover: 0 4px 14px rgba(27,61,47,0.08);
+    --shadow-bubble: 0 2px 10px rgba(27,61,47,0.08);
+    --shadow-modal: 0 20px 60px rgba(0,0,0,0.18);
+    --shadow-drawer: 0 10px 30px rgba(0,0,0,0.10);
+
+    /* [048] 代码块（始终暗色基础，dark mode 仅微调以区分页面 bg）*/
+    --color-code-bg: #1F2937;
+    --color-code-text: #F3F4F6;
+
+    /* [048] 覆盖层（modal 背后蒙层）*/
+    --color-overlay: rgba(0,0,0,0.50);
+    --color-overlay-soft: rgba(15,23,42,0.30);
+
+    /* [048] success-soft / warning-soft（替代散落的 #dcfce7 等）*/
+    --color-success-soft: #DCFCE7;
+    --color-success-strong: #065F46;
+    --color-warning-soft: #FEF3C7;
+    --color-danger-soft: #FEE2E2;
+
     /* Epic 3.2 字体基础大小（默认 14px,可被 [data-font-size] 覆盖） */
     --font-base: 14px;
   }
 
-  /* Epic 3.1 暗色主题（[data-theme="dark"] 时覆盖） */
+  /* Epic 3.1 暗色主题（[data-theme="dark"] 时覆盖） [048] 扩展全套 token */
   html[data-theme="dark"] {
     --color-primary: #5FB58F;
-    --color-primary-hover: #4FA17E;
+    --color-primary-hover: #6FC59F;
     --color-primary-soft: #1F3328;
     --color-success: #4ADE80;
     --color-warning: #FBBF24;
@@ -53,6 +74,27 @@
     --color-surface: #1E293B;
     --color-border: #334155;
     --color-border-soft: #1E293B;
+
+    /* [048] 暗色：阴影更深更黑（墨绿 alpha 在深色 bg 上几乎不可见）*/
+    --shadow-card: 0 1px 2px rgba(0,0,0,0.30);
+    --shadow-card-hover: 0 4px 14px rgba(0,0,0,0.40);
+    --shadow-bubble: 0 2px 10px rgba(0,0,0,0.35);
+    --shadow-modal: 0 20px 60px rgba(0,0,0,0.60);
+    --shadow-drawer: 0 10px 30px rgba(0,0,0,0.45);
+
+    /* [048] 暗色：代码块比 surface 更深一点 */
+    --color-code-bg: #0B1220;
+    --color-code-text: #E5E7EB;
+
+    /* [048] 暗色：overlay 更深 + 蒙层带蓝灰底色 */
+    --color-overlay: rgba(0,0,0,0.70);
+    --color-overlay-soft: rgba(0,0,0,0.50);
+
+    /* [048] 暗色：success/warning/danger-soft 用对应色调暗化（深底浅字反转）*/
+    --color-success-soft: #14532D;
+    --color-success-strong: #86EFAC;
+    --color-warning-soft: #422006;
+    --color-danger-soft: #450A0A;
   }
 
   /* Epic 3.2 字体档位 */

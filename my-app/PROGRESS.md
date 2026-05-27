@@ -7,6 +7,7 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [048] | 自定义系统 Phase A — Dark Mode 优化 | 主题感知阴影/代码块/覆盖层 token + AttachmentPreview 重写 + 5 文件硬编码色收口 |
 | [047] | 修复思考模式末尾误报 "出错了" 气泡 | 服务端流尾抛错有内容时静默 + 客户端 hasReceivedDelta 双保险 |
 | [046] | 4 张新姿势 SVG → trim PNG 接入 | thinking / thinking-hard / idea / rare-thinking 真资产上线（取代 standing fallback） |
 | [045] | G2 留存 + G3 传播 + G5 AI 差异化 | streak / 成就 / PWA / 分享卡 / 管家性格 3 档 / 习惯识别 |
@@ -31,7 +32,75 @@
 | [022]-[026] | UI 重构 Stage C-E + Mini Apps + Stage C.2 + 模型切换 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
-> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 7 条 [041]-[047] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 8 条 [041]-[048] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [048] 2026-05-27 — 自定义系统 Phase A：Dark Mode 优化
+
+> 用户要做"高灵活度自定义系统（颜色 / 人物 / 元素位置 / 自定义面板），无需预设主题，但要优化目前的黑夜系统"。整套拆 5 个 Phase，本条是 Phase A — 把现有 dark mode 真正做扎实，为 Phase B (color picker) 等后续打地基。
+
+### 🎯 Phase 拆分（接班可见）
+
+| Phase | 内容 | 状态 |
+|---|---|---|
+| **A. Dark Mode 优化** | 硬编码色 → CSS 变量 + 暗色 token 全覆盖 | ✅ 本条 [048] |
+| B. 颜色自定义 | Primary color picker + 自动派生 hover/soft | ⏳ |
+| C. 人物自定义 | 用户上传管家 PNG + 持久化 IndexedDB | ⏳ |
+| D. 元素位置自定义 | Tab 顺序拖拽 / 管家位置 / Drawer 位置 | ⏳ |
+| E. 自定义面板 | 用户创建额外面板 + 隐藏内置面板 | ⏳ |
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/app/globals.css` | 修改 | 新增 15+ token：`--shadow-{card,card-hover,bubble,modal,drawer}` / `--color-{code-bg,code-text,overlay,overlay-soft}` / `--color-{success,warning,danger}-soft` + success-strong；暗色块全套覆盖（阴影改纯黑深 alpha；代码块比 surface 更深；overlay 加深；success/warning/danger-soft 反转成暗背景浅文字配色） |
+| `apps/web/src/components/AttachmentPreview.tsx` | **重写** | [025] Stage E 没扫到的死角:整个 modal 硬编码白底 + 紫色 legacy 渐变(`linear-gradient(#6366f1, #8b5cf6)`)按钮 + 黑灰文字。重写为全 CSS 变量:overlay/bg/border/text 都走 token；按钮统一墨绿；复制按钮成功态用 `--color-success-soft/-strong` |
+| `apps/web/src/components/ChatCanvas.tsx` | 修改 | (1) `.ai-md pre` 代码块 `#1f2937 / #f3f4f6` → `var(--color-code-bg/-text)`；(2) QuickCard hover/normal 阴影 → `var(--shadow-card-hover/card)`；(3) ButlerBubble shadow `0 2px 10px rgba(27,61,47,0.08)` → `var(--shadow-bubble)`；(4) 错误消息 retry btn hover red → `var(--color-danger-soft)` |
+| `apps/web/src/components/ConfirmCard.tsx` | 修改 | shadow → `var(--shadow-card-hover)`；reject btn hover red 0.1 → `var(--color-danger-soft)` |
+| `apps/web/src/components/TodayHero.tsx` | 修改 | shadow → `var(--shadow-card-hover)` |
+| `apps/web/src/components/InputPod.tsx` | 修改 | 6 处硬编码色：drag overlay 紫 legacy → primary-soft；textarea `#111` → text；attach btn 灰 hover → text-faint/surface；FileChip 灰底灰边 + 文件名/大小/remove 全套 → 全 var |
+
+### 🎨 暗色阴影策略
+
+之前 light mode 用 `rgba(27,61,47,0.08)`（墨绿微淡）→ 在 dark bg 上几乎不可见 → 卡片悬浮感丢失。  
+新 token 在暗色覆盖块改成 `rgba(0,0,0,0.30~0.60)` 纯黑深 alpha，配合暗 bg 反而层次更清晰。
+
+| 用途 | light | dark |
+|---|---|---|
+| `--shadow-card` | `0 1px 2px rgba(0,0,0,0.03)` | `0 1px 2px rgba(0,0,0,0.30)` |
+| `--shadow-card-hover` | `0 4px 14px rgba(27,61,47,0.08)` | `0 4px 14px rgba(0,0,0,0.40)` |
+| `--shadow-bubble` | `0 2px 10px rgba(27,61,47,0.08)` | `0 2px 10px rgba(0,0,0,0.35)` |
+| `--shadow-modal` | `0 20px 60px rgba(0,0,0,0.18)` | `0 20px 60px rgba(0,0,0,0.60)` |
+
+### 🎨 success/warning/danger-soft 策略
+
+light mode 用浅底色 + 深字（`#DCFCE7` + `#065F46`），dark mode 反转用深底色 + 浅字（`#14532D` + `#86EFAC`）— 既符合暗色规范又保留语义识别度。
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- 已知保留的硬编码语义色（设计意图，不算 bug）：
+  - `#ea580c`（TasksPanel/TodayHero 紧急 deadline 橙）— 紧急度语义色
+  - `#dc2626 / #10b981 / #6366f1`（InputPod FileChip 文件类型 icon 色）— PDF/图片/其他识别色
+  - `#fff`（AttachmentPreview 主按钮白字）— 白字在深绿底正确
+- HMR 已自动加载
+
+### 📊 完整度更新
+
+| Tab | 之前 | 现在 |
+|---|---|---|
+| Dark Mode | 框架在但 AttachmentPreview/InputPod 大面积破窗 | ✅ 全套 token + 主要组件全部 var 化 |
+
+### 🚦 下一步候选（Phase B）
+
+- **Phase B 颜色自定义**：PreferencesPanel 加 color picker，选 primary 色 → 派生 hover (HSL +5 lightness) + soft (HSL -85 saturation, +50 lightness)；存 localStorage；mount 时 applyStoredPreferences 注入到 `:root` 作为 CSS 变量覆盖
+- 或先跳到 Phase C 人物自定义 / D 元素位置 / E 自定义面板
+- 或别的方向
+
+### 💾 备份建议
+
+`backup-047-thinking-tail-fix` 之后，本次紧跟。建议 tag：`backup-048-darkmode-polish`
 
 ---
 

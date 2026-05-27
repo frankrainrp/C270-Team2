@@ -317,7 +317,7 @@ function MessageToolbar({
             cursor: "pointer",
             transition: "all 0.15s",
           }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = isError ? "rgba(220,38,38,0.06)" : "var(--color-surface)"; }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = isError ? "var(--color-danger-soft)" : "var(--color-surface)"; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
         >
           <RefreshCw size={11} />
@@ -355,7 +355,7 @@ function ButlerBubble({
           border: `2px solid ${borderColor}`,
           borderRadius: 18,
           padding: "12px 16px",
-          boxShadow: "0 2px 10px rgba(27,61,47,0.08)",
+          boxShadow: "var(--shadow-bubble)",
           animation: "bubble-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
           userSelect: "text",
           WebkitUserSelect: "text",
@@ -646,7 +646,7 @@ export default function ChatCanvas(props: ChatCanvasProps) {
         .ai-md ul, .ai-md ol { margin: 4px 0 6px; padding-left: 20px; }
         .ai-md li { margin: 2px 0; }
         .ai-md code { background: var(--color-primary-soft); padding: 1px 5px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12.5px; color: var(--color-primary); }
-        .ai-md pre { background: #1f2937; color: #f3f4f6; padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; line-height: 1.55; margin: 6px 0; }
+        .ai-md pre { background: var(--color-code-bg); color: var(--color-code-text); padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; line-height: 1.55; margin: 6px 0; }
         .ai-md pre code { background: transparent; color: inherit; padding: 0; }
         .ai-md a { color: var(--color-primary); text-decoration: underline; }
         .ai-md strong { font-weight: 600; }
@@ -686,7 +686,7 @@ function QuickCard({
         cursor: "pointer",
         textAlign: "left",
         fontFamily: "inherit",
-        boxShadow: hov ? "0 4px 14px rgba(27,61,47,0.08)" : "0 1px 2px rgba(0,0,0,0.03)",
+        boxShadow: hov ? "var(--shadow-card-hover)" : "var(--shadow-card)",
         transition: "all 0.15s",
       }}
     >

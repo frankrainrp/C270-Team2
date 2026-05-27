@@ -6,6 +6,9 @@
 // URL：直接新窗口打开（不进 modal）
 // filepath：显示路径 + 复制按钮（Tauri 后续接"打开所在地"）
 // blob：PDF iframe / 图片 img / 其他下载
+//
+// [048] Phase A 重写：所有硬编码白底/紫色渐变/灰文字 → CSS 变量，
+// 暗色模式可用；视觉对齐墨绿设计语言（[025] Stage E 没扫到的死角）。
 // ============================================================
 
 import React, { useEffect, useState } from "react";
@@ -54,7 +57,7 @@ export default function AttachmentPreview({ attachment, onClose }: Props) {
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       style={{
         position: "fixed", inset: 0, zIndex: 250,
-        background: "rgba(0,0,0,0.5)",
+        background: "var(--color-overlay)",
         backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
         display: "flex", alignItems: "center", justifyContent: "center",
         padding: 24,
@@ -62,30 +65,31 @@ export default function AttachmentPreview({ attachment, onClose }: Props) {
     >
       <div style={{
         width: "100%", maxWidth: 880, maxHeight: "90vh",
-        background: "rgba(255,255,255,0.97)",
+        background: "var(--color-bg)",
         borderRadius: 18,
-        border: "1px solid rgba(0,0,0,0.08)",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+        border: "1px solid var(--color-border)",
+        boxShadow: "var(--shadow-modal)",
         overflow: "hidden",
         display: "flex", flexDirection: "column",
+        color: "var(--color-text)",
       }}>
         {/* Header */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "14px 20px", borderBottom: "1px solid rgba(0,0,0,0.06)",
+          padding: "14px 20px", borderBottom: "1px solid var(--color-border)",
           flexShrink: 0,
         }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <h2 style={{ fontSize: 14, fontWeight: 600, color: "#111", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <h2 style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {attachment.label}
             </h2>
-            <p style={{ fontSize: 11, color: "#9ca3af", margin: "2px 0 0", fontFamily: "ui-monospace, monospace", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <p style={{ fontSize: 11, color: "var(--color-text-faint)", margin: "2px 0 0", fontFamily: "ui-monospace, monospace", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {attachment.ref}
             </p>
           </div>
           <button onClick={onClose} aria-label="关闭" style={{
             width: 32, height: 32, borderRadius: 8, border: "none",
-            background: "transparent", cursor: "pointer", color: "#6b7280",
+            background: "transparent", cursor: "pointer", color: "var(--color-text-muted)",
             display: "flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0,
           }}>
@@ -113,15 +117,15 @@ export default function AttachmentPreview({ attachment, onClose }: Props) {
 function UrlView({ ref_ }: { ref_: string }) {
   return (
     <div style={{ padding: 40, textAlign: "center" }}>
-      <ExternalLink size={36} color="#6366f1" />
-      <p style={{ fontSize: 14, color: "#374151", margin: "16px 0 6px" }}>外部链接附件</p>
-      <p style={{ fontSize: 12, color: "#9ca3af", margin: "0 0 20px", wordBreak: "break-all" }}>{ref_}</p>
+      <ExternalLink size={36} color="var(--color-primary)" />
+      <p style={{ fontSize: 14, color: "var(--color-text)", margin: "16px 0 6px" }}>外部链接附件</p>
+      <p style={{ fontSize: 12, color: "var(--color-text-faint)", margin: "0 0 20px", wordBreak: "break-all" }}>{ref_}</p>
       <a href={ref_} target="_blank" rel="noopener noreferrer" style={{
         display: "inline-flex", alignItems: "center", gap: 6,
         padding: "9px 18px", borderRadius: 10, border: "none",
-        background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-        color: "white", fontSize: 13, fontWeight: 600, textDecoration: "none",
-        boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
+        background: "var(--color-primary)",
+        color: "#fff", fontSize: 13, fontWeight: 600, textDecoration: "none",
+        boxShadow: "var(--shadow-card-hover)",
       }}>
         <ExternalLink size={14} /> 在新窗口打开
       </a>
@@ -140,22 +144,25 @@ function FilepathView({ path }: { path: string }) {
   };
   return (
     <div style={{ padding: 40, textAlign: "center" }}>
-      <FolderOpen size={36} color="#10b981" />
-      <p style={{ fontSize: 14, color: "#374151", margin: "16px 0 6px" }}>本地文件路径</p>
+      <FolderOpen size={36} color="var(--color-success)" />
+      <p style={{ fontSize: 14, color: "var(--color-text)", margin: "16px 0 6px" }}>本地文件路径</p>
       <p style={{
-        fontSize: 12, color: "#374151", margin: "0 0 8px",
+        fontSize: 12, color: "var(--color-text)", margin: "0 0 8px",
         wordBreak: "break-all", fontFamily: "ui-monospace, monospace",
-        background: "rgba(0,0,0,0.04)", padding: "8px 12px", borderRadius: 8,
+        background: "var(--color-surface)", padding: "8px 12px", borderRadius: 8,
         display: "inline-block", maxWidth: "90%",
+        border: "1px solid var(--color-border-soft)",
       }}>{path}</p>
-      <p style={{ fontSize: 11, color: "#9ca3af", margin: "0 0 20px" }}>
+      <p style={{ fontSize: 11, color: "var(--color-text-faint)", margin: "0 0 20px" }}>
         浏览器无法直接打开本地路径；Phase 3 桌面壳上线后可一键"在文件管理器中显示"
       </p>
       <button onClick={copy} style={{
         display: "inline-flex", alignItems: "center", gap: 6,
-        padding: "9px 18px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.1)",
-        background: copied ? "#dcfce7" : "white",
-        color: copied ? "#065f46" : "#374151", fontSize: 13, fontWeight: 500,
+        padding: "9px 18px", borderRadius: 10,
+        border: "1px solid var(--color-border)",
+        background: copied ? "var(--color-success-soft)" : "var(--color-bg)",
+        color: copied ? "var(--color-success-strong)" : "var(--color-text)",
+        fontSize: 13, fontWeight: 500,
         cursor: "pointer", fontFamily: "inherit",
       }}>
         <Copy size={14} /> {copied ? "已复制" : "复制路径"}
@@ -170,7 +177,7 @@ function BlobView({ info }: { info: { url: string; mime: string; name: string } 
 
   if (isImg) {
     return (
-      <div style={{ padding: 16, display: "flex", justifyContent: "center", background: "rgba(0,0,0,0.02)" }}>
+      <div style={{ padding: 16, display: "flex", justifyContent: "center", background: "var(--color-surface)" }}>
         <img src={info.url} alt={info.name} style={{ maxWidth: "100%", maxHeight: "70vh", borderRadius: 8 }} />
       </div>
     );
@@ -180,22 +187,22 @@ function BlobView({ info }: { info: { url: string; mime: string; name: string } 
       <iframe
         src={info.url}
         title={info.name}
-        style={{ width: "100%", height: "70vh", border: "none" }}
+        style={{ width: "100%", height: "70vh", border: "none", background: "var(--color-surface)" }}
       />
     );
   }
   // 其他类型 → 下载
   return (
     <div style={{ padding: 40, textAlign: "center" }}>
-      <Download size={36} color="#6366f1" />
-      <p style={{ fontSize: 14, color: "#374151", margin: "16px 0 6px" }}>{info.name}</p>
-      <p style={{ fontSize: 11, color: "#9ca3af", margin: "0 0 20px" }}>{info.mime}</p>
+      <Download size={36} color="var(--color-primary)" />
+      <p style={{ fontSize: 14, color: "var(--color-text)", margin: "16px 0 6px" }}>{info.name}</p>
+      <p style={{ fontSize: 11, color: "var(--color-text-faint)", margin: "0 0 20px" }}>{info.mime}</p>
       <a href={info.url} download={info.name} style={{
         display: "inline-flex", alignItems: "center", gap: 6,
         padding: "9px 18px", borderRadius: 10,
-        background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-        color: "white", fontSize: 13, fontWeight: 600, textDecoration: "none",
-        boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
+        background: "var(--color-primary)",
+        color: "#fff", fontSize: 13, fontWeight: 600, textDecoration: "none",
+        boxShadow: "var(--shadow-card-hover)",
       }}>
         <Download size={14} /> 下载
       </a>
@@ -204,9 +211,9 @@ function BlobView({ info }: { info: { url: string; mime: string; name: string } 
 }
 
 function LoadingView() {
-  return <div style={{ padding: 60, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>加载中…</div>;
+  return <div style={{ padding: 60, textAlign: "center", color: "var(--color-text-faint)", fontSize: 13 }}>加载中…</div>;
 }
 
 function ErrorView({ msg }: { msg: string }) {
-  return <div style={{ padding: 60, textAlign: "center", color: "#dc2626", fontSize: 13 }}>❌ {msg}</div>;
+  return <div style={{ padding: 60, textAlign: "center", color: "var(--color-danger)", fontSize: 13 }}>❌ {msg}</div>;
 }

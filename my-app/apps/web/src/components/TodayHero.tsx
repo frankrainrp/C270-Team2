@@ -91,7 +91,7 @@ export default function TodayHero({ ddls, onJumpToTask, streakDays = 0, bestHour
         display: "flex",
         flexDirection: "column",
         gap: 14,
-        boxShadow: "0 4px 14px rgba(27,61,47,0.05)",
+        boxShadow: "var(--shadow-card-hover)",
       }}
     >
       {/* 顶部:日期 + 星期 + streak chip + 最佳时段 */}
