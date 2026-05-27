@@ -39,19 +39,18 @@ interface PoseMeta {
   h: number;
 }
 
-// 4 个新姿势的 PNG 尺寸暂用 standing (374×1094) 占位；
-// 用户提供真实资产后改这里即可，不需要碰组件逻辑。
-const STANDING_W = 374;
-const STANDING_H = 1094;
-
+// 7 个姿势的 PNG 原始尺寸（trim 透明边后的真实 bbox）。
+// 原稿 1254×1254 JPEG-in-SVG 由 scripts/trim_butler_poses.py
+// 白底抠图（threshold 240）+ getbbox 裁剪生成。
+// rare-thinking 矮宽（坐姿/喝咖啡）；其余高瘦贴近 standing 体态。
 const POSES: Record<ButlerPose, PoseMeta> = {
-  standing:        { src: "/assets/butler-standing.png",      w: STANDING_W, h: STANDING_H },
-  serving:         { src: "/assets/butler-serving.png",       w: 683,        h: 1003 },
-  pointout:        { src: "/assets/butler-pointout.png",      w: 475,        h: 1067 },
-  thinking:        { src: "/assets/butler-thinking.png",      w: STANDING_W, h: STANDING_H },
-  "thinking-hard": { src: "/assets/butler-thinking-hard.png", w: STANDING_W, h: STANDING_H },
-  idea:            { src: "/assets/butler-idea.png",          w: STANDING_W, h: STANDING_H },
-  "rare-thinking": { src: "/assets/butler-rare-thinking.png", w: STANDING_W, h: STANDING_H },
+  standing:        { src: "/assets/butler-standing.png",      w: 374, h: 1094 },
+  serving:         { src: "/assets/butler-serving.png",       w: 683, h: 1003 },
+  pointout:        { src: "/assets/butler-pointout.png",      w: 475, h: 1067 },
+  thinking:        { src: "/assets/butler-thinking.png",      w: 324, h: 1056 },
+  "thinking-hard": { src: "/assets/butler-thinking-hard.png", w: 293, h: 1099 },
+  idea:            { src: "/assets/butler-idea.png",          w: 459, h: 1051 },
+  "rare-thinking": { src: "/assets/butler-rare-thinking.png", w: 637, h: 855  },
 };
 
 const MAX_W = Math.max(...Object.values(POSES).map((p) => p.w));

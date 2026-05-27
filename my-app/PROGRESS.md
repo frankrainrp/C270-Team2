@@ -7,6 +7,7 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [046] | 4 张新姿势 SVG → trim PNG 接入 | thinking / thinking-hard / idea / rare-thinking 真资产上线（取代 standing fallback） |
 | [045] | G2 留存 + G3 传播 + G5 AI 差异化 | streak / 成就 / PWA / 分享卡 / 管家性格 3 档 / 习惯识别 |
 | [044] | G1 激活率提升 | Demo 数据 / 大拖拽 / Tour / .ics 导入 |
 | [043] | Calendar C3+C4 | Week 空格点击创建 + 事件拖拽改时间 |
@@ -29,7 +30,62 @@
 | [022]-[026] | UI 重构 Stage C-E + Mini Apps + Stage C.2 + 模型切换 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
-> **接班 AI 提示**: 只看「最新一条」推算下一步即可。下面 5 条 [041]-[045] 是最近一个工作日的进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 6 条 [041]-[046] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [046] 2026-05-27 — 4 张新姿势 SVG → trim PNG 接入（[033] 留尾收尾）
+
+> [033] 实现了 7 姿势状态机但 4 张新姿势资产未到 → 全部 fallback 到 standing。本条把用户上传的 4 张 SVG 转成与现有 3 张同规格的透明 trim PNG，正式上线。
+
+### 🎨 资产处理流程
+
+用户上传的 4 张 `Doc/bulter/*.svg` 实际是 **1254×1254 JPEG-in-SVG 包装**（和现有 `butler-{standing,serving,pointout}.svg` 同结构），白底无 alpha。沿用 [027] 已有的"PNG trim"工序自动化：
+
+| 步骤 | 实现 |
+|---|---|
+| 1. 提取 base64 JPEG | 正则 `xlink:href="data:image/jpeg;base64,..."` |
+| 2. 白底抠图 | PIL: `rgb >= 240` → alpha=0（threshold 240 兼容 JPEG 边缘抗锯齿） |
+| 3. 边缘裁剪 | `Image.getbbox()` → crop 到真实角色 bbox |
+| 4. 输出 PNG | `optimize=True` 压缩 |
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `scripts/trim_butler_poses.py` | **新建** | 一次性脚本：4 张 SVG → 4 张 trim PNG。今后若用户给同格式新资产，改 `MAPPING` 即可复用 |
+| `my-app/apps/web/public/assets/butler-thinking.png` | **新建** | 1254² → trim **324×1056**（87.6KB）|
+| `my-app/apps/web/public/assets/butler-thinking-hard.png` | **新建** | 1254² → trim **293×1099**（93.1KB）|
+| `my-app/apps/web/public/assets/butler-idea.png` | **新建** | 1254² → trim **459×1051**（106.7KB）|
+| `my-app/apps/web/public/assets/butler-rare-thinking.png` | **新建** | 1254² → trim **637×855**（150.1KB，矮宽坐姿）|
+| `my-app/apps/web/src/components/ButlerCharacter.tsx` | 修改 | `POSES` 表 4 个新 pose 的 `w/h` 从 `STANDING_W/H` 占位换成 trim 后真实尺寸；删除 `STANDING_W/STANDING_H` 常量；注释更新指向新脚本 |
+
+### 🎯 视觉影响
+
+之前所有 4 新 pose `naturalWidth === 0` → onError fallback → 渲染 standing。现在：
+
+- **thinking**（V4 Flash 生成中 / V4 Pro 进入 content 阶段）→ 显示思考姿势
+- **thinking-hard**（V4 Pro reasoning_content 流中）→ 显示深度思考姿势
+- **idea**（reasoning→content 过渡的 1s 灵感闪现）→ 显示灵光一现姿势
+- **rare-thinking**（7-9am × 6.1% 彩蛋）→ 矮宽坐姿（高度 855 vs 其他 ~1050，视觉上"坐下来"，符合早晨喝咖啡感）
+
+`MAX_W` 现在是 683（serving 仍最宽），`MAX_H` 仍是 1099（thinking-hard 略超 standing 1094）→ 容器尺寸基本不变，pose 切换不抖动。
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- trim 脚本 stdout 实测 4 张尺寸合理（width 293-637 / height 855-1099，落在 standing/serving/pointout 同区间）
+- 7 张 PNG 全部就位（`ls public/assets/butler-*.png`）
+
+### 🚦 下一步候选
+
+- **Notes 92% → 100%**：`[[wikilink]]` 双链 + 全文搜索（fuse.js），为 Phase 3 Tauri 接 Obsidian Vault 做铺垫
+- **Phase 3 Tauri 桌面壳启动**：系统通知 + 本地文件 IPC + Notes 迁移到本地 Vault
+- 别的方向
+
+### 💾 备份建议
+
+`backup-045-growth-pillars` 之后，本次紧跟。建议 tag：`backup-046-butler-poses`
 
 ---
 

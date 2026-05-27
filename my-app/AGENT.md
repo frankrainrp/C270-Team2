@@ -15,7 +15,7 @@
 
 ## 1. 当前 Phase 与最新进度
 
-- **Phase 2 完成 ✅** + 基础功能 4 面板全部有真东西（PROGRESS 最新 **[045]**）；**Chat ~100% / Tasks ~99% / Notes ~92% / Calendar ~100% / 跨面板 ~80% / 平台层全新增 / 5 增长支柱 G1+G2+G3+G5 完成（streak / 成就 / 分享卡 / PWA / 管家角色化 / 习惯识别）**
+- **Phase 2 完成 ✅** + 基础功能 4 面板全部有真东西（PROGRESS 最新 **[046]**）；**Chat ~100% / Tasks ~99% / Notes ~92% / Calendar ~100% / 跨面板 ~80% / 平台层全新增 / 5 增长支柱 G1+G2+G3+G5 完成 / 7 管家姿势真资产全部接入（[046]）**
 - UI 重构 5 stage 全部收尾（Stage A 顶 Tab → E 全局清理）
 - **管家形象 + ConfirmCard 核实门控 + Mini Apps Drawer + 模型切换 + Stage C.2 字段扩展 + 多模态 OCR + Notes 浏览器版 + 全局搜索 + AI 开屏问候 + 思考模式 reasoning 可见化** 都已落地
 - Phase 3（Tauri 桌面壳）/ Phase 4（Clerk + Neon 多租户）未启动
@@ -58,7 +58,7 @@
 - **AI 写操作（create/update/delete）走 ConfirmCard 核实门控**，不直接落库
 - **AI tool 可设全部字段**：status / tags / priority / notes（PROGRESS [029] 起）
 - **管家居中贴主区底部**（[037] 起 scale 0.33），AI 消息墨绿描边 + 左对齐贴 padding（[038]）；ConfirmCard 独立居中浮顶
-- **管家 7 姿势状态机**（[033]）+ 7-9am × 6.1% rare-thinking 彩蛋（4 新姿势 PNG 未到时 fallback 到 standing）
+- **管家 7 姿势状态机**（[033]）+ 7-9am × 6.1% rare-thinking 彩蛋；4 张新姿势真资产 [046] 接入（trim 脚本 `scripts/trim_butler_poses.py` 复用）
 - **管家 3 性格**（gentle/standard/sassy）影响 system prompt，localStorage `butler.personality`
 - **Toast 全局通知系统**（[040]）取代所有 alert；删除/导入带 5s Undo
 - **首次访问 Tour**（[044] G1.3）自动启动，localStorage `butler.onboarded` 防重复
@@ -96,7 +96,7 @@ my-app/apps/web/src/
 │       └── ocr/route.ts      ← Mistral OCR 服务端代理
 ├── components/
 │   ├── ChatCanvas.tsx        ← 主区:管家居中贴底 0.33 倍率 + 气泡左对齐 + 输入框前置 + 欢迎屏 TodayHero+DropHero
-│   ├── ButlerCharacter.tsx   ← ★ 7 姿势 PNG（standing/serving/pointout/thinking/thinking-hard/idea/rare-thinking）+ scale 0.33 默认 + onError fallback
+│   ├── ButlerCharacter.tsx   ← ★ 7 姿势 PNG 真资产 [046]（standing/serving/pointout/thinking/thinking-hard/idea/rare-thinking）+ scale 0.33 默认 + onError fallback
 │   ├── ConfirmCard.tsx       ← AI 写操作核实卡（含 create-note 紫色 BookOpen 分支）
 │   ├── NotesPreview.tsx      ← 任务备注 Markdown 预览 modal
 │   ├── TaskDetailDrawer.tsx  ← 右侧详情抽屉(status/tags/priority/附件/关联笔记/4 模板)
@@ -145,7 +145,10 @@ my-app/apps/web/src/
 public/
 ├── manifest.webmanifest      ← ★ PWA 装机
 └── assets/
-    └── butler-*.png          ← 当前 3 张（standing/serving/pointout）;4 新姿势 fallback 到 standing
+    └── butler-*.png          ← ★ 7 张全部就位（standing/serving/pointout + thinking/thinking-hard/idea/rare-thinking）
+
+scripts/
+└── trim_butler_poses.py     ← ★ [046] 1254² JPEG-in-SVG → trim 透明 PNG（PIL 白底抠图 + getbbox）
 ```
 
 ---
@@ -161,4 +164,4 @@ public/
 
 ---
 
-*最后更新：2026-05-25 — 同步 [045]:G2 留存 + G3 传播 + G5 AI 差异化(streak/成就/PWA/分享卡/管家角色化/习惯识别)*
+*最后更新：2026-05-27 — 同步 [046]：4 张新姿势 SVG → trim PNG 接入，7 姿势真资产全部到位*
