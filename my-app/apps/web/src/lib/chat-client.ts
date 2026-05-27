@@ -173,6 +173,10 @@ async function streamOneRound(opts: {
   const decoder = new TextDecoder();
   let buffer = "";
   let content = "";
+  // 跟踪本轮是否已有过有效数据增量 — 若服务端尾部又发 error chunk（理论上
+  // 已被服务端 [chat/route] 抑制，这里是双保险），不再触发 onError 误显
+  // "出错了" 气泡，仅 console.warn。
+  let hasReceivedDelta = false;
   const toolCallsAcc: Map<number, ApiToolCall> = new Map();
 
   while (true) {
@@ -204,7 +208,13 @@ async function streamOneRound(opts: {
       }
 
       if (chunk.error) {
-        opts.callbacks.onError?.(new Error(chunk.error));
+        if (hasReceivedDelta) {
+          // 良性尾部错误：内容/思考/工具已完整流出，不打扰用户
+          // eslint-disable-next-line no-console
+          console.warn("[chat-client] tail error after data (suppressed):", chunk.error);
+        } else {
+          opts.callbacks.onError?.(new Error(chunk.error));
+        }
         continue;
       }
 
@@ -214,16 +224,19 @@ async function streamOneRound(opts: {
       // 文本增量
       if (delta.content) {
         content += delta.content;
+        hasReceivedDelta = true;
         opts.callbacks.onContentDelta?.(delta.content);
       }
 
       // 思考增量（V4 思考模式 / Reasoner）
       if (delta.reasoning_content) {
+        hasReceivedDelta = true;
         opts.callbacks.onReasoningDelta?.(delta.reasoning_content);
       }
 
       // tool_calls 增量（分片拼装）
       if (delta.tool_calls) {
+        hasReceivedDelta = true;
         for (const tcDelta of delta.tool_calls) {
           const existing = toolCallsAcc.get(tcDelta.index) ?? {
             id: "",

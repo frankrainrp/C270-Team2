@@ -7,6 +7,7 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [047] | 修复思考模式末尾误报 "出错了" 气泡 | 服务端流尾抛错有内容时静默 + 客户端 hasReceivedDelta 双保险 |
 | [046] | 4 张新姿势 SVG → trim PNG 接入 | thinking / thinking-hard / idea / rare-thinking 真资产上线（取代 standing fallback） |
 | [045] | G2 留存 + G3 传播 + G5 AI 差异化 | streak / 成就 / PWA / 分享卡 / 管家性格 3 档 / 习惯识别 |
 | [044] | G1 激活率提升 | Demo 数据 / 大拖拽 / Tour / .ics 导入 |
@@ -30,7 +31,53 @@
 | [022]-[026] | UI 重构 Stage C-E + Mini Apps + Stage C.2 + 模型切换 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
-> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 6 条 [041]-[046] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 7 条 [041]-[047] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [047] 2026-05-27 — 修复思考模式末尾误报「出错了」气泡
+
+> 用户报告：思考模式 V4 Pro 推理 + 输出**全部正常完成**之后，下方紧跟一条 ❌ 出错了 气泡。判断为误报。
+
+### 🐛 根因
+
+服务端 `/api/chat` 的 SSE 流处理是：
+```ts
+try { for await (const chunk of stream) { 转发 } }
+catch (err) { 发 error chunk 给客户端 }
+```
+
+DeepSeek V4 Pro thinking 模式的尾部 `usage` chunk（含 token 用量）+ OpenAI SDK 的严格迭代器解析偶尔会在**所有有效内容已成功流出后**抛错。catch 块依然发了 error chunk → 客户端 `chunk.error` 分支触发 `onError` → page.tsx `onError` 回调追加新的 `isError: true` 消息 → 用户看到"AI 答完了，下面又冒一条 ❌ 出错了"。
+
+### 📂 涉及文件
+
+| 文件 | 改动 | 说明 |
+|---|---|---|
+| `apps/web/src/app/api/chat/route.ts` | 修改 | 跟踪 `hasEmittedChunk`：(1) 若 catch 时已发过有效 chunk，console.warn 抑制不再发 error chunk；(2) `[DONE]` 移到 finally 块，确保**无论成功还是良性尾错都发**，客户端可靠知道流结束 |
+| `apps/web/src/lib/chat-client.ts` | 修改 | 双保险：跟踪 `hasReceivedDelta`（content/reasoning/tool_calls 任一）。若 SSE 解析到 `chunk.error` 但本轮已有 delta，console.warn 抑制不触发 `onError` |
+
+### 🎯 防御设计
+
+| 层 | 触发条件 | 处理 |
+|---|---|---|
+| 服务端 | for-await 异常 + 已发 chunk | 仅 `console.warn`（服务端日志），客户端不收 error chunk |
+| 服务端 | for-await 异常 + 未发 chunk | 真错误：发 error chunk + 仍发 [DONE] |
+| 客户端 | 收到 error chunk + 本轮有 delta | 仅 `console.warn`（浏览器 console），不弹错误气泡 |
+| 客户端 | 收到 error chunk + 本轮无 delta | 调 `onError` → page.tsx 追加错误气泡（合理） |
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- HMR 自动应用，无需重启 dev server
+- 待用户实测：思考模式 send 完整轮 → 不再看到底部多余的 ❌ 出错了
+
+### 📝 备注
+
+修复后若仍偶尔看到错误气泡 → 多半是 fetch 层 500（DeepSeek API 短时熔断），那种情况错误是真实的应该显示。可在浏览器 console 看 `[chat] streamChat error` 区分。
+
+### 💾 备份建议
+
+`backup-046-butler-poses` 之后，本次紧跟。建议 tag：`backup-047-thinking-tail-fix`
 
 ---
 

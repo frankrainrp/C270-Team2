@@ -136,16 +136,30 @@ export async function POST(req: Request) {
     const encoder = new TextEncoder();
     const sseStream = new ReadableStream({
       async start(controller) {
+        // 跟踪是否已发出过任何数据 chunk。若已发出（流已正常产出内容），
+        // 末尾若 OpenAI SDK 迭代器抛错（DeepSeek thinking 模式的尾部 usage
+        // chunk 或后端连接收尾不规整会触发）只 console.warn，不再发 error
+        // chunk 误导客户端 — 内容已完整流给用户。
+        let hasEmittedChunk = false;
         try {
           for await (const chunk of stream as AsyncIterable<unknown>) {
             const data = JSON.stringify(chunk);
             controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+            hasEmittedChunk = true;
           }
-          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: msg })}\n\n`));
+          if (hasEmittedChunk) {
+            // 内容已成功流出，尾部抛错视为良性，仅日志记录
+            // eslint-disable-next-line no-console
+            console.warn("[chat] stream tail error (suppressed, content already delivered):", msg);
+          } else {
+            // 真错误：流还没产出任何 chunk 就挂了 → 上报客户端
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: msg })}\n\n`));
+          }
         } finally {
+          // 始终发 [DONE] 通知客户端流结束
+          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
           controller.close();
         }
       },
