@@ -65,6 +65,8 @@ interface ChatCanvasProps {
   // G2.1 / G5.2 透传给 TodayHero
   streakDays?: number;
   bestHourLabel?: string | null;
+  // Phase D 管家位置（"left" | "center" | "right" | "hidden"）
+  butlerPosition?: "left" | "center" | "right" | "hidden";
 }
 
 // ============================================================
@@ -429,7 +431,27 @@ export default function ChatCanvas(props: ChatCanvasProps) {
     hasAnyData = false,
     streakDays = 0,
     bestHourLabel,
+    butlerPosition = "center",
   } = props;
+
+  // Phase D 管家位置 → 容器定位
+  // hidden 时整个不渲染；left/right 改 left% + transform origin
+  const butlerStyle = ((): React.CSSProperties | null => {
+    if (butlerPosition === "hidden") return null;
+    const base: React.CSSProperties = {
+      position: "absolute",
+      bottom: 0,
+      pointerEvents: "none",
+      zIndex: 1,
+    };
+    if (butlerPosition === "left") {
+      return { ...base, left: 24, transform: "none" };
+    }
+    if (butlerPosition === "right") {
+      return { ...base, right: 24, transform: "none" };
+    }
+    return { ...base, left: "50%", transform: "translateX(-50%)" };
+  })();
   const historyRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   // 思考模式时才展示 reasoning 折叠面板；Flash 模式即使 API 返回轻量 CoT 也不渲染
@@ -471,19 +493,12 @@ export default function ChatCanvas(props: ChatCanvasProps) {
         position: "relative",
       }}
     >
-      {/* 浮动管家 — 绝对定位贴主区底部水平居中，处于输入框后层 */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 0,
-          left: "50%",
-          transform: "translateX(-50%)",
-          pointerEvents: "none",
-          zIndex: 1,
-        }}
-      >
-        <ButlerCharacter pose={butlerPose} />
-      </div>
+      {/* 浮动管家 — Phase D：位置可配 left/center/right；hidden 时不渲染 */}
+      {butlerStyle && (
+        <div style={butlerStyle}>
+          <ButlerCharacter pose={butlerPose} />
+        </div>
+      )}
 
       {/* 历史区 */}
       <div

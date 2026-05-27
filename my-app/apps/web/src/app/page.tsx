@@ -31,12 +31,24 @@ import type { ButlerPose } from "@/components/ButlerCharacter";
 import { type AiModelId, DEFAULT_MODEL_ID, MODEL_STORAGE_KEY, isValidModelId } from "@/lib/ai-models";
 import type { TaskViewId } from "@/components/layout/TasksRail";
 import { useToast } from "@/components/Toast";
+import {
+  LAYOUT_PREFS_EVENT,
+  getButlerPosition,
+  getHiddenTabs,
+  getTabsOrder,
+  setTabsOrder,
+  type ButlerPosition,
+} from "@/lib/layout-prefs";
 
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 
 export default function HomePage() {
   const toast = useToast();
   const [activeNav, setActiveNav] = useState<NavId>("chat");
+  // Phase D 布局偏好（mount 后从 localStorage 读 + 监听 LAYOUT_PREFS_EVENT）
+  const [tabsOrder, setTabsOrderState] = useState<NavId[]>(["chat", "tasks", "calendar", "notes"]);
+  const [hiddenTabs, setHiddenTabsState] = useState<Set<NavId>>(new Set());
+  const [butlerPosition, setButlerPositionState] = useState<ButlerPosition>("center");
   const [messages, setMessages] = useState<ChatMessage[]>([]);  // 全 session 共池，渲染时按 activeSessionId 过滤
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -1073,8 +1085,20 @@ export default function HomePage() {
   // C1 CalendarRail 迷你月历跳转目标
   const [calendarJumpDay, setCalendarJumpDay] = useState<string | null>(null);
 
-  // Epic 3 mount 时立即 apply localStorage 偏好(主题/字号)
+  // Epic 3 mount 时立即 apply localStorage 偏好(主题/字号/Phase B accent)
   useEffect(() => { applyStoredPreferences(); }, []);
+
+  // Phase D 布局偏好：mount + 监听 LAYOUT_PREFS_EVENT 同步
+  useEffect(() => {
+    const sync = () => {
+      setTabsOrderState(getTabsOrder());
+      setHiddenTabsState(getHiddenTabs());
+      setButlerPositionState(getButlerPosition());
+    };
+    sync();
+    window.addEventListener(LAYOUT_PREFS_EVENT, sync);
+    return () => window.removeEventListener(LAYOUT_PREFS_EVENT, sync);
+  }, []);
 
   // G2.1 streak 状态(显示给 TodayHero)
   const [streakDays, setStreakDays] = useState(0);
@@ -1402,6 +1426,9 @@ export default function HomePage() {
         messages={messages}
         onSearchJump={handleSearchJump}
         onOpenPreferences={() => setPrefsOpen(true)}
+        tabsOrder={tabsOrder}
+        hiddenTabs={hiddenTabs}
+        onTabsReorder={(newOrder) => setTabsOrder(newOrder)}
       />
 
       {/* 学习工具抽屉（fixed 浮在右侧，不阻塞主区操作） */}
@@ -1493,6 +1520,7 @@ export default function HomePage() {
               hasAnyData={ddls.length > 0 || notes.length > 0}
               streakDays={streakDays}
               bestHourLabel={bestHourLabel}
+              butlerPosition={butlerPosition}
             />
           )}
           {activeNav === "tasks" && (

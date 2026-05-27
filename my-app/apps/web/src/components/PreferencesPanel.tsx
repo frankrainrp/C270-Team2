@@ -10,7 +10,7 @@
 // ============================================================
 
 import React, { useEffect, useRef, useState } from "react";
-import { X, Sun, Moon, Type, Heart, MessageSquare, Flame, Palette, RotateCcw, Upload, User } from "lucide-react";
+import { X, Sun, Moon, Type, Heart, MessageSquare, Flame, Palette, RotateCcw, Upload, User, AlignLeft, AlignCenter, AlignRight, EyeOff } from "lucide-react";
 import {
   ACCENT_PRESETS,
   DEFAULT_ACCENT,
@@ -20,6 +20,14 @@ import {
   setStoredAccent,
 } from "@/lib/theme";
 import { clearCustomAsset, getCustomAsset, setCustomAsset } from "@/lib/butler-asset";
+import {
+  type ButlerPosition,
+  getButlerPosition,
+  getHiddenTabs,
+  setButlerPosition,
+  toggleHiddenTab,
+} from "@/lib/layout-prefs";
+import type { NavId } from "@/lib/types";
 
 type Theme = "light" | "dark";
 type FontSize = "sm" | "md" | "lg";
@@ -64,6 +72,9 @@ export default function PreferencesPanel({ open, onClose }: Props) {
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Phase D 布局
+  const [butlerPos, setButlerPos] = useState<ButlerPosition>("center");
+  const [hiddenTabs, setHiddenTabsState] = useState<Set<NavId>>(new Set());
 
   // 进 panel 时读 localStorage + 自定义形象
   useEffect(() => {
@@ -76,6 +87,8 @@ export default function PreferencesPanel({ open, onClose }: Props) {
       setFont(f);
       setPersonality(p);
       setAccent(getStoredAccent());
+      setButlerPos(getButlerPosition());
+      setHiddenTabsState(getHiddenTabs());
     } catch { /* silent */ }
     // 加载自定义形象（用于预览）
     let revoke: string | null = null;
@@ -118,6 +131,20 @@ export default function PreferencesPanel({ open, onClose }: Props) {
       setCustomPreview(null);
     } catch { /* silent */ }
   };
+
+  const applyButlerPos = (p: ButlerPosition) => {
+    setButlerPos(p);
+    setButlerPosition(p); // localStorage + dispatch event
+  };
+  const handleToggleHiddenTab = (id: NavId) => {
+    const next = toggleHiddenTab(id);
+    setHiddenTabsState(new Set(next));
+  };
+
+  const TAB_LABELS: Record<NavId, string> = {
+    chat: "Chat", tasks: "Tasks", calendar: "Calendar", notes: "Notes",
+  };
+  const ALL_TABS: NavId[] = ["chat", "tasks", "calendar", "notes"];
 
   const applyTheme = (t: Theme) => {
     setTheme(t);
@@ -285,6 +312,52 @@ export default function PreferencesPanel({ open, onClose }: Props) {
               <SegBtn active={font === "md"} onClick={() => applyFont("md")} icon={<Type size={14} />} label="标准" />
               <SegBtn active={font === "lg"} onClick={() => applyFont("lg")} icon={<Type size={16} />} label="大" />
             </SegRow>
+          </Section>
+
+          {/* Phase D 布局：Tab 显示/隐藏 + 管家位置 */}
+          <Section title="布局">
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {/* 管家位置 4 档 */}
+              <div>
+                <p style={{ fontSize: 11, color: "var(--color-text-muted)", margin: "0 0 6px", fontWeight: 500 }}>管家位置</p>
+                <SegRow>
+                  <SegBtn active={butlerPos === "left"}   onClick={() => applyButlerPos("left")}   icon={<AlignLeft size={12} />} label="左" />
+                  <SegBtn active={butlerPos === "center"} onClick={() => applyButlerPos("center")} icon={<AlignCenter size={12} />} label="中" />
+                  <SegBtn active={butlerPos === "right"}  onClick={() => applyButlerPos("right")}  icon={<AlignRight size={12} />} label="右" />
+                  <SegBtn active={butlerPos === "hidden"} onClick={() => applyButlerPos("hidden")} icon={<EyeOff size={12} />} label="隐藏" />
+                </SegRow>
+              </div>
+              {/* Tab 显示/隐藏 */}
+              <div>
+                <p style={{ fontSize: 11, color: "var(--color-text-muted)", margin: "0 0 6px", fontWeight: 500 }}>显示 Tab</p>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {ALL_TABS.map((id) => {
+                    const visible = !hiddenTabs.has(id);
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => handleToggleHiddenTab(id)}
+                        style={{
+                          padding: "5px 11px",
+                          borderRadius: 6,
+                          border: visible ? "1px solid var(--color-primary)" : "1px solid var(--color-border)",
+                          background: visible ? "var(--color-primary-soft)" : "var(--color-bg)",
+                          color: visible ? "var(--color-primary)" : "var(--color-text-faint)",
+                          fontSize: 12, fontWeight: 500, cursor: "pointer",
+                          fontFamily: "inherit",
+                          textDecoration: visible ? "none" : "line-through",
+                        }}
+                      >
+                        {TAB_LABELS[id]}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p style={{ fontSize: 11, color: "var(--color-text-faint)", marginTop: 6, lineHeight: 1.5 }}>
+                  点击切换显示;Tab 顺序可在顶栏直接拖拽
+                </p>
+              </div>
+            </div>
           </Section>
 
           {/* Phase C 管家形象 */}

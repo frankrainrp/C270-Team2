@@ -7,6 +7,7 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [051] | 自定义系统 Phase D — 元素位置自定义 | Tab 拖拽重排 + 4 档 Tab 隐藏 + 管家位置 4 档（左/中/右/隐藏） |
 | [050] | 自定义系统 Phase C — 人物自定义 | Dexie v6 butlerAssets + 客户端 Canvas trim + 上传 / 预览 / 重置 |
 | [049] | 自定义系统 Phase B — 颜色自定义 | lib/theme.ts hex↔HSL + 派生 + 6 预设 swatch + color picker + 重置 |
 | [048] | 自定义系统 Phase A — Dark Mode 优化 | 主题感知阴影/代码块/覆盖层 token + AttachmentPreview 重写 + 5 文件硬编码色收口 |
@@ -34,7 +35,55 @@
 | [022]-[026] | UI 重构 Stage C-E + Mini Apps + Stage C.2 + 模型切换 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
-> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 10 条 [041]-[050] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 11 条 [041]-[051] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [051] 2026-05-27 — 自定义系统 Phase D：元素位置自定义（Tab 拖拽 + 管家位置）
+
+> 接 [050] Phase C，Phase D 让 4 Tab 顺序可拖拽 + 单 Tab 可隐藏 + 管家位置 4 档。
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/lib/layout-prefs.ts` | **新建** | 持久化 3 项布局偏好：`tabsOrder: NavId[]` / `hiddenTabs: Set<NavId>` / `butlerPosition: "left" \| "center" \| "right" \| "hidden"`；CRUD + 校验补齐（缺失/非法 id 自动修复）+ `LAYOUT_PREFS_EVENT` CustomEvent 通知；保护"全部隐藏"边界（强制保留 ≥1 个 Tab） |
+| `apps/web/src/components/layout/TopBar.tsx` | 修改 | (1) 接 3 个新 props（tabsOrder / hiddenTabs / onTabsReorder）；(2) Tab 渲染改从 `order.filter(!hidden)`；(3) 每个 Tab 加 `draggable + dragstart/dragover/drop` 处理（用 `text/butler-tab` mime 防外部干扰），拖拽悬浮 Tab 显示 primary-soft 高亮反馈；(4) drop 时把 source 插入到 target 之前，触发 `onTabsReorder` |
+| `apps/web/src/components/ChatCanvas.tsx` | 修改 | 接 `butlerPosition` prop；派生 `butlerStyle` CSS：hidden→null（不渲染）/ left→`left:24` / right→`right:24` / center→`left:50% + translateX(-50%)`（默认） |
+| `apps/web/src/app/page.tsx` | 修改 | (1) 3 个新 state + mount 同步 + LAYOUT_PREFS_EVENT 监听；(2) 透传给 TopBar（tabsOrder/hiddenTabs/onTabsReorder）+ ChatCanvas（butlerPosition） |
+| `apps/web/src/components/PreferencesPanel.tsx` | 修改 | 新「布局」段：(1) 管家位置 4 档 SegRow（AlignLeft/Center/Right/EyeOff 图标）；(2) 4 Tab show/hide chip 按钮（active = 实色 primary chip / hidden = 灰色描边 + 删除线 + 文字 line-through）；点击 toggle，受 toggleHiddenTab 保护不会全隐藏；提示「Tab 顺序可在顶栏直接拖拽」 |
+
+### 🎯 关键决策
+
+- **HTML5 drag-and-drop**：复用 [043] Calendar Week 视图事件拖拽的同模式。用专属 mime `text/butler-tab` 避免和系统拖入文件混淆
+- **拖拽插入语义**：drop 在 target 上时把 source 插到 target **之前**（不是替换）。最朴素的"重排"心智
+- **顺序持久化**：`localStorage[butler.layout.tabsOrder]` 存 NavId 数组；自动校验补齐（如未来加新 Tab 时旧用户的存储不会丢失新 Tab）
+- **隐藏保护**：`toggleHiddenTab` 内部检查不允许全部隐藏（最后 1 个不能隐）
+- **管家位置**：`hidden` 时整个容器不渲染（不只是 display: none，彻底无 DOM）；left/right 用 `left:24` 而非 0 让管家不贴边
+- **拖拽兼容触屏**：当前用 native HTML5 drag-and-drop，触屏支持有限。未来可考虑 @dnd-kit/core 或类似库（暂不引入第三方依赖）
+
+### 🚦 进度
+
+| Phase | 状态 |
+|---|---|
+| **A. Dark Mode 优化** | ✅ [048] |
+| **B. 颜色自定义** | ✅ [049] |
+| **C. 人物自定义** | ✅ [050] |
+| **D. 元素位置自定义** | ✅ 本条 [051] |
+| E. 自定义面板 | ⏳ 下一条（自定义系统收尾） |
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0（修了一处 `[...Set]` → `Array.from` 的 downlevel 兼容）
+- HMR 自动加载
+- 待用户实测：
+  - 偏好设置 → 布局 → 管家位置切换 4 档立刻生效（hidden 时管家消失）
+  - Tab show/hide 切换立刻生效
+  - 顶栏拖拽任意 Tab 到另一 Tab 之前 → 顺序立即重排 + 持久化
+
+### 💾 备份建议
+
+`backup-050-custom-character` 之后，本次紧跟。建议 tag：`backup-051-layout-prefs`
 
 ---
 

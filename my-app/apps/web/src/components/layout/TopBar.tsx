@@ -10,12 +10,13 @@ import { Bell, ChevronDown, User as UserIcon, LogOut, CreditCard, LayoutGrid, Se
 import type { NavId, DdlItem, Note, ChatMessage } from "@/lib/types";
 import GlobalSearch from "./GlobalSearch";
 
-const TABS: { id: NavId; label: string }[] = [
-  { id: "chat", label: "Chat" },
-  { id: "tasks", label: "Tasks" },
-  { id: "calendar", label: "Calendar" },
-  { id: "notes", label: "Notes" },
-];
+const TAB_LABELS: Record<NavId, string> = {
+  chat: "Chat",
+  tasks: "Tasks",
+  calendar: "Calendar",
+  notes: "Notes",
+};
+const DEFAULT_TAB_ORDER: NavId[] = ["chat", "tasks", "calendar", "notes"];
 
 interface TopBarProps {
   activeNav: NavId;
@@ -30,13 +31,36 @@ interface TopBarProps {
   onSearchJump?: (target: NavId, refId?: string) => void;
   /** Epic 3 偏好设置入口 */
   onOpenPreferences?: () => void;
+  /** Phase D 用户自定义 Tab 顺序，未传则用默认 */
+  tabsOrder?: NavId[];
+  /** Phase D 隐藏的 Tab 集合 */
+  hiddenTabs?: Set<NavId>;
+  /** Phase D 拖拽重排后回调 */
+  onTabsReorder?: (newOrder: NavId[]) => void;
 }
 
 export default function TopBar({
   activeNav, onNavChange, miniAppsOpen, onToggleMiniApps,
   ddls = [], notes = [], messages = [], onSearchJump, onOpenPreferences,
+  tabsOrder, hiddenTabs, onTabsReorder,
 }: TopBarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
+  // Phase D Tab 拖拽：dragOverId 指示拖到哪个 tab 上（视觉反馈）
+  const [dragOverId, setDragOverId] = useState<NavId | null>(null);
+
+  const order = tabsOrder ?? DEFAULT_TAB_ORDER;
+  const hidden = hiddenTabs ?? new Set<NavId>();
+  const visibleTabs = order.filter((id) => !hidden.has(id));
+
+  // 处理 drop：把 src 插入到 target 之前
+  const handleDropTab = (sourceId: NavId, targetId: NavId) => {
+    if (sourceId === targetId) return;
+    const newOrder = order.filter((id) => id !== sourceId);
+    const targetIdx = newOrder.indexOf(targetId);
+    if (targetIdx < 0) return;
+    newOrder.splice(targetIdx, 0, sourceId);
+    onTabsReorder?.(newOrder);
+  };
 
   return (
     <header
@@ -81,25 +105,43 @@ export default function TopBar({
         </span>
       </div>
 
-      {/* ── 中：Tab Bar ── */}
+      {/* ── 中：Tab Bar （Phase D 可拖拽重排 + 可隐藏） ── */}
       <nav style={{ display: "flex", alignItems: "center", gap: 0, height: "100%" }}>
-        {TABS.map((tab) => {
-          const isActive = activeNav === tab.id;
+        {visibleTabs.map((id) => {
+          const isActive = activeNav === id;
+          const isDragOver = dragOverId === id;
           return (
             <button
-              key={tab.id}
-              onClick={() => onNavChange(tab.id)}
+              key={id}
+              onClick={() => onNavChange(id)}
+              draggable
+              onDragStart={(e) => { e.dataTransfer.setData("text/butler-tab", id); e.dataTransfer.effectAllowed = "move"; }}
+              onDragOver={(e) => {
+                if (e.dataTransfer.types.includes("text/butler-tab")) {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  if (dragOverId !== id) setDragOverId(id);
+                }
+              }}
+              onDragLeave={() => { if (dragOverId === id) setDragOverId(null); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const sourceId = e.dataTransfer.getData("text/butler-tab") as NavId;
+                setDragOverId(null);
+                if (sourceId && sourceId !== id) handleDropTab(sourceId, id);
+              }}
+              title="点击切换，拖拽重排"
               style={{
                 position: "relative",
                 padding: "0 14px",
                 height: "100%",
                 border: "none",
-                background: "transparent",
+                background: isDragOver ? "var(--color-primary-soft)" : "transparent",
                 fontSize: 14,
                 fontWeight: 500,
                 color: isActive ? "var(--color-text)" : "var(--color-text-muted)",
                 cursor: "pointer",
-                transition: "color 0.15s",
+                transition: "color 0.15s, background 0.12s",
               }}
               onMouseEnter={(e) => {
                 if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text)";
@@ -108,7 +150,7 @@ export default function TopBar({
                 if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text-muted)";
               }}
             >
-              {tab.label}
+              {TAB_LABELS[id]}
               {isActive && (
                 <span
                   style={{
