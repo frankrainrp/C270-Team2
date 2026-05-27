@@ -21,6 +21,7 @@
 // ============================================================
 
 import React, { useState, useEffect, useRef } from "react";
+import { BUTLER_ASSET_EVENT, DEFAULT_POSE_KEY, getCustomAsset } from "@/lib/butler-asset";
 
 export type ButlerPose =
   | "standing"
@@ -73,6 +74,39 @@ export default function ButlerCharacter({
   const [errored, setErrored] = useState<Set<ButlerPose>>(new Set());
   const imgRefs = useRef<Partial<Record<ButlerPose, HTMLImageElement>>>({});
 
+  // [050] Phase C 自定义形象：用户上传的 default 资产 → 替换所有 7 姿势
+  // 维护一个 objectURL + 真实尺寸；监听 BUTLER_ASSET_EVENT 即时换肤
+  const [customDefault, setCustomDefault] = useState<{ url: string; w: number; h: number } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let currentUrl: string | null = null;
+    const loadCustom = async () => {
+      try {
+        const asset = await getCustomAsset(DEFAULT_POSE_KEY);
+        if (cancelled) return;
+        // 先撤销之前的 URL
+        if (currentUrl) URL.revokeObjectURL(currentUrl);
+        currentUrl = null;
+        if (asset) {
+          const url = URL.createObjectURL(asset.blob);
+          currentUrl = url;
+          setCustomDefault({ url, w: asset.width, h: asset.height });
+        } else {
+          setCustomDefault(null);
+        }
+      } catch { /* silent */ }
+    };
+    loadCustom();
+    const onChange = () => loadCustom();
+    window.addEventListener(BUTLER_ASSET_EVENT, onChange);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(BUTLER_ASSET_EVENT, onChange);
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+    };
+  }, []);
+
   // mount 后主动检查 — onError 在 SSR/browser cache 场景常漏触发
   // （img 已在 hydrate 前完成加载流程, complete=true 后不再 fire onerror）
   useEffect(() => {
@@ -95,8 +129,11 @@ export default function ButlerCharacter({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const containerW = Math.round(MAX_W * scale);
-  const containerH = Math.round(MAX_H * scale);
+  // 容器尺寸：有自定义形象时按其单一尺寸；否则按内置 MAX
+  const baseW = customDefault ? customDefault.w : MAX_W;
+  const baseH = customDefault ? customDefault.h : MAX_H;
+  const containerW = Math.round(baseW * scale);
+  const containerH = Math.round(baseH * scale);
 
   return (
     <div
@@ -109,21 +146,25 @@ export default function ButlerCharacter({
       }}
     >
       {(Object.keys(POSES) as ButlerPose[]).map((p) => {
-        // 缺资产 → fallback 到 standing 的 src + 尺寸（防图像被拉伸）
-        const isFallback = errored.has(p) && p !== "standing";
+        // 优先级：用户自定义 default 形象 > 内置 PNG > standing fallback
+        const useCustom = customDefault !== null;
+        const isFallback = !useCustom && errored.has(p) && p !== "standing";
         const meta = isFallback ? POSES.standing : POSES[p];
+        const src = useCustom ? customDefault.url : meta.src;
+        const baseMetaW = useCustom ? customDefault.w : meta.w;
+        const baseMetaH = useCustom ? customDefault.h : meta.h;
         const isActive = p === pose;
-        const w = Math.round(meta.w * scale);
-        const h = Math.round(meta.h * scale);
+        const w = Math.round(baseMetaW * scale);
+        const h = Math.round(baseMetaH * scale);
         return (
           <img
             key={p}
             ref={(el) => { imgRefs.current[p] = el || undefined; }}
-            src={meta.src}
+            src={src}
             alt={`Butler ${p}`}
             draggable={false}
             onError={() => {
-              if (p !== "standing" && !errored.has(p)) {
+              if (!useCustom && p !== "standing" && !errored.has(p)) {
                 setErrored((prev) => {
                   const next = new Set(prev);
                   next.add(p);

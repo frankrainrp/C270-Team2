@@ -9,8 +9,8 @@
 //   - localStorage 持久化
 // ============================================================
 
-import React, { useEffect, useState } from "react";
-import { X, Sun, Moon, Type, Heart, MessageSquare, Flame, Palette, RotateCcw } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { X, Sun, Moon, Type, Heart, MessageSquare, Flame, Palette, RotateCcw, Upload, User } from "lucide-react";
 import {
   ACCENT_PRESETS,
   DEFAULT_ACCENT,
@@ -19,6 +19,7 @@ import {
   normalizeHex,
   setStoredAccent,
 } from "@/lib/theme";
+import { clearCustomAsset, getCustomAsset, setCustomAsset } from "@/lib/butler-asset";
 
 type Theme = "light" | "dark";
 type FontSize = "sm" | "md" | "lg";
@@ -58,8 +59,13 @@ export default function PreferencesPanel({ open, onClose }: Props) {
   const [font, setFont] = useState<FontSize>("md");
   const [personality, setPersonality] = useState<Personality>("standard");
   const [accent, setAccent] = useState<string>(DEFAULT_ACCENT);
+  // Phase C 自定义形象状态
+  const [customPreview, setCustomPreview] = useState<{ url: string; w: number; h: number } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 进 panel 时读 localStorage
+  // 进 panel 时读 localStorage + 自定义形象
   useEffect(() => {
     if (!open) return;
     try {
@@ -71,7 +77,47 @@ export default function PreferencesPanel({ open, onClose }: Props) {
       setPersonality(p);
       setAccent(getStoredAccent());
     } catch { /* silent */ }
+    // 加载自定义形象（用于预览）
+    let revoke: string | null = null;
+    (async () => {
+      try {
+        const asset = await getCustomAsset();
+        if (asset) {
+          const url = URL.createObjectURL(asset.blob);
+          revoke = url;
+          setCustomPreview({ url, w: asset.width, h: asset.height });
+        } else {
+          setCustomPreview(null);
+        }
+      } catch { /* silent */ }
+    })();
+    return () => { if (revoke) URL.revokeObjectURL(revoke); };
   }, [open]);
+
+  // 上传 → trim → 存 + 即时预览
+  const handleUpload = async (file: File) => {
+    setUploadErr(null);
+    setUploading(true);
+    try {
+      const asset = await setCustomAsset(file);
+      // 撤销旧预览
+      if (customPreview) URL.revokeObjectURL(customPreview.url);
+      const url = URL.createObjectURL(asset.blob);
+      setCustomPreview({ url, w: asset.width, h: asset.height });
+    } catch (e) {
+      setUploadErr((e as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleClearCustom = async () => {
+    try {
+      await clearCustomAsset();
+      if (customPreview) URL.revokeObjectURL(customPreview.url);
+      setCustomPreview(null);
+    } catch { /* silent */ }
+  };
 
   const applyTheme = (t: Theme) => {
     setTheme(t);
@@ -239,6 +285,90 @@ export default function PreferencesPanel({ open, onClose }: Props) {
               <SegBtn active={font === "md"} onClick={() => applyFont("md")} icon={<Type size={14} />} label="标准" />
               <SegBtn active={font === "lg"} onClick={() => applyFont("lg")} icon={<Type size={16} />} label="大" />
             </SegRow>
+          </Section>
+
+          {/* Phase C 管家形象 */}
+          <Section title="管家形象">
+            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              {/* 预览框 */}
+              <div style={{
+                width: 64, height: 64, borderRadius: 10,
+                border: "1px dashed var(--color-border)",
+                background: "var(--color-surface)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                overflow: "hidden",
+                position: "relative",
+                flexShrink: 0,
+              }}>
+                {customPreview ? (
+                  <img
+                    src={customPreview.url}
+                    alt="自定义管家"
+                    style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+                  />
+                ) : (
+                  <User size={22} color="var(--color-text-faint)" />
+                )}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                      padding: "6px 10px", borderRadius: 6,
+                      border: "1px solid var(--color-border)",
+                      background: "var(--color-bg)",
+                      color: "var(--color-text)",
+                      fontSize: 12, fontWeight: 500,
+                      cursor: uploading ? "wait" : "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    <Upload size={12} /> {uploading ? "处理中…" : customPreview ? "替换" : "上传"}
+                  </button>
+                  {customPreview && (
+                    <button
+                      onClick={handleClearCustom}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        padding: "6px 10px", borderRadius: 6,
+                        border: "1px solid var(--color-border)",
+                        background: "var(--color-bg)",
+                        color: "var(--color-text-muted)",
+                        fontSize: 12, fontWeight: 500,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      <RotateCcw size={12} /> 恢复默认
+                    </button>
+                  )}
+                </div>
+                <p style={{ fontSize: 11, color: "var(--color-text-faint)", marginTop: 6, lineHeight: 1.5, margin: "6px 0 0" }}>
+                  {customPreview
+                    ? `已上传 ${customPreview.w}×${customPreview.h}px（替换全部 7 姿势）`
+                    : "PNG/JPG 单图，自动白底抠图 + 裁剪；上限 4MB"}
+                </p>
+                {uploadErr && (
+                  <p style={{ fontSize: 11, color: "var(--color-danger)", marginTop: 4, margin: "4px 0 0" }}>
+                    ⚠️ {uploadErr}
+                  </p>
+                )}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleUpload(f);
+                  if (e.target) e.target.value = ""; // 允许重复上传同名文件
+                }}
+              />
+            </div>
           </Section>
 
           {/* G5.1 管家性格 */}

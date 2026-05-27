@@ -7,7 +7,7 @@
 // ============================================================
 
 import Dexie, { type Table } from "dexie";
-import type { DdlItem, ChatMessage, StoredBlob, ChatSession, Note } from "./types";
+import type { DdlItem, ChatMessage, StoredBlob, ChatSession, Note, ButlerAsset } from "./types";
 
 export class ButlerDB extends Dexie {
   ddls!: Table<DdlItem, string>;          // 主键 id
@@ -15,6 +15,7 @@ export class ButlerDB extends Dexie {
   blobs!: Table<StoredBlob, string>;      // 主键 id（附件文件二进制）
   sessions!: Table<ChatSession, string>;  // 主键 id（多会话）
   notes!: Table<Note, string>;            // 主键 id（笔记，v5 起）
+  butlerAssets!: Table<ButlerAsset, string>; // 主键 poseName（v6 起，Phase C 人物自定义）
 
   constructor() {
     super("butler-db");
@@ -69,6 +70,16 @@ export class ButlerDB extends Dexie {
       blobs: "&id, createdAt",
       sessions: "&id, updatedAt",
       notes: "&id, updatedAt, pinned",
+    });
+    // v6: 新增 butlerAssets 表（[050] Phase C 用户自定义管家形象）
+    // 主键 poseName："default" 表示替换全部 7 姿势；后续可支持每姿势单独上传
+    this.version(6).stores({
+      ddls: "&id, dueDate, completed, status, source",
+      messages: "&id, sessionId, timestamp, role",
+      blobs: "&id, createdAt",
+      sessions: "&id, updatedAt",
+      notes: "&id, updatedAt, pinned",
+      butlerAssets: "&poseName, updatedAt",
     });
   }
 }

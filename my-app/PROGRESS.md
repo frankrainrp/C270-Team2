@@ -7,6 +7,7 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [050] | 自定义系统 Phase C — 人物自定义 | Dexie v6 butlerAssets + 客户端 Canvas trim + 上传 / 预览 / 重置 |
 | [049] | 自定义系统 Phase B — 颜色自定义 | lib/theme.ts hex↔HSL + 派生 + 6 预设 swatch + color picker + 重置 |
 | [048] | 自定义系统 Phase A — Dark Mode 优化 | 主题感知阴影/代码块/覆盖层 token + AttachmentPreview 重写 + 5 文件硬编码色收口 |
 | [047] | 修复思考模式末尾误报 "出错了" 气泡 | 服务端流尾抛错有内容时静默 + 客户端 hasReceivedDelta 双保险 |
@@ -33,7 +34,58 @@
 | [022]-[026] | UI 重构 Stage C-E + Mini Apps + Stage C.2 + 模型切换 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
-> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 9 条 [041]-[049] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 10 条 [041]-[050] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [050] 2026-05-27 — 自定义系统 Phase C：人物自定义（上传 → 客户端 trim → IndexedDB）
+
+> 接 [049] Phase B 颜色自定义，本条做 Phase C 形象自定义：用户上传 1 张 PNG/JPG，客户端 Canvas 抠白底 + 裁剪，存 IndexedDB 替换全部 7 内置姿势。一图通替。
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/lib/types.ts` | 修改 | 新增 `ButlerAsset` 接口（poseName / blob / width / height / updatedAt） |
+| `apps/web/src/lib/db.ts` | 修改 | Dexie 升 v5→v6，新增 `butlerAssets` 表（主键 poseName）|
+| `apps/web/src/lib/butler-asset.ts` | **新建** | Canvas 客户端 trim（镜像 scripts/trim_butler_poses.py 的 PIL 实现：白底 threshold 240 → alpha=0 → 单次扫描兼算 bbox + 抠图 → cropCanvas → PNG Blob）；CRUD（get/set/clear）；`BUTLER_ASSET_EVENT` CustomEvent 通知 ButlerCharacter 重载；上限 4MB 防 IndexedDB 撑爆 |
+| `apps/web/src/components/ButlerCharacter.tsx` | 修改 | (1) mount + listener 加载 default 自定义资产 → `customDefault: {url, w, h}` state；(2) 容器尺寸切换：有自定义时用其 w×h，否则用内置 MAX；(3) 渲染优先级 `customDefault > 内置 PNG > standing fallback`；(4) unmount 时 `URL.revokeObjectURL` 清理 |
+| `apps/web/src/components/PreferencesPanel.tsx` | 修改 | 新「管家形象」段：64×64 预览框（User 图标占位 → 用户上传后显示 trim 后图） + 上传按钮（触发隐藏 input file）+ 「恢复默认」按钮（仅有自定义时显示）+ 错误提示；状态：`customPreview / uploading / uploadErr` |
+
+### 🎯 关键设计
+
+- **MVP 一图通替**：用户上传 1 张图 → poseName="default" → ButlerCharacter 所有姿势用同一张。比"为 7 姿势分别上传"门槛低 100 倍；后续可扩展 perpose
+- **客户端 trim**：完全在浏览器跑（无需服务端），算法镜像 [046] 的 Python 脚本。单次循环兼算 alpha keying + bbox（性能优化，避免双 pass）。canvas 用 `willReadFrequently: true` 提示浏览器
+- **CustomEvent 通信**：setCustomAsset/clearCustomAsset → `window.dispatchEvent(BUTLER_ASSET_EVENT)` → ButlerCharacter listener 重载 → 用户上传后无需刷新页面，UI 立刻换肤
+- **Object URL 生命周期**：每次创建 `URL.createObjectURL` 都跟踪 ref/state，unmount 或替换时 `revokeObjectURL` 防内存泄漏（PreferencesPanel + ButlerCharacter 两处都处理了）
+- **失败优雅降级**：trim 失败（如纯白图 → 全透明）、文件过大、解码失败都 throw 明确错误 → 红字提示
+- **Dexie v6 迁移幂等**：仅加表，不动旧数据；老用户首次访问自动迁移
+
+### 🚦 进度
+
+| Phase | 状态 |
+|---|---|
+| **A. Dark Mode 优化** | ✅ [048] |
+| **B. 颜色自定义** | ✅ [049] |
+| **C. 人物自定义** | ✅ 本条 [050] |
+| D. 元素位置自定义 | ⏳ 下一条 |
+| E. 自定义面板 | ⏳ |
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- HMR 自动加载（Dexie v6 升级在用户下次开页面时静默执行）
+- 待用户实测：偏好设置 → 管家形象 → 上传任意 PNG/JPG → 看到预览 → 主界面管家姿势立刻换；点「恢复默认」回到内置 7 姿势
+
+### 📝 已知限制（Phase C MVP，后续可扩展）
+
+- 只支持 default（替换全部）；不支持 per-pose 单独上传
+- 客户端 trim threshold 固定 240，复杂背景（非纯白）可能误抠
+- 上限 4MB（IndexedDB blob 单条 4MB 已足够大多数图片，避免 IndexedDB 性能崩盘）
+
+### 💾 备份建议
+
+`backup-049-accent-color` 之后，本次紧跟。建议 tag：`backup-050-custom-character`
 
 ---
 

@@ -117,3 +117,13 @@ export interface Note {
   /** B4 已自动同步到 Tasks 的 todo 文本（去重防止重复创建任务） */
   syncedTodos?: string[];
 }
+
+// 用户自定义管家形象（[050] Phase C，Dexie v6 起）
+// poseName="default" 表示替换全部 7 内置姿势；后续可支持具体 pose name 单独覆盖
+export interface ButlerAsset {
+  poseName: string;     // "default" | "standing" | "serving" | ...
+  blob: Blob;           // 已 trim 透明 PNG
+  width: number;        // trim 后真实宽度
+  height: number;       // trim 后真实高度
+  updatedAt: number;
+}
