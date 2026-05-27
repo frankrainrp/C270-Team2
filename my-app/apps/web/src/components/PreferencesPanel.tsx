@@ -10,7 +10,15 @@
 // ============================================================
 
 import React, { useEffect, useState } from "react";
-import { X, Sun, Moon, Type, Heart, MessageSquare, Flame } from "lucide-react";
+import { X, Sun, Moon, Type, Heart, MessageSquare, Flame, Palette, RotateCcw } from "lucide-react";
+import {
+  ACCENT_PRESETS,
+  DEFAULT_ACCENT,
+  applyStoredAccent,
+  getStoredAccent,
+  normalizeHex,
+  setStoredAccent,
+} from "@/lib/theme";
 
 type Theme = "light" | "dark";
 type FontSize = "sm" | "md" | "lg";
@@ -28,6 +36,8 @@ export function applyStoredPreferences() {
     const font = (localStorage.getItem(FONT_KEY) as FontSize | null) ?? "md";
     document.documentElement.dataset.fontSize = font;
   } catch { /* silent */ }
+  // Phase B: 应用用户自定义 primary 色（无则跳过，保留 globals.css 默认墨绿）
+  applyStoredAccent();
 }
 
 export function getStoredPersonality(): Personality {
@@ -47,6 +57,7 @@ export default function PreferencesPanel({ open, onClose }: Props) {
   const [theme, setTheme] = useState<Theme>("light");
   const [font, setFont] = useState<FontSize>("md");
   const [personality, setPersonality] = useState<Personality>("standard");
+  const [accent, setAccent] = useState<string>(DEFAULT_ACCENT);
 
   // 进 panel 时读 localStorage
   useEffect(() => {
@@ -58,6 +69,7 @@ export default function PreferencesPanel({ open, onClose }: Props) {
       setTheme(t);
       setFont(f);
       setPersonality(p);
+      setAccent(getStoredAccent());
     } catch { /* silent */ }
   }, [open]);
 
@@ -74,6 +86,12 @@ export default function PreferencesPanel({ open, onClose }: Props) {
   const applyPersonality = (p: Personality) => {
     setPersonality(p);
     try { localStorage.setItem(PERSONALITY_KEY, p); } catch { /* silent */ }
+  };
+  const applyAccent = (hex: string | null) => {
+    const target = hex ?? DEFAULT_ACCENT;
+    const norm = normalizeHex(target) ?? DEFAULT_ACCENT;
+    setAccent(norm);
+    setStoredAccent(hex); // null → 移除存储恢复默认
   };
 
   // Esc 关闭
@@ -150,6 +168,68 @@ export default function PreferencesPanel({ open, onClose }: Props) {
               <SegBtn active={theme === "light"} onClick={() => applyTheme("light")} icon={<Sun size={14} />} label="亮色" />
               <SegBtn active={theme === "dark"} onClick={() => applyTheme("dark")} icon={<Moon size={14} />} label="暗色" />
             </SegRow>
+          </Section>
+
+          {/* Phase B 主题色 */}
+          <Section title="主题色">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              {ACCENT_PRESETS.map((p) => (
+                <SwatchBtn
+                  key={p.value}
+                  active={accent.toUpperCase() === p.value.toUpperCase()}
+                  color={p.value}
+                  label={p.label}
+                  onClick={() => applyAccent(p.value)}
+                />
+              ))}
+              {/* 自定义 color picker：HTML5 input type=color */}
+              <label
+                title="自定义颜色"
+                style={{
+                  position: "relative",
+                  width: 30, height: 30, borderRadius: 8,
+                  border: "1px dashed var(--color-border)",
+                  background: "var(--color-bg)",
+                  cursor: "pointer",
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  color: "var(--color-text-muted)",
+                  overflow: "hidden",
+                }}
+              >
+                <Palette size={14} />
+                <input
+                  type="color"
+                  value={accent}
+                  onChange={(e) => applyAccent(e.target.value)}
+                  style={{
+                    position: "absolute", inset: 0, width: "100%", height: "100%",
+                    opacity: 0, cursor: "pointer", border: "none", padding: 0,
+                  }}
+                />
+              </label>
+              {accent.toUpperCase() !== DEFAULT_ACCENT.toUpperCase() && (
+                <button
+                  onClick={() => applyAccent(null)}
+                  title="重置为默认墨绿"
+                  aria-label="重置主题色"
+                  style={{
+                    width: 30, height: 30, borderRadius: 8,
+                    border: "1px solid var(--color-border)",
+                    background: "var(--color-bg)",
+                    cursor: "pointer",
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    color: "var(--color-text-muted)",
+                  }}
+                  onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--color-surface)")}
+                  onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--color-bg)")}
+                >
+                  <RotateCcw size={13} />
+                </button>
+              )}
+            </div>
+            <p style={{ fontSize: 11, color: "var(--color-text-faint)", marginTop: 8, lineHeight: 1.5 }}>
+              hover / soft 自动派生；暗色模式会自动提亮以保持对比度
+            </p>
           </Section>
 
           {/* 字体大小 */}
@@ -232,6 +312,29 @@ function SegRow({ children }: { children: React.ReactNode }) {
     >
       {children}
     </div>
+  );
+}
+
+function SwatchBtn({
+  active, color, label, onClick,
+}: { active: boolean; color: string; label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title={`${label} ${color}`}
+      aria-label={label}
+      style={{
+        width: 30, height: 30, borderRadius: 8,
+        border: active ? "2px solid var(--color-text)" : "1px solid var(--color-border)",
+        background: color,
+        cursor: "pointer",
+        padding: 0,
+        boxShadow: active ? "0 0 0 2px var(--color-bg) inset" : "none",
+        transition: "transform 0.12s",
+      }}
+      onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.transform = "scale(1.08)")}
+      onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.transform = "scale(1)")}
+    />
   );
 }
 

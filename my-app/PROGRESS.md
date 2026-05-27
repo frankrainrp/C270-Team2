@@ -7,6 +7,7 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [049] | 自定义系统 Phase B — 颜色自定义 | lib/theme.ts hex↔HSL + 派生 + 6 预设 swatch + color picker + 重置 |
 | [048] | 自定义系统 Phase A — Dark Mode 优化 | 主题感知阴影/代码块/覆盖层 token + AttachmentPreview 重写 + 5 文件硬编码色收口 |
 | [047] | 修复思考模式末尾误报 "出错了" 气泡 | 服务端流尾抛错有内容时静默 + 客户端 hasReceivedDelta 双保险 |
 | [046] | 4 张新姿势 SVG → trim PNG 接入 | thinking / thinking-hard / idea / rare-thinking 真资产上线（取代 standing fallback） |
@@ -32,7 +33,57 @@
 | [022]-[026] | UI 重构 Stage C-E + Mini Apps + Stage C.2 + 模型切换 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
-> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 8 条 [041]-[048] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 9 条 [041]-[049] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [049] 2026-05-27 — 自定义系统 Phase B：颜色自定义（color picker + 派生）
+
+> 接 [048] Phase A，Phase B 让用户选 primary 色，UI 跟随。承「按推荐顺序全部 4 Phase」。
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/lib/theme.ts` | **新建** | hex↔RGB↔HSL 转换工具 + `deriveAccentScheme(baseHex)` 派生 light/dark 两套 primary/hover/soft + `applyAccentColor` DOM 注入 + localStorage `butler.accent` 持久化 + 6 个预设（墨绿/海军蓝/紫罗兰/玫瑰红/杏橙/石墨灰） |
+| `apps/web/src/components/PreferencesPanel.tsx` | 修改 | (1) `applyStoredPreferences` 加 `applyStoredAccent()` 调用（mount 防闪烁）；(2) 新「主题色」段：6 个 swatch（30×30 圆角，active 描黑边）+ HTML5 `<input type="color">` 自定义（Palette 图标 fallback UI）+ 重置按钮（仅非默认时显示） |
+
+### 🎨 派生算法
+
+```ts
+// light: 用户选色直接 primary
+// hover = HSL(h, s, l+5)；soft = HSL(h, s-50, 92)  // 高去饱和 + 高亮度淡底
+// dark: 暗 bg 需要更高亮度的 primary 才视觉跳出
+darkL = l < 50 ? 68 : Math.min(78, l + 8)
+darkPrimary = HSL(h, max(35, min(70, s)), darkL)
+darkHover   = HSL(h, darkS, darkL + 5)
+darkSoft    = HSL(h, s-25, 18)
+```
+
+### 🎯 实现要点
+
+- **CSS 变量注入**：动态创建 `<style id="butler-accent-override">` 元素覆盖 globals.css 的 `:root` + `html[data-theme="dark"]` 默认值。重置时直接删 style 元素回到墨绿默认
+- **默认即移除**：用户选回墨绿 `#1B3D2F` 时 `localStorage.removeItem` + 移除 style → 不留垃圾数据
+- **mount 防闪烁**：`applyStoredPreferences()` 同时调 `applyStoredAccent()`，所有偏好一次性应用
+- **暗色对比度**：用户选偏暗色（L<50）时自动提亮到 L=68，避免在 #0F172A 上完全看不见
+- **预设 6 色**：覆盖大多数审美（专业墨绿/沉稳蓝/创意紫/温暖红/活力橙/中性灰），不需要 picker 也能换肤
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- HMR 自动加载
+- 待用户实测：偏好设置 → 主题色段点击 swatch 立即换肤（按钮/链接/active tab/边框 hover 全部跟随）；自定义 hex 输入 / 重置按钮工作
+
+### 🚦 下一步（Phase C 人物自定义）
+
+按 Phase C → D → E 顺序执行：
+- Phase C：上传管家 PNG → IndexedDB 持久化 → 客户端 trim（透明背景）→ ButlerCharacter 优先用用户上传
+- Phase D：Tab 顺序拖拽 / 管家位置（左/中/右/隐藏）/ Drawer 位置
+- Phase E：用户创建额外面板 / 隐藏内置 / 配置持久化
+
+### 💾 备份建议
+
+`backup-048-darkmode-polish` 之后，本次紧跟。建议 tag：`backup-049-accent-color`
 
 ---
 
