@@ -15,7 +15,7 @@
 
 ## 1. 当前 Phase 与最新进度
 
-- **Phase 2 完成 ✅** + 基础功能 4 面板全部有真东西（PROGRESS 最新 **[056]**）；**Chat ~100% / Tasks ~99% / Notes ~100% / Calendar ~100% / 跨面板 ~80% / 平台层全新增 / 5 增长支柱 / 7 管家姿势 / 自定义系统 5 Phase A-E / Notes 100% / D 小补丁 / F Polish / [056] 音效系统（WebAudio）+ 6 空状态插画**
+- **Phase 2 完成 ✅** + 基础功能 4 面板全部有真东西（PROGRESS 最新 **[057]**）；**Chat ~100% / Tasks ~99% / Notes ~100% / Calendar ~100% / 跨面板 ~80% / 平台层全新增 / 5 增长支柱 / 7 管家姿势 / 自定义系统 5 Phase A-E / Notes 100% / D 小补丁 / F Polish / 音效+插画 / [057] 修复思考模式多轮 tool calling 400**
 - UI 重构 5 stage 全部收尾（Stage A 顶 Tab → E 全局清理）
 - **管家形象 + ConfirmCard 核实门控 + Mini Apps Drawer + 模型切换 + Stage C.2 字段扩展 + 多模态 OCR + Notes 浏览器版 + 全局搜索 + AI 开屏问候 + 思考模式 reasoning 可见化** 都已落地
 - Phase 3（Tauri 桌面壳）/ Phase 4（Clerk + Neon 多租户）未启动
@@ -139,7 +139,7 @@ my-app/apps/web/src/
     ├── ai-tools.ts           ← 7 个 tool schema（+ [054] create_custom_panel）
     ├── tool-executor.ts      ← 含 execCreateNote + execCreateCustomPanel
     ├── pending.ts            ← + PendingCreateNote + PendingCreateCustomPanel + extract* 助手
-    ├── chat-client.ts        ← SSE + 多轮 tool + reasoning_content + personality + AbortSignal
+    ├── chat-client.ts        ← SSE + 多轮 tool + reasoning_content（[057] 带 tool_call 轮必回传）+ personality + AbortSignal
     ├── document-parser.ts    ← 文字 PDF→unpdf;扫描/图片→OCR
     ├── semantic-filter.ts    ← MiniLM CDN
     ├── streak.ts             ← ★ G2 连续天数 + 8 个成就解锁
@@ -177,4 +177,4 @@ scripts/
 
 ---
 
-*最后更新：2026-05-27 — 同步 [056]：音效系统（WebAudio 合成 14 音效 opt-in）+ 6 张空状态插画（内联 SVG 主题色自适应）*
+*最后更新：2026-05-28 — 同步 [057]：修复思考模式多轮 tool calling 丢 reasoning_content（400）*

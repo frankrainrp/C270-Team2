@@ -7,6 +7,7 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [057] | 修复思考模式多轮 tool calling 丢 reasoning_content | ApiMessage 加 reasoning_content + 带 tool_call 的 assistant 轮回传 |
 | [056] | 音效系统（WebAudio 合成）+ 6 张空状态插画 | 14 音效 opt-in + 偏好段 + 6 内联 SVG 插画接入 7 处空态 |
 | [055] | F Polish — code review 后的 5 个 bug 修复 | CustomPanelView 数据不丢 + 累积 patch + URL race + PreferencesPanel cancelled + ref 闭包 |
 | [054] | D 小补丁串烧三件套（DayView 拖拽 + iframe 面板 + AI 建面板） | TimelinePill draggable + CustomPanel kind=iframe + 第 7 个 AI tool create_custom_panel |
@@ -40,7 +41,54 @@
 | [022]-[026] | UI 重构 Stage C-E + Mini Apps + Stage C.2 + 模型切换 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
-> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 16 条 [041]-[056] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 17 条 [041]-[057] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [057] 2026-05-28 — 修复思考模式多轮 tool calling 丢 reasoning_content（400）
+
+> 用户实测：V4 Pro 思考模式下「帮我建面板 + 问 C240 考试」→ 工具调用成功（ConfirmCard 已采纳）但紧接报 `400 The reasoning_content in the thinking mode must be passed back to the API`。
+
+### 🐛 根因
+
+DeepSeek V4 思考模式 + 多轮 tool calling：
+1. 第 1 轮：AI 返回 assistant 消息（带 `reasoning_content` + `tool_calls`）
+2. 执行工具 → push tool result
+3. 第 2 轮：把历史发回 DeepSeek 生成最终文本回复
+
+但 `chat-client.ts` 重建的 `assistantMsg` **只带 content + tool_calls，丢了 reasoning_content** → DeepSeek 思考模式严格要求带 tool_call 的 assistant 轮必须回传 reasoning_content → 第 2 轮请求被 400 拒绝。
+
+注：这与 [047] 的「尾部良性错误抑制」无关 —— 那是流尾抛错，这是第 2 轮请求**还没产出任何 chunk 就被 400**，是真错误，正确地浮现给用户。
+
+### 📂 涉及文件
+
+| 文件 | 改动 |
+|---|---|
+| `apps/web/src/lib/chat-client.ts` | (1) `ApiMessage` 接口加 `reasoning_content?: string`；(2) `streamOneRound` 累积 `reasoning` 变量；(3) `assistantMsg` 在 `hadToolCalls && reasoning` 时带上 `reasoning_content`（无 tool call 不回传，无需续轮） |
+| `apps/web/src/app/api/chat/route.ts` | `ChatRequest.messages` 类型加 `reasoning_content?: string`（实际透传靠 spread + cast，本改动仅类型清晰） |
+
+### 🎯 关键设计
+
+- **仅在 `hadToolCalls` 时回传**：无工具调用的 assistant 轮不会触发续轮，不需要 reasoning_content（也符合 DeepSeek「普通多轮对话不要回传 reasoning_content」的建议）
+- **跨用户轮次不受影响**：`handleSend` 的 `historyApi` 只含 role + content（不含 reasoning_content / tool_calls），是独立新请求，DeepSeek 不要求回传 —— 正确
+- **服务端透传**：route.ts `...body.messages` spread 保留所有运行时字段，cast 绕过 OpenAI SDK 类型 → reasoning_content 原样发给 DeepSeek
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- HMR 自动加载
+- 待用户实测：思考模式下让 AI 调工具（建任务/笔记/面板）→ 不再 400，工具执行后能正常生成后续文本回复
+
+### 🚦 下一步候选
+
+- C. 部署到 Vercel
+- 美化 Step 2（成就徽章 + Tour 插画）
+- Phase 3 Tauri 桌面壳
+- 别的方向
+
+### 💾 备份建议
+
+`backup-056-sound-illustrations` 之后，本次紧跟。建议 tag：`backup-057-thinking-toolcall-fix`
 
 ---
 

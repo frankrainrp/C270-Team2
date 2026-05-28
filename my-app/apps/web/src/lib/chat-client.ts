@@ -11,6 +11,12 @@ export interface ApiMessage {
   content: string | null;
   tool_calls?: ApiToolCall[];
   tool_call_id?: string;
+  /**
+   * [057] DeepSeek V4 思考模式：assistant 轮的 CoT 推理内容。
+   * 多轮 tool calling 时**必须**把上一轮 assistant 的 reasoning_content 原样
+   * 回传给 API，否则 DeepSeek 报 400「reasoning_content must be passed back」。
+   */
+  reasoning_content?: string;
 }
 
 export interface ApiToolCall {
@@ -173,6 +179,8 @@ async function streamOneRound(opts: {
   const decoder = new TextDecoder();
   let buffer = "";
   let content = "";
+  // [057] 累积本轮 reasoning_content，多轮 tool calling 时必须回传给 DeepSeek
+  let reasoning = "";
   // 跟踪本轮是否已有过有效数据增量 — 若服务端尾部又发 error chunk（理论上
   // 已被服务端 [chat/route] 抑制，这里是双保险），不再触发 onError 误显
   // "出错了" 气泡，仅 console.warn。
@@ -231,6 +239,7 @@ async function streamOneRound(opts: {
       // 思考增量（V4 思考模式 / Reasoner）
       if (delta.reasoning_content) {
         hasReceivedDelta = true;
+        reasoning += delta.reasoning_content; // [057] 累积以便回传
         opts.callbacks.onReasoningDelta?.(delta.reasoning_content);
       }
 
@@ -259,6 +268,9 @@ async function streamOneRound(opts: {
     role: "assistant",
     content: content || null,
     ...(hadToolCalls ? { tool_calls } : {}),
+    // [057] 思考模式：带 tool_calls 的 assistant 轮必须回传 reasoning_content，
+    // 否则下一轮 DeepSeek 报 400。无 tool call 时不回传（无需续轮）。
+    ...(hadToolCalls && reasoning ? { reasoning_content: reasoning } : {}),
   };
 
   return { assistantMsg, hadToolCalls };

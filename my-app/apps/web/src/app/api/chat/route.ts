@@ -19,6 +19,8 @@ interface ChatRequest {
       function: { name: string; arguments: string };
     }>;
     tool_call_id?: string;
+    /** [057] 思考模式多轮 tool calling 必须回传上一轮 reasoning_content */
+    reasoning_content?: string;
   }>;
   includeTools?: boolean;            // 是否带工具（纯聊天可不带）
   contextSummary?: string;           // 客户端附加的当前 ddls/活跃面板上下文摘要
