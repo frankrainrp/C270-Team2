@@ -7,6 +7,7 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [056] | 音效系统（WebAudio 合成）+ 6 张空状态插画 | 14 音效 opt-in + 偏好段 + 6 内联 SVG 插画接入 7 处空态 |
 | [055] | F Polish — code review 后的 5 个 bug 修复 | CustomPanelView 数据不丢 + 累积 patch + URL race + PreferencesPanel cancelled + ref 闭包 |
 | [054] | D 小补丁串烧三件套（DayView 拖拽 + iframe 面板 + AI 建面板） | TimelinePill draggable + CustomPanel kind=iframe + 第 7 个 AI tool create_custom_panel |
 | [053] | Notes 92% → 100%（wikilink + 反向引用 + 本地搜索） | [[Title]] 双链 + 缺失链接新建 + backlinks 条 + list 搜索 + 代码块 dark fix |
@@ -39,7 +40,73 @@
 | [022]-[026] | UI 重构 Stage C-E + Mini Apps + Stage C.2 + 模型切换 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
-> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 15 条 [041]-[055] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 16 条 [041]-[056] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [056] 2026-05-27 — 音效系统（WebAudio 合成）+ 6 张空状态插画
+
+> 用户「思考美化 UI 所需图片 + 用户粘性所需音效」→ 选 Step 1（音效 T1+T2 + 6 张插画）。两个关键决策：音效用 WebAudio **程序化合成**（零文件零依赖零许可），插画用**内联 SVG**（CSS 变量自动跟随主题色）。
+
+### 🔊 音效系统
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/lib/sound.ts` | **新建** | 14 个 SoundKey × WebAudio 合成（tone helper + noiseBurst）；6 分类（task/chat/toast/achievement/focus/panel）；opt-in（默认关）+ 主开关 + 分类开关 + 音量 + 静音时段（默认 22-8）；localStorage `butler.sound` + SOUND_PREFS_EVENT；`playSound(key)` 内置全部守卫 + 静默失败 |
+| `apps/web/src/components/Toast.tsx` | 修改 | show() 内调 `playSound("toast-{kind}")`（success/info/warning/error 各异音） |
+| `apps/web/src/app/page.tsx` | 修改 | 任务勾完成 `task-complete`/`task-uncomplete`；发消息 `send`；AI 流式完成 `ai-reply`；新建面板 `panel-create` |
+| `apps/web/src/components/mini-apps/FocusTimer.tsx` | 修改 | 开始 `focus-start`；剩 5 分钟 `focus-5min`；结束 `focus-end`（双钟） |
+| `apps/web/src/components/PreferencesPanel.tsx` | 修改 | 新「音效」段：主开关（启用时立刻试听）+ 6 分类 checkbox + 音量滑块（松手试听）+ 静音时段（开关 + 起止小时） |
+
+**合成示例**：task-complete = C5-E5-G5 上扬琶音；achievement = C-E-G-C level-up 旋律；toast-error = 220Hz 锯齿下滑；focus-end = 双钟 880Hz + 谐波；send = 2kHz bandpass 噪声 burst。
+
+**为什么 opt-in 默认关**：很多人反感通知音；强制开会赶走用户。启用时立刻给一声 `ai-reply` 证明它在响。
+
+### 🎨 6 张空状态插画
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/EmptyIllustrations.tsx` | **新建** | 6 个内联 SVG 组件：EmptyTasks（清单本+勾选）/ EmptyNotes（纸+笔）/ EmptyChat（聊天气泡）/ EmptySearch（放大镜+?）/ EmptyFilter（漏斗）/ EmptyPanel（grid+加号）。全用 `var(--color-primary)` stroke + `var(--color-primary-soft)` fill → 暗色/主题色自动跟随 |
+
+**接入 7 处空态**：
+
+| 位置 | 插画 |
+|---|---|
+| TasksPanel 无任务 | EmptyTasks |
+| TasksPanel 视图筛选为空 | EmptyFilter（复用，漏斗语义）|
+| NotesPanel 无笔记 | EmptyNotes |
+| NotesPanel 搜索无匹配 | EmptyFilter（复用）|
+| GlobalSearch 无匹配 | EmptySearch |
+| ChatRail 无对话（原 "No chats yet" 文字）| EmptyChat |
+| CustomPanelView 空内容 | EmptyPanel |
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- HMR 自动加载
+- 待用户实测：
+  - 偏好设置 → 音效 → 启用 → 立刻听到一声 ding；勾任务/发消息/Focus Timer 都有声
+  - 静音时段设当前小时 → 应静音
+  - 各空状态（清空任务/笔记/搜索无结果/新建空面板）显示主题色插画
+  - 切暗色 → 插画颜色自动跟随
+
+### 📝 后续可扩展（Step 2/3，PROGRESS 备忘）
+
+- 图片 T1：8 成就徽章自制 SVG（当前 emoji）
+- 图片 T2：OnboardingTour 5 步插画 + ShareCard 主题背景 + 欢迎屏纹理
+- 音效 T3：Focus Timer 环境音（雨/咖啡馆/lo-fi）+ 管家性格语音（gentle 嗯～/ sassy 啧）
+- 季节主题图（考试季/春节）
+
+### 🚦 下一步候选
+
+- C. 部署到 Vercel（让 PWA 装机能真用 + 音效/插画随处体验）
+- 图片 Step 2（成就徽章 + Tour 插画）
+- Phase 3 Tauri 桌面壳
+- 别的方向
+
+### 💾 备份建议
+
+`backup-055-polish-bugfixes` 之后，本次紧跟。建议 tag：`backup-056-sound-illustrations`
 
 ---
 

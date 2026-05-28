@@ -16,6 +16,7 @@ import React, {
   createContext, useCallback, useContext, useEffect, useRef, useState,
 } from "react";
 import { CheckCircle2, Info, AlertTriangle, XCircle, X } from "lucide-react";
+import { playSound } from "@/lib/sound";
 
 export type ToastKind = "success" | "info" | "warning" | "error";
 
@@ -86,6 +87,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     if (duration > 0) {
       timersRef.current[id] = setTimeout(() => dismiss(id), duration);
     }
+    // [056] 音效（opt-in 守卫内置在 playSound 里）
+    const kind = opts.kind ?? "info";
+    playSound(`toast-${kind}` as const);
     return id;
   }, [dismiss]);
 

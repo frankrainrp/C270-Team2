@@ -10,7 +10,7 @@
 // ============================================================
 
 import React, { useEffect, useRef, useState } from "react";
-import { X, Sun, Moon, Type, Heart, MessageSquare, Flame, Palette, RotateCcw, Upload, User, AlignLeft, AlignCenter, AlignRight, EyeOff } from "lucide-react";
+import { X, Sun, Moon, Type, Heart, MessageSquare, Flame, Palette, RotateCcw, Upload, User, AlignLeft, AlignCenter, AlignRight, EyeOff, Volume2, VolumeX } from "lucide-react";
 import {
   ACCENT_PRESETS,
   DEFAULT_ACCENT,
@@ -28,6 +28,14 @@ import {
   toggleHiddenTab,
 } from "@/lib/layout-prefs";
 import type { NavId } from "@/lib/types";
+import {
+  type SoundPrefs,
+  type SoundCategory,
+  DEFAULT_SOUND_PREFS,
+  getSoundPrefs,
+  setSoundPrefs,
+  playSound,
+} from "@/lib/sound";
 
 type Theme = "light" | "dark";
 type FontSize = "sm" | "md" | "lg";
@@ -75,6 +83,8 @@ export default function PreferencesPanel({ open, onClose }: Props) {
   // Phase D 布局
   const [butlerPos, setButlerPos] = useState<ButlerPosition>("center");
   const [hiddenTabs, setHiddenTabsState] = useState<Set<NavId>>(new Set());
+  // [056] 音效
+  const [soundPrefs, setSoundPrefsState] = useState<SoundPrefs>(DEFAULT_SOUND_PREFS);
 
   // [055 F#5] customPreview 用 ref 同步最新值，避免 handleUpload 闭包陷阱：
   // 并发上传时第二次读到 stale closure 的 customPreview → 第一次 URL 永远 revoke 不掉
@@ -94,6 +104,7 @@ export default function PreferencesPanel({ open, onClose }: Props) {
       setAccent(getStoredAccent());
       setButlerPos(getButlerPosition());
       setHiddenTabsState(getHiddenTabs());
+      setSoundPrefsState(getSoundPrefs());
     } catch { /* silent */ }
     // 加载自定义形象（用于预览）
     // [055 F#2] cancelled 标志：panel 在 IIFE await 期间关闭 → 跳过 URL.createObjectURL 防 leak
@@ -162,6 +173,34 @@ export default function PreferencesPanel({ open, onClose }: Props) {
     chat: "Chat", tasks: "Tasks", calendar: "Calendar", notes: "Notes",
   };
   const ALL_TABS: NavId[] = ["chat", "tasks", "calendar", "notes"];
+
+  // [056] 音效 helpers
+  const applySoundPrefs = (next: SoundPrefs) => {
+    setSoundPrefsState(next);
+    setSoundPrefs(next);
+  };
+  const toggleSoundEnabled = () => {
+    const next = { ...soundPrefs, enabled: !soundPrefs.enabled };
+    applySoundPrefs(next);
+    if (next.enabled) {
+      // 启用时立刻给一声 ai-reply 反馈，证明它在响
+      setTimeout(() => playSound("ai-reply"), 50);
+    }
+  };
+  const toggleSoundCategory = (cat: SoundCategory) => {
+    applySoundPrefs({
+      ...soundPrefs,
+      categories: { ...soundPrefs.categories, [cat]: !soundPrefs.categories[cat] },
+    });
+  };
+  const SOUND_CATEGORY_LABELS: Record<SoundCategory, string> = {
+    task: "任务（勾完成）",
+    chat: "对话（发送 / AI 回复）",
+    toast: "Toast 通知",
+    achievement: "成就 / streak",
+    focus: "专注计时（开始 / 结束 / 5 min 提醒）",
+    panel: "面板（新建）",
+  };
 
   const applyTheme = (t: Theme) => {
     setTheme(t);
@@ -374,6 +413,114 @@ export default function PreferencesPanel({ open, onClose }: Props) {
                   点击切换显示;Tab 顺序可在顶栏直接拖拽
                 </p>
               </div>
+            </div>
+          </Section>
+
+          {/* [056] 音效 — opt-in（默认关，防扰民） */}
+          <Section title="音效">
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {/* 主开关 */}
+              <button
+                onClick={toggleSoundEnabled}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "9px 12px", borderRadius: 6,
+                  border: "1px solid var(--color-border)",
+                  background: soundPrefs.enabled ? "var(--color-primary-soft)" : "var(--color-bg)",
+                  color: soundPrefs.enabled ? "var(--color-primary)" : "var(--color-text-muted)",
+                  fontSize: 12, fontWeight: 500, cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {soundPrefs.enabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
+                {soundPrefs.enabled ? "已启用音效" : "音效已关闭（点击启用）"}
+              </button>
+
+              {/* 分类开关 + 音量 + 静音时段（仅启用时显示）*/}
+              {soundPrefs.enabled && (
+                <>
+                  <div>
+                    <p style={{ fontSize: 11, color: "var(--color-text-muted)", margin: "0 0 6px", fontWeight: 500 }}>分类</p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {(Object.keys(SOUND_CATEGORY_LABELS) as SoundCategory[]).map((cat) => (
+                        <label
+                          key={cat}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 8,
+                            padding: "5px 4px",
+                            fontSize: 12, color: "var(--color-text)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={soundPrefs.categories[cat]}
+                            onChange={() => toggleSoundCategory(cat)}
+                            style={{ accentColor: "var(--color-primary)" }}
+                          />
+                          {SOUND_CATEGORY_LABELS[cat]}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 音量 */}
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 11, color: "var(--color-text-muted)", margin: 0, fontWeight: 500 }}>音量</p>
+                      <span style={{ fontSize: 11, color: "var(--color-text-muted)", fontFamily: "ui-monospace, monospace" }}>
+                        {Math.round(soundPrefs.volume * 100)}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={soundPrefs.volume}
+                      onChange={(e) => applySoundPrefs({ ...soundPrefs, volume: parseFloat(e.target.value) })}
+                      onMouseUp={() => playSound("ai-reply")}
+                      style={{ width: "100%", accentColor: "var(--color-primary)" }}
+                    />
+                  </div>
+
+                  {/* 静音时段 */}
+                  <div>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--color-text)", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={soundPrefs.quietHours !== null}
+                        onChange={(e) => applySoundPrefs({
+                          ...soundPrefs,
+                          quietHours: e.target.checked ? (soundPrefs.quietHours ?? { start: 22, end: 8 }) : null,
+                        })}
+                        style={{ accentColor: "var(--color-primary)" }}
+                      />
+                      启用静音时段
+                    </label>
+                    {soundPrefs.quietHours && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 12, color: "var(--color-text-muted)", paddingLeft: 22 }}>
+                        从
+                        <input
+                          type="number" min={0} max={23} value={soundPrefs.quietHours.start}
+                          onChange={(e) => applySoundPrefs({ ...soundPrefs, quietHours: { start: Math.max(0, Math.min(23, parseInt(e.target.value || "0", 10))), end: soundPrefs.quietHours!.end } })}
+                          style={{ width: 50, padding: "3px 6px", border: "1px solid var(--color-border)", borderRadius: 4, background: "var(--color-bg)", color: "var(--color-text)", fontSize: 12, fontFamily: "inherit" }}
+                        />
+                        点 到
+                        <input
+                          type="number" min={0} max={23} value={soundPrefs.quietHours.end}
+                          onChange={(e) => applySoundPrefs({ ...soundPrefs, quietHours: { start: soundPrefs.quietHours!.start, end: Math.max(0, Math.min(23, parseInt(e.target.value || "0", 10))) } })}
+                          style={{ width: 50, padding: "3px 6px", border: "1px solid var(--color-border)", borderRadius: 4, background: "var(--color-bg)", color: "var(--color-text)", fontSize: 12, fontFamily: "inherit" }}
+                        />
+                        点
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+              <p style={{ fontSize: 11, color: "var(--color-text-faint)", lineHeight: 1.5, margin: 0 }}>
+                音效完全在浏览器内合成（无外部文件，无网络）；默认关闭以防扰民
+              </p>
             </div>
           </Section>
 

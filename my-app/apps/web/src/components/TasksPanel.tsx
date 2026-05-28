@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { DdlItem, DdlAttachment, TaskPriority, TaskStatus } from "@/lib/types";
 import type { TaskViewId } from "./layout/TasksRail";
+import { EmptyTasks, EmptyFilter } from "./EmptyIllustrations";
 
 interface Props {
   ddls: DdlItem[];
@@ -801,23 +802,13 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         background: "var(--color-bg)",
         border: "1px dashed var(--color-border)",
         borderRadius: 12,
-        padding: "64px 24px",
+        padding: "48px 24px 32px",
         textAlign: "center",
       }}
     >
-      <div
-        style={{
-          width: 48,
-          height: 48,
-          borderRadius: 12,
-          background: "var(--color-primary-soft)",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          marginBottom: 14,
-        }}
-      >
-        <Inbox size={22} color="var(--color-primary)" />
+      {/* [056] 插画替代 icon */}
+      <div style={{ marginBottom: 14 }}>
+        <EmptyTasks size={180} />
       </div>
       <p style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text)", margin: "0 0 6px" }}>
         还没有任何任务
@@ -854,10 +845,12 @@ function ViewEmptyState({ viewTitle }: { viewTitle: string }) {
         background: "var(--color-bg)",
         border: "1px dashed var(--color-border)",
         borderRadius: 12,
-        padding: "40px 24px",
+        padding: "28px 24px",
         textAlign: "center",
       }}
     >
+      {/* [056] 漏斗插画：视图筛选为空 */}
+      <div style={{ marginBottom: 8 }}><EmptyFilter size={88} /></div>
       <p style={{ fontSize: 14, color: "var(--color-text-muted)", margin: 0 }}>
         当前视图「{viewTitle}」下没有任务
       </p>

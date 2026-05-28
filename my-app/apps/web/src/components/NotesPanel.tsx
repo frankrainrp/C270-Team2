@@ -13,6 +13,7 @@ import { Plus, Trash2, Pin, PinOff, Eye, Edit3, FileText, Lock, Link2, Search, X
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Note, DdlItem } from "@/lib/types";
+import { EmptyNotes, EmptyFilter } from "./EmptyIllustrations";
 
 // ============================================================
 // [053] Notes 100%：wikilink 工具
@@ -246,9 +247,10 @@ export default function NotesPanel({
             </div>
           ) : filtered.length === 0 ? (
             <div style={{
-              textAlign: "center", padding: "30px 12px",
+              textAlign: "center", padding: "20px 12px",
               color: "var(--color-text-faint)", fontSize: 12,
             }}>
+              <div style={{ marginBottom: 6 }}><EmptyFilter size={80} /></div>
               没有匹配「{query}」<br />
               <button
                 onClick={() => setQuery("")}
@@ -642,15 +644,8 @@ function EmptyHero({ onCreate }: { onCreate: () => void }) {
         padding: 40,
       }}
     >
-      <div
-        style={{
-          width: 56, height: 56, borderRadius: 14,
-          background: "var(--color-primary-soft)",
-          display: "inline-flex", alignItems: "center", justifyContent: "center",
-        }}
-      >
-        <FileText size={26} color="var(--color-primary)" />
-      </div>
+      {/* [056] 插画替代纯 icon */}
+      <EmptyNotes size={200} />
       <div style={{ textAlign: "center" }}>
         <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--color-text)", margin: "0 0 4px" }}>
           没有笔记

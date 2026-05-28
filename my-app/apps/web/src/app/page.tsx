@@ -48,6 +48,7 @@ import {
   putCustomPanel,
   updateCustomPanel,
 } from "@/lib/custom-panels";
+import { playSound } from "@/lib/sound";
 
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 
@@ -639,6 +640,7 @@ export default function HomePage() {
     };
     setMessages((prev) => [...prev, userUiMsg]);
     touchActiveSession(content || filesSnapshot[0]?.name);
+    playSound("send"); // [056]
 
     setInputValue("");
     setAttachedFiles([]);
@@ -775,6 +777,7 @@ export default function HomePage() {
           },
         },
       });
+      playSound("ai-reply"); // [056] 流式完成的成功路径
     } catch (err) {
       // AbortError 静默（用户主动 stop）；其他错误已通过 onError 上报，这里仅吞掉防止 unhandled rejection
       if (err instanceof Error && err.name !== "AbortError" && err.name !== "DOMException") {
@@ -1093,7 +1096,13 @@ export default function HomePage() {
   }, []);
 
   const handleToggleComplete = useCallback((id: string) => {
-    setDdls((prev) => prev.map((d) => (d.id === id ? { ...d, completed: !d.completed } : d)));
+    setDdls((prev) => prev.map((d) => {
+      if (d.id !== id) return d;
+      const next = { ...d, completed: !d.completed };
+      // [056] 音效（opt-in 守卫在 playSound 内置）
+      playSound(next.completed ? "task-complete" : "task-uncomplete");
+      return next;
+    }));
   }, []);
 
   // ---------- 手动 CRUD（TaskEditModal） ----------
@@ -1148,6 +1157,7 @@ export default function HomePage() {
     try {
       const p = await createCustomPanel("新面板");
       setActiveCustomPanelId(p.id);
+      playSound("panel-create"); // [056]
     } catch (e) {
       toast.error(`创建失败：${(e as Error).message}`);
     }

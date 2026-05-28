@@ -15,7 +15,7 @@
 
 ## 1. 当前 Phase 与最新进度
 
-- **Phase 2 完成 ✅** + 基础功能 4 面板全部有真东西（PROGRESS 最新 **[055]**）；**Chat ~100% / Tasks ~99% / Notes ~100% / Calendar ~100% / 跨面板 ~80% / 平台层全新增 / 5 增长支柱 G1+G2+G3+G5 完成 / 7 管家姿势真资产 / 自定义系统 5 Phase A-E / Notes 100% / D 小补丁 / [055] F Polish 5 bug 修复**
+- **Phase 2 完成 ✅** + 基础功能 4 面板全部有真东西（PROGRESS 最新 **[056]**）；**Chat ~100% / Tasks ~99% / Notes ~100% / Calendar ~100% / 跨面板 ~80% / 平台层全新增 / 5 增长支柱 / 7 管家姿势 / 自定义系统 5 Phase A-E / Notes 100% / D 小补丁 / F Polish / [056] 音效系统（WebAudio）+ 6 空状态插画**
 - UI 重构 5 stage 全部收尾（Stage A 顶 Tab → E 全局清理）
 - **管家形象 + ConfirmCard 核实门控 + Mini Apps Drawer + 模型切换 + Stage C.2 字段扩展 + 多模态 OCR + Notes 浏览器版 + 全局搜索 + AI 开屏问候 + 思考模式 reasoning 可见化** 都已落地
 - Phase 3（Tauri 桌面壳）/ Phase 4（Clerk + Neon 多租户）未启动
@@ -117,7 +117,8 @@ my-app/apps/web/src/
 │   ├── TodayHero.tsx         ← ★ Chat 欢迎屏「今日聚焦」+ streak 🔥 + 最佳时段 chip
 │   ├── KeyboardShortcutsHelp.tsx ← ★ ? 弹快捷键 modal
 │   ├── PreferencesPanel.tsx  ← ★ 偏好设置 modal（主题/字号/主题色/管家形象/布局/管家性格 6 段）
-│   ├── CustomPanelView.tsx   ← ★ [052] 自定义面板渲染（emoji+label+Markdown editor + 防抖保存）
+│   ├── CustomPanelView.tsx   ← ★ [052] 自定义面板渲染（emoji+label+Markdown/iframe + 防抖保存）
+│   ├── EmptyIllustrations.tsx ← ★ [056] 6 内联 SVG 空状态插画（主题色自适应）
 │   ├── OnboardingTour.tsx    ← ★ 首次 5 步引导（暗色遮罩 + pulse 高亮）
 │   ├── mini-apps/
 │   │   ├── FocusTimer.tsx    ← 番茄钟 + 关联任务下拉
@@ -148,6 +149,7 @@ my-app/apps/web/src/
     ├── butler-asset.ts       ← ★ [050] Phase C 人物：客户端 Canvas trim + IndexedDB CRUD
     ├── layout-prefs.ts       ← ★ [051] Phase D 布局：tabsOrder/hiddenTabs/butlerPosition
     ├── custom-panels.ts      ← ★ [052] Phase E 自定义面板 CRUD + [054] putCustomPanel（用于 AI 草稿入库）
+    ├── sound.ts              ← ★ [056] WebAudio 程序化音效（14 key / opt-in / 6 分类 / 静音时段）
     ├── ocr/
     │   ├── providers.ts      ← OCR provider 注册表
     │   └── index.ts          ← runOcr(file) + 50MB 硬拒
@@ -175,4 +177,4 @@ scripts/
 
 ---
 
-*最后更新：2026-05-27 — 同步 [055]：F Polish — code review 后的 5 bug 修复（数据不丢失 + ObjectURL 不泄漏）*
+*最后更新：2026-05-27 — 同步 [056]：音效系统（WebAudio 合成 14 音效 opt-in）+ 6 张空状态插画（内联 SVG 主题色自适应）*

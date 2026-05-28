@@ -14,6 +14,7 @@ import { Trash2, Eye, Edit3, FileText, Globe, AlertTriangle } from "lucide-react
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { CustomPanel, CustomPanelKind } from "@/lib/types";
+import { EmptyPanel } from "./EmptyIllustrations";
 
 interface Props {
   panel: CustomPanel;
@@ -354,7 +355,8 @@ export default function CustomPanelView({ panel, onUpdate, onDelete }: Props) {
             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
             height: "100%", color: "var(--color-text-faint)", gap: 10,
           }}>
-            <FileText size={40} />
+            {/* [056] 插画替代 icon */}
+            <EmptyPanel size={150} />
             <p style={{ fontSize: 13, margin: 0 }}>面板还没内容，点击右上「编辑」开始写</p>
           </div>
         )}

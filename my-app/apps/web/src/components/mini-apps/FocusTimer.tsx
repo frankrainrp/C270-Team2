@@ -12,6 +12,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Play, Pause, RotateCcw, Target, Link2 } from "lucide-react";
 import { useToast } from "@/components/Toast";
+import { playSound } from "@/lib/sound";
 import type { DdlItem } from "@/lib/types";
 
 const PRESETS = [
@@ -47,8 +48,11 @@ export default function FocusTimer({ ddls = [], onAppendTaskNote }: Props) {
     if (!running) return;
     intervalRef.current = window.setInterval(() => {
       setRemainSec((s) => {
+        // [056] 5 分钟剩余时极轻 tick 提醒
+        if (s === 301) playSound("focus-5min");
         if (s <= 1) {
           setRunning(false);
+          playSound("focus-end"); // [056]
           // 用 Toast 替代 alert（Phase 3 接 Tauri 后升级原生通知）
           toast.success("🎉 专注时段结束,记得休息一下!", { duration: 8000 });
           // Epic 5.1 把这次专注追加到关联任务的 notes
@@ -83,6 +87,7 @@ export default function FocusTimer({ ddls = [], onAppendTaskNote }: Props) {
       setRemainSec(totalSec);
     }
     setRunning(true);
+    playSound("focus-start"); // [056]
   };
   const onPause = () => setRunning(false);
   const onReset = () => {

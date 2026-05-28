@@ -10,6 +10,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Search, ListChecks, FileText, MessageSquare } from "lucide-react";
 import type { DdlItem, Note, ChatMessage, NavId } from "@/lib/types";
+import { EmptySearch } from "@/components/EmptyIllustrations";
 
 interface SearchResult {
   kind: "task" | "note" | "message";
@@ -172,12 +173,14 @@ export default function GlobalSearch({ ddls, notes, messages, onJump }: Props) {
             }}
           >
             {results.length === 0 ? (
-              <p style={{
-                fontSize: 12, color: "var(--color-text-faint)",
-                margin: 0, padding: "20px 14px", textAlign: "center",
+              <div style={{
+                padding: "16px 14px 20px", textAlign: "center",
+                color: "var(--color-text-faint)", fontSize: 12,
               }}>
+                {/* [056] 插画 */}
+                <div style={{ marginBottom: 6 }}><EmptySearch size={100} /></div>
                 没有匹配的内容
-              </p>
+              </div>
             ) : (
               <>
                 <ResultGroup
