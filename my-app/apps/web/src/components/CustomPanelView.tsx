@@ -10,21 +10,48 @@
 // ============================================================
 
 import React, { useEffect, useRef, useState } from "react";
-import { Trash2, Eye, Edit3, FileText } from "lucide-react";
+import { Trash2, Eye, Edit3, FileText, Globe, AlertTriangle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { CustomPanel } from "@/lib/types";
+import type { CustomPanel, CustomPanelKind } from "@/lib/types";
 
 interface Props {
   panel: CustomPanel;
-  onUpdate: (id: string, patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content">>) => void;
+  onUpdate: (id: string, patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url">>) => void;
   onDelete: (id: string) => void;
 }
 
+function normalizeUrl(input: string): string {
+  const v = input.trim();
+  if (!v) return "";
+  if (/^https?:\/\//i.test(v)) return v;
+  return "https://" + v;
+}
+
+function KindBtn({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        padding: "6px 9px", border: "none",
+        background: active ? "var(--color-primary-soft)" : "transparent",
+        color: active ? "var(--color-primary)" : "var(--color-text-muted)",
+        fontSize: 11.5, fontWeight: active ? 600 : 500,
+        cursor: "pointer", fontFamily: "inherit",
+      }}
+    >
+      {icon} {label}
+    </button>
+  );
+}
+
 export default function CustomPanelView({ panel, onUpdate, onDelete }: Props) {
+  const kind: CustomPanelKind = panel.kind ?? "markdown";
   const [content, setContent] = useState(panel.content);
   const [label, setLabel] = useState(panel.label);
   const [emoji, setEmoji] = useState(panel.emoji);
+  const [url, setUrl] = useState(panel.url ?? "");
   const [mode, setMode] = useState<"edit" | "preview">(panel.content ? "preview" : "edit");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -33,11 +60,12 @@ export default function CustomPanelView({ panel, onUpdate, onDelete }: Props) {
     setContent(panel.content);
     setLabel(panel.label);
     setEmoji(panel.emoji);
+    setUrl(panel.url ?? "");
     setMode(panel.content ? "preview" : "edit");
   }, [panel.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // content 防抖保存
-  const scheduleSave = (patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content">>) => {
+  const scheduleSave = (patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url">>) => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       onUpdate(panel.id, patch);
@@ -51,7 +79,7 @@ export default function CustomPanelView({ panel, onUpdate, onDelete }: Props) {
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
         // 立即保存最新值
-        onUpdate(panel.id, { content, label, emoji });
+        onUpdate(panel.id, { content, label, emoji, url });
         saveTimerRef.current = null;
       }
     };
@@ -133,22 +161,49 @@ export default function CustomPanelView({ panel, onUpdate, onDelete }: Props) {
           onBlur={(e) => ((e.currentTarget.style.background = "transparent"))}
         />
 
-        {/* edit/preview 切换 */}
-        <button
-          onClick={() => setMode((m) => (m === "edit" ? "preview" : "edit"))}
-          title={mode === "edit" ? "切到预览" : "切到编辑"}
+        {/* [054] D.2 类型切换 markdown / iframe */}
+        <div
+          role="group"
+          aria-label="面板类型"
           style={{
-            display: "inline-flex", alignItems: "center", gap: 5,
-            padding: "6px 10px", borderRadius: 6,
+            display: "inline-flex",
             border: "1px solid var(--color-border)",
-            background: "var(--color-bg)",
-            color: "var(--color-text-muted)",
-            fontSize: 12, fontWeight: 500, cursor: "pointer",
-            fontFamily: "inherit",
+            borderRadius: 6,
+            overflow: "hidden",
           }}
         >
-          {mode === "edit" ? <><Eye size={12} /> 预览</> : <><Edit3 size={12} /> 编辑</>}
-        </button>
+          <KindBtn
+            active={kind === "markdown"}
+            onClick={() => onUpdate(panel.id, { kind: "markdown" })}
+            icon={<FileText size={12} />}
+            label="笔记"
+          />
+          <KindBtn
+            active={kind === "iframe"}
+            onClick={() => onUpdate(panel.id, { kind: "iframe" })}
+            icon={<Globe size={12} />}
+            label="网页"
+          />
+        </div>
+
+        {/* edit/preview 切换（仅 markdown 模式有意义）*/}
+        {kind === "markdown" && (
+          <button
+            onClick={() => setMode((m) => (m === "edit" ? "preview" : "edit"))}
+            title={mode === "edit" ? "切到预览" : "切到编辑"}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "6px 10px", borderRadius: 6,
+              border: "1px solid var(--color-border)",
+              background: "var(--color-bg)",
+              color: "var(--color-text-muted)",
+              fontSize: 12, fontWeight: 500, cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            {mode === "edit" ? <><Eye size={12} /> 预览</> : <><Edit3 size={12} /> 编辑</>}
+          </button>
+        )}
         <button
           onClick={handleDelete}
           title="删除面板"
@@ -177,9 +232,66 @@ export default function CustomPanelView({ panel, onUpdate, onDelete }: Props) {
         </button>
       </div>
 
+      {/* [054] D.2 iframe 模式 URL 输入条（始终显示，方便快速换地址）*/}
+      {kind === "iframe" && (
+        <div
+          style={{
+            flexShrink: 0,
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "10px 20px",
+            borderBottom: "1px solid var(--color-border-soft)",
+            background: "var(--color-surface)",
+          }}
+        >
+          <Globe size={13} color="var(--color-text-muted)" />
+          <input
+            value={url}
+            onChange={(e) => { setUrl(e.target.value); scheduleSave({ url: e.target.value }); }}
+            onBlur={(e) => {
+              // blur 时规范化 + 立即保存
+              const v = normalizeUrl(e.target.value);
+              if (v !== e.target.value) { setUrl(v); onUpdate(panel.id, { url: v }); }
+            }}
+            placeholder="https://example.com（支持 https/http）"
+            style={{
+              flex: 1, border: "1px solid var(--color-border)",
+              borderRadius: 6, padding: "5px 9px",
+              fontSize: 12, color: "var(--color-text)",
+              background: "var(--color-bg)",
+              outline: "none", fontFamily: "ui-monospace, monospace",
+            }}
+          />
+        </div>
+      )}
+
       {/* Body */}
-      <div style={{ flex: 1, overflow: "auto", padding: "16px 20px", minHeight: 0 }}>
-        {mode === "edit" ? (
+      <div style={{ flex: 1, overflow: "auto", padding: kind === "iframe" ? 0 : "16px 20px", minHeight: 0 }}>
+        {kind === "iframe" ? (
+          url.trim() ? (
+            <iframe
+              src={normalizeUrl(url)}
+              title={panel.label}
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+              referrerPolicy="no-referrer"
+              style={{
+                width: "100%", height: "100%", border: "none",
+                background: "var(--color-bg)",
+              }}
+            />
+          ) : (
+            <div style={{
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+              height: "100%", color: "var(--color-text-faint)", gap: 10,
+              padding: 32, textAlign: "center",
+            }}>
+              <Globe size={40} />
+              <p style={{ fontSize: 13, margin: 0 }}>填上方 URL 即可嵌入网页</p>
+              <p style={{ fontSize: 11, margin: 0, display: "inline-flex", alignItems: "center", gap: 5, color: "var(--color-warning)" }}>
+                <AlertTriangle size={11} /> 多数大型站点设置了 X-Frame-Options 会拒绝嵌入
+              </p>
+            </div>
+          )
+        ) : mode === "edit" ? (
           <textarea
             value={content}
             onChange={(e) => {

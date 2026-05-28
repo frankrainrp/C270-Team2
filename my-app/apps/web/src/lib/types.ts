@@ -128,13 +128,18 @@ export interface ButlerAsset {
   updatedAt: number;
 }
 
-// 用户自定义面板（[052] Phase E，Dexie v7 起）
-// 出现在 Tab Bar 内置 4 Tab 后；目前 Markdown body（iframe / 嵌入网页等后续扩展）
+// 用户自定义面板（[052] Phase E，Dexie v7 起；[054] D.2 加 kind/url 支持 iframe）
+// 出现在 Tab Bar 内置 4 Tab 后
+export type CustomPanelKind = "markdown" | "iframe";
 export interface CustomPanel {
   id: string;          // "custom-{nanoid}"
   label: string;       // Tab 显示名（≤12 字符）
   emoji: string;       // Tab 前缀单字符 emoji
-  content: string;     // Markdown body
+  content: string;     // Markdown body（kind=markdown 时用）
   createdAt: number;
   updatedAt: number;
+  /** [054] D.2：面板类型；缺省 = markdown（兼容 [052] 历史数据）*/
+  kind?: CustomPanelKind;
+  /** [054] D.2：嵌入网页 URL（kind=iframe 时用）*/
+  url?: string;
 }

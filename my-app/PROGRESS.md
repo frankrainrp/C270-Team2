@@ -7,6 +7,7 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [054] | D 小补丁串烧三件套（DayView 拖拽 + iframe 面板 + AI 建面板） | TimelinePill draggable + CustomPanel kind=iframe + 第 7 个 AI tool create_custom_panel |
 | [053] | Notes 92% → 100%（wikilink + 反向引用 + 本地搜索） | [[Title]] 双链 + 缺失链接新建 + backlinks 条 + list 搜索 + 代码块 dark fix |
 | [052] | 自定义系统 Phase E — 自定义面板（Roadmap 收尾） | Dexie v7 customPanels + emoji+label+Markdown body + Tab + 「+」+ 即时编辑 |
 | [051] | 自定义系统 Phase D — 元素位置自定义 | Tab 拖拽重排 + 4 档 Tab 隐藏 + 管家位置 4 档（左/中/右/隐藏） |
@@ -37,7 +38,77 @@
 | [022]-[026] | UI 重构 Stage C-E + Mini Apps + Stage C.2 + 模型切换 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
-> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 13 条 [041]-[053] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 14 条 [041]-[054] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [054] 2026-05-27 — D 小补丁串烧：DayView 拖拽 + iframe 面板 + AI tool 建面板
+
+> [053] 给的 4 候选方向中用户选「D 小补丁串烧」。3 个独立小项一次性闭环，每项各打补一个角落的小遗憾。
+
+### D.1 Calendar DayView 拖拽（复用 [043] Week 机制）
+
+| 文件 | 改动 |
+|---|---|
+| `CalendarPanel.tsx` | `TimelinePill` 加 `draggable` prop + `onDragStart`（mime `text/butler-calendar-event`）；`DayView` 接 `onCreateAt` / `onMoveEvent` 2 个新 prop；时间格 onClick 检测背景 DIV → 用 hour 预填创建；onDragOver/Drop 视觉反馈 + emit onMoveEvent；CalendarPanel 透传 |
+
+之前 DayView 时间格点击是一律走简单 onCreate（无预填时间），事件也不能拖。现在：
+- 点击 09:00 的空白格 → 立刻打开「新建事件」预填 09:00
+- 拖任意事件到 14:00 格 → Toast 提示已移动到 14:00
+
+### D.2 iframe / 嵌入网页面板（Phase E 留尾）
+
+| 文件 | 改动 |
+|---|---|
+| `lib/types.ts` | `CustomPanel` 加 `kind?: "markdown" \| "iframe"` + `url?: string`（缺省 markdown 兼容历史数据，无需 Dexie 迁移） |
+| `lib/custom-panels.ts` | `updateCustomPanel` patch 类型扩展支持 kind/url；URL trim |
+| `components/CustomPanelView.tsx` | 类型 segmented（Markdown / 网页 2 档，立即持久化）；iframe 模式：URL 输入条（blur 自动补 https://）+ `<iframe sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox" referrerPolicy="no-referrer">`；空 URL 占位 + X-Frame-Options 警告 |
+
+样例使用：B 站 / GitHub / MOOC / 学校教务系统 / 个人 dashboard。注意大多数大型站（YouTube、Google、Twitter）设了 X-Frame-Options 会拒绝嵌入 — 警告文案已经标明。
+
+### D.3 AI tool `create_custom_panel`（让 Butler 主动建面板）
+
+| 文件 | 改动 |
+|---|---|
+| `lib/ai-tools.ts` | 第 7 个 tool schema + `CreateCustomPanelArgs` 接口 + ToolCall 联合类型扩展（label/emoji/kind/content/url）|
+| `lib/pending.ts` | `PendingChangeKind` 加 `create-custom-panel`；`PendingCreateCustomPanel` 接口；`extractCustomPanelDrafts(batch)` helper |
+| `lib/tool-executor.ts` | `execCreateCustomPanel`：校验 label 必填、iframe 时 url 必填；构造 CustomPanel 草稿入 pending 队列 |
+| `lib/custom-panels.ts` | 新增 `putCustomPanel(panel)` — 直接 put 完整草稿（用于 ConfirmCard accept） |
+| `components/ConfirmCard.tsx` | `describeChange` 加 `create-custom-panel` 分支：琥珀黄 LayoutGrid icon + 显示 emoji+label+kind+url 摘要 |
+| `app/page.tsx` | `handleAcceptBatch` 新增第 3 步异步循环 putCustomPanel；imports + onToolCallStart label `create_custom_panel: "正在生成自定义面板草稿"` |
+
+用户对话示例：「帮我建一个嵌入 https://bilibili.com 的面板叫『B 站』」→ AI 调 create_custom_panel(label="B 站", emoji="🎬", kind="iframe", url="https://bilibili.com") → ConfirmCard 琥珀黄卡 → 接受 → 顶栏立刻出现「🎬 B 站」Tab。
+
+### 🎨 ConfirmCard 颜色编码（4 类操作）
+
+| kind | 颜色 | icon |
+|---|---|---|
+| `create` (task) | 绿 | Plus |
+| `update` (task) | 蓝 info | Pencil |
+| `delete` (task) | 红 danger | Trash2 |
+| `create-note` | 紫 | BookOpen |
+| `create-custom-panel` | **琥珀黄** | **LayoutGrid** |
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- HMR 自动加载（CustomPanel 加 optional 字段无需 Dexie 迁移）
+- 待用户实测：
+  - Day 视图点空白时间格 → 预填该小时；拖事件到其他格 → 时间更新
+  - 自定义面板切「网页」→ 填 URL → 看 iframe 加载（或被 X-Frame-Options 拒绝）
+  - Chat 对话「建一个 X 面板」/「嵌入 X 网站」→ ConfirmCard 琥珀黄卡 → 接受后顶栏新 Tab
+
+### 🚦 下一步候选
+
+- C. 部署到 Vercel（解锁随处访问 + PWA 装机）
+- B. Phase 3 Tauri 桌面壳启动
+- G. wikilink autocomplete（输入 `[[` 浮出 title 列表 Tab 补全）
+- 实测 [048]-[054] 后调 bug
+- 别的方向
+
+### 💾 备份建议
+
+`backup-053-notes-100` 之后，本次紧跟。建议 tag：`backup-054-d-small-patches`
 
 ---
 

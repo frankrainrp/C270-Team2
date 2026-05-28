@@ -47,15 +47,25 @@ export async function createCustomPanel(label: string, emoji: string = "📋"): 
   return panel;
 }
 
-export async function updateCustomPanel(id: string, patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content">>): Promise<void> {
+export async function updateCustomPanel(
+  id: string,
+  patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url">>,
+): Promise<void> {
   const next: Partial<CustomPanel> = { ...patch, updatedAt: Date.now() };
   if (patch.label !== undefined) next.label = patch.label.slice(0, 12).trim() || "新面板";
   if (patch.emoji !== undefined) next.emoji = (patch.emoji || "📋").slice(0, 3);
+  if (patch.url !== undefined) next.url = patch.url.trim();
   await getDb().customPanels.update(id, next);
   dispatchChange();
 }
 
 export async function deleteCustomPanel(id: string): Promise<void> {
   await getDb().customPanels.delete(id);
+  dispatchChange();
+}
+
+/** [054] D.3：直接 put 完整 panel（用于 ConfirmCard 接受 AI 生成的草稿）*/
+export async function putCustomPanel(panel: CustomPanel): Promise<void> {
+  await getDb().customPanels.put(panel);
   dispatchChange();
 }

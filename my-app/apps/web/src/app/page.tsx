@@ -27,7 +27,7 @@ import type { ChatMessage, ChatSession, ProcessingPipeline, DdlItem, NavId, Uplo
 import { INITIAL_STEPS } from "@/lib/mock-pipeline";
 import { streamChat, type ApiMessage } from "@/lib/chat-client";
 import { createToolExecutor } from "@/lib/tool-executor";
-import { type PendingBatch, type PendingChange, makeBatch, makeChangeId, applyBatch, extractNoteDrafts } from "@/lib/pending";
+import { type PendingBatch, type PendingChange, makeBatch, makeChangeId, applyBatch, extractNoteDrafts, extractCustomPanelDrafts } from "@/lib/pending";
 import type { ButlerPose } from "@/components/ButlerCharacter";
 import { type AiModelId, DEFAULT_MODEL_ID, MODEL_STORAGE_KEY, isValidModelId } from "@/lib/ai-models";
 import type { TaskViewId } from "@/components/layout/TasksRail";
@@ -45,6 +45,7 @@ import {
   createCustomPanel,
   deleteCustomPanel,
   getAllCustomPanels,
+  putCustomPanel,
   updateCustomPanel,
 } from "@/lib/custom-panels";
 
@@ -520,7 +521,20 @@ export default function HomePage() {
       if (noteDrafts.length > 0) {
         setNotes((prevNotes) => [...noteDrafts, ...prevNotes]);
       }
-      console.log("[pending] accepted batch", batchId, stats, noteDrafts.length > 0 ? `+${noteDrafts.length} notes` : "");
+      // 3. [054] D.3 应用 create-custom-panel changes（异步 put IndexedDB；CUSTOM_PANEL_EVENT 触发 page 重载）
+      const panelDrafts = extractCustomPanelDrafts(batch);
+      if (panelDrafts.length > 0) {
+        (async () => {
+          for (const p of panelDrafts) {
+            try { await putCustomPanel(p); } catch (e) { console.warn("[pending] put custom panel failed", e); }
+          }
+        })();
+      }
+      console.log(
+        "[pending] accepted batch", batchId, stats,
+        noteDrafts.length > 0 ? `+${noteDrafts.length} notes` : "",
+        panelDrafts.length > 0 ? `+${panelDrafts.length} custom panels` : "",
+      );
       return { ...prev, [batchId]: { ...batch, status: "accepted" } };
     });
   }, []);
@@ -744,6 +758,7 @@ export default function HomePage() {
               toggle_complete: "正在勾选完成",
               list_items: "正在查询任务列表",
               create_note: "正在生成笔记草稿",
+              create_custom_panel: "正在生成自定义面板草稿",
             };
             const label = labels[call.function.name] ?? `正在调用 ${call.function.name}`;
             toast.info(`⚙ Butler ${label}…`, { id: "ai-tool-call", duration: 1500 });
@@ -1139,7 +1154,7 @@ export default function HomePage() {
   }, [toast]);
 
   // Phase E 更新（防抖在 CustomPanelView 内）
-  const handleUpdateCustomPanel = useCallback(async (id: string, patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content">>) => {
+  const handleUpdateCustomPanel = useCallback(async (id: string, patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url">>) => {
     try { await updateCustomPanel(id, patch); } catch { /* silent */ }
   }, []);
 

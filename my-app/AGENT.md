@@ -15,7 +15,7 @@
 
 ## 1. 当前 Phase 与最新进度
 
-- **Phase 2 完成 ✅** + 基础功能 4 面板全部有真东西（PROGRESS 最新 **[053]**）；**Chat ~100% / Tasks ~99% / Notes ~100% / Calendar ~100% / 跨面板 ~80% / 平台层全新增 / 5 增长支柱 G1+G2+G3+G5 完成 / 7 管家姿势真资产全部接入 / 自定义系统 5 Phase A-E 全部完成（[048]-[052]）/ Notes 100% wikilink+反链+搜索（[053]）**
+- **Phase 2 完成 ✅** + 基础功能 4 面板全部有真东西（PROGRESS 最新 **[054]**）；**Chat ~100% / Tasks ~99% / Notes ~100% / Calendar ~100% / 跨面板 ~80% / 平台层全新增 / 5 增长支柱 G1+G2+G3+G5 完成 / 7 管家姿势真资产全部接入 / 自定义系统 5 Phase A-E 全部完成 / Notes 100% / [054] D 小补丁：DayView 拖拽 + iframe 面板 + AI tool create_custom_panel**
 - UI 重构 5 stage 全部收尾（Stage A 顶 Tab → E 全局清理）
 - **管家形象 + ConfirmCard 核实门控 + Mini Apps Drawer + 模型切换 + Stage C.2 字段扩展 + 多模态 OCR + Notes 浏览器版 + 全局搜索 + AI 开屏问候 + 思考模式 reasoning 可见化** 都已落地
 - Phase 3（Tauri 桌面壳）/ Phase 4（Clerk + Neon 多租户）未启动
@@ -98,6 +98,7 @@ my-app/apps/web/src/
 │   └── api/
 │       ├── chat/route.ts     ← V4 模型 + thinking + personality 3 档 + 6 个 tool（含 create_note）
 │       ├── extract-ddls/...  ← PDF DDL 提取（V4 Flash + tool_choice）
+│       │                       注：chat/route.ts 现支持 7 个 tool（含 [054] create_custom_panel）
 │       └── ocr/route.ts      ← Mistral OCR 服务端代理
 ├── components/
 │   ├── ChatCanvas.tsx        ← 主区:管家居中贴底 0.33 倍率 + 气泡左对齐 + 输入框前置 + 欢迎屏 TodayHero+DropHero
@@ -134,9 +135,9 @@ my-app/apps/web/src/
     ├── types.ts              ← ★ DdlItem(+noteId) / ChatMessage(+reasoning+isError) / Note(+syncedTodos) / TaskStatus/Priority
     ├── db.ts                 ← Dexie v5
     ├── ai-models.ts          ← V4 Flash + V4 思考
-    ├── ai-tools.ts           ← 6 个 tool schema（+create_note）
-    ├── tool-executor.ts      ← 含 execCreateNote
-    ├── pending.ts            ← + PendingCreateNote 类型 + extractNoteDrafts
+    ├── ai-tools.ts           ← 7 个 tool schema（+ [054] create_custom_panel）
+    ├── tool-executor.ts      ← 含 execCreateNote + execCreateCustomPanel
+    ├── pending.ts            ← + PendingCreateNote + PendingCreateCustomPanel + extract* 助手
     ├── chat-client.ts        ← SSE + 多轮 tool + reasoning_content + personality + AbortSignal
     ├── document-parser.ts    ← 文字 PDF→unpdf;扫描/图片→OCR
     ├── semantic-filter.ts    ← MiniLM CDN
@@ -146,7 +147,7 @@ my-app/apps/web/src/
     ├── theme.ts              ← ★ [049] Phase B 颜色：hex↔HSL + deriveAccentScheme + 6 预设
     ├── butler-asset.ts       ← ★ [050] Phase C 人物：客户端 Canvas trim + IndexedDB CRUD
     ├── layout-prefs.ts       ← ★ [051] Phase D 布局：tabsOrder/hiddenTabs/butlerPosition
-    ├── custom-panels.ts      ← ★ [052] Phase E 自定义面板 CRUD
+    ├── custom-panels.ts      ← ★ [052] Phase E 自定义面板 CRUD + [054] putCustomPanel（用于 AI 草稿入库）
     ├── ocr/
     │   ├── providers.ts      ← OCR provider 注册表
     │   └── index.ts          ← runOcr(file) + 50MB 硬拒
@@ -174,4 +175,4 @@ scripts/
 
 ---
 
-*最后更新：2026-05-27 — 同步 [053]：Notes 100%（[[wikilink]] 双链 + 反向引用 + 本地搜索）*
+*最后更新：2026-05-27 — 同步 [054]：D 小补丁串烧（DayView 拖拽 + iframe 面板 + AI tool create_custom_panel）*

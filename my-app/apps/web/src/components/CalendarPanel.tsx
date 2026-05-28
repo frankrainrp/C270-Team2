@@ -71,6 +71,8 @@ export default function CalendarPanel({ ddls, onRequestCreate, onRequestEdit, ju
         onBack={() => setView("month")}
         onCreate={() => onRequestCreate(selectedDate)}
         onEdit={onRequestEdit}
+        onCreateAt={(iso, hour) => onRequestCreate(iso, `${String(hour).padStart(2, "0")}:00`)}
+        onMoveEvent={onMoveEvent}
       />
     );
   }
@@ -371,7 +373,7 @@ function MonthView({
 // Day View — 时间轴 + 右侧 widgets
 // ============================================================
 function DayView({
-  date, allDdls, dayDdls, onBack, onCreate, onEdit,
+  date, allDdls, dayDdls, onBack, onCreate, onEdit, onCreateAt, onMoveEvent,
 }: {
   date: string;
   allDdls: DdlItem[];
@@ -379,6 +381,10 @@ function DayView({
   onBack: () => void;
   onCreate: () => void;
   onEdit: (d: DdlItem) => void;
+  /** [054] D.1 点空白时间格创建（带 hour 预填） */
+  onCreateAt?: (iso: string, hour: number) => void;
+  /** [054] D.1 拖动事件改时间 */
+  onMoveEvent?: (id: string, newDate: string, newTime: string) => void;
 }) {
   const dateObj = new Date(date);
   const weekday = "日一二三四五六"[dateObj.getDay()];
@@ -529,22 +535,47 @@ function DayView({
                     {formatHour(h)}
                   </div>
                   <div
-                    onClick={() => onCreate()}
+                    onClick={(ev) => {
+                      // [054] D.1 点空白处（不是 pill）→ 用 hour 预填创建；否则保留旧的简单 onCreate
+                      if ((ev.target as HTMLElement).tagName === "DIV" && onCreateAt) {
+                        onCreateAt(date, h);
+                      } else if ((ev.target as HTMLElement).tagName === "DIV") {
+                        onCreate();
+                      }
+                    }}
+                    onDragOver={(ev) => {
+                      if (!onMoveEvent) return;
+                      if (!ev.dataTransfer.types.includes("text/butler-calendar-event")) return;
+                      ev.preventDefault();
+                      (ev.currentTarget as HTMLDivElement).style.background = "var(--color-primary-soft)";
+                    }}
+                    onDragLeave={(ev) => {
+                      (ev.currentTarget as HTMLDivElement).style.background = "transparent";
+                    }}
+                    onDrop={(ev) => {
+                      if (!onMoveEvent) return;
+                      ev.preventDefault();
+                      (ev.currentTarget as HTMLDivElement).style.background = "transparent";
+                      const id = ev.dataTransfer.getData("text/butler-calendar-event");
+                      if (id) onMoveEvent(id, date, `${String(h).padStart(2, "0")}:00`);
+                    }}
                     style={{
                       flex: 1,
                       padding: 6,
                       display: "flex",
                       flexDirection: "column",
                       gap: 4,
-                      cursor: "pointer",
+                      cursor: onCreateAt ? "cell" : "pointer",
                       minHeight: 44,
+                      transition: "background 0.12s",
                     }}
-                    title="点击新建事件"
+                    title={onCreateAt ? `点击创建 · ${String(h).padStart(2, "0")}:00（事件可拖到此处）` : "点击新建事件"}
                   >
                     {slotItems.map((it) => (
                       <TimelinePill
                         key={it.id}
                         event={it}
+                        draggable={!!onMoveEvent}
                         onClick={(e) => {
                           e.stopPropagation();
                           onEdit(it);
@@ -710,11 +741,17 @@ function WidgetCard({
 }
 
 // 时间轴里的事件 pill
-function TimelinePill({ event, onClick }: { event: DdlItem; onClick: (e: React.MouseEvent) => void }) {
+function TimelinePill({ event, onClick, draggable }: { event: DdlItem; onClick: (e: React.MouseEvent) => void; draggable?: boolean }) {
   const [hov, setHov] = useState(false);
   return (
     <button
       onClick={onClick}
+      draggable={draggable}
+      onDragStart={(ev) => {
+        if (!draggable) return;
+        ev.dataTransfer.setData("text/butler-calendar-event", event.id);
+        ev.dataTransfer.effectAllowed = "move";
+      }}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
@@ -726,12 +763,13 @@ function TimelinePill({ event, onClick }: { event: DdlItem; onClick: (e: React.M
         background: hov ? "var(--color-primary-soft)" : "color-mix(in srgb, var(--color-primary-soft) 60%, transparent)",
         border: `1px solid color-mix(in srgb, var(--color-primary) 20%, transparent)`,
         borderLeft: "3px solid var(--color-primary)",
-        cursor: "pointer",
+        cursor: draggable ? "grab" : "pointer",
         textAlign: "left",
         fontFamily: "inherit",
         transition: "background 0.12s",
         minWidth: 0,
       }}
+      title={draggable ? `${event.taskName}（可拖到其他时段）` : event.taskName}
     >
       <span
         style={{

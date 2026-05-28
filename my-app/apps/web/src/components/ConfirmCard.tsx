@@ -6,7 +6,7 @@
 // ============================================================
 
 import React from "react";
-import { Plus, Pencil, Trash2, X, Check, Sparkles, BookOpen } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Check, Sparkles, BookOpen, LayoutGrid } from "lucide-react";
 import type { PendingBatch, PendingChange } from "@/lib/pending";
 
 interface ConfirmCardProps {
@@ -293,6 +293,16 @@ function describeChange(ch: PendingChange): {
       bg: "rgba(168,85,247,0.12)", // 紫色区别于 task（绿）
       fg: "#9333ea",
       subline: `📝 笔记 · ${n.content.length} 字${n.tags?.length ? ` · #${n.tags.join(" #")}` : ""}${preview ? ` · ${preview}…` : ""}`,
+    };
+  }
+  if (ch.kind === "create-custom-panel") {
+    const p = ch.panelDraft;
+    const isIframe = p.kind === "iframe";
+    return {
+      icon: <LayoutGrid size={13} />,
+      bg: "rgba(245,158,11,0.14)", // 琥珀黄区别于 task/note
+      fg: "#B45309",
+      subline: `${isIframe ? "🌐 嵌入网页" : "📋 自定义面板"} · ${p.emoji} ${p.label}${isIframe ? ` · ${p.url}` : p.content ? ` · ${p.content.length} 字` : ""}`,
     };
   }
   return {

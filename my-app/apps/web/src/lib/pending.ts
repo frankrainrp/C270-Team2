@@ -3,9 +3,9 @@
 // AI 不直接改 ddls，先入 PendingBatch，等用户接受后才落库
 // ============================================================
 
-import type { DdlItem, Note } from "./types";
+import type { DdlItem, Note, CustomPanel } from "./types";
 
-export type PendingChangeKind = "create" | "update" | "delete" | "create-note";
+export type PendingChangeKind = "create" | "update" | "delete" | "create-note" | "create-custom-panel";
 
 export interface PendingChangeBase {
   id: string;          // change 自身的 id（用于 ✕ 单条删除）
@@ -43,7 +43,19 @@ export interface PendingCreateNote extends PendingChangeBase {
   noteDraft: Note;
 }
 
-export type PendingChange = PendingCreate | PendingUpdate | PendingDelete | PendingCreateNote;
+/** [054] D.3：AI 帮建自定义面板 */
+export interface PendingCreateCustomPanel extends PendingChangeBase {
+  kind: "create-custom-panel";
+  /** 暂存的 CustomPanel 草稿（已分配 id/createdAt/updatedAt，待用户核实后入 customPanels 表）*/
+  panelDraft: CustomPanel;
+}
+
+export type PendingChange =
+  | PendingCreate
+  | PendingUpdate
+  | PendingDelete
+  | PendingCreateNote
+  | PendingCreateCustomPanel;
 
 /** 一批属于同一次 AI 回合（或同一次 PDF pipeline）的 changes */
 export interface PendingBatch {
@@ -102,4 +114,11 @@ export function extractNoteDrafts(batch: PendingBatch): Note[] {
   return batch.changes
     .filter((c): c is PendingCreateNote => c.kind === "create-note")
     .map((c) => c.noteDraft);
+}
+
+/** [054] D.3：提取 batch 中所有 create-custom-panel 草稿 */
+export function extractCustomPanelDrafts(batch: PendingBatch): CustomPanel[] {
+  return batch.changes
+    .filter((c): c is PendingCreateCustomPanel => c.kind === "create-custom-panel")
+    .map((c) => c.panelDraft);
 }

@@ -215,6 +215,46 @@ export const TOOLS: ToolDefinition[] = [
       },
     },
   },
+
+  // ---- 7. 创建自定义面板（[054] Phase E 扩展，D.3）----
+  {
+    type: "function",
+    function: {
+      name: "create_custom_panel",
+      description:
+        "在顶栏 4 内置 Tab 后新建一个自定义面板（用户的自留地）。适用场景：" +
+        "「帮我建一个面板叫 X」「新开一个 Tab 放 Y」「做一个嵌入 X 网页的面板」。" +
+        "kind=markdown 用于内容笔记；kind=iframe 用于嵌入网站（如学习平台/B 站/MOOC）。" +
+        "走待核实流程，用户接受后才出现在顶栏。",
+      parameters: {
+        type: "object",
+        properties: {
+          label: {
+            type: "string",
+            description: "Tab 显示名，2-12 个汉字。例如「读书清单」「Bilibili」「期末复习」",
+          },
+          emoji: {
+            type: "string",
+            description: "Tab 前缀单字符 emoji，例如 📚 / 🎬 / 📝 / 🎯。不传默认 📋",
+          },
+          kind: {
+            type: "string",
+            enum: ["markdown", "iframe"],
+            description: "面板类型：markdown=Markdown 文档；iframe=嵌入网页。不传默认 markdown",
+          },
+          content: {
+            type: "string",
+            description: "kind=markdown 时的初始 Markdown 内容；可不传留空",
+          },
+          url: {
+            type: "string",
+            description: "kind=iframe 时的网址（http/https）。kind 不是 iframe 时忽略",
+          },
+        },
+        required: ["label"],
+      },
+    },
+  },
 ];
 
 // ============================================================
@@ -276,14 +316,23 @@ export interface CreateNoteArgs {
   tags?: string[];
 }
 
+export interface CreateCustomPanelArgs {
+  label: string;
+  emoji?: string;
+  kind?: "markdown" | "iframe";
+  content?: string;
+  url?: string;
+}
+
 // 工具名 → 参数类型 的联合（供执行器使用）
 export type ToolCall =
-  | { name: "create_item";     args: CreateItemArgs }
-  | { name: "update_item";     args: UpdateItemArgs }
-  | { name: "delete_item";     args: DeleteItemArgs }
-  | { name: "toggle_complete"; args: ToggleCompleteArgs }
-  | { name: "list_items";      args: ListItemsArgs }
-  | { name: "create_note";     args: CreateNoteArgs };
+  | { name: "create_item";         args: CreateItemArgs }
+  | { name: "update_item";         args: UpdateItemArgs }
+  | { name: "delete_item";         args: DeleteItemArgs }
+  | { name: "toggle_complete";     args: ToggleCompleteArgs }
+  | { name: "list_items";          args: ListItemsArgs }
+  | { name: "create_note";         args: CreateNoteArgs }
+  | { name: "create_custom_panel"; args: CreateCustomPanelArgs };
 
 // ============================================================
 // Helper：精简的 DdlItem（用于回传给 AI 看上下文，不要给完整 source）

@@ -9,7 +9,7 @@
 // 回执文案使用"建议..."而非"已..."，让 AI 明确告诉用户「需要核实」。
 // ============================================================
 
-import type { DdlItem, Note } from "./types";
+import type { DdlItem, Note, CustomPanel } from "./types";
 import type { ApiToolCall } from "./chat-client";
 import {
   compactItem,
@@ -21,6 +21,7 @@ import {
   type ToggleCompleteArgs,
   type ListItemsArgs,
   type CreateNoteArgs,
+  type CreateCustomPanelArgs,
 } from "./ai-tools";
 import { makeChangeId, type PendingChange } from "./pending";
 
@@ -55,6 +56,8 @@ export function createToolExecutor(deps: ToolExecutorDeps) {
         return execList(args as ListItemsArgs, deps);
       case "create_note":
         return execCreateNote(args as CreateNoteArgs, deps);
+      case "create_custom_panel":
+        return execCreateCustomPanel(args as CreateCustomPanelArgs, deps);
       default:
         return { ok: false, message: `未知工具：${call.function.name}` };
     }
@@ -245,6 +248,41 @@ function execCreateNote(args: CreateNoteArgs, { addPending }: ToolExecutorDeps):
     ok: true,
     message: `已生成笔记草稿:「${noteDraft.title}」(${noteDraft.content.length} 字)。已加入待核实队列。`,
     data: { id: noteDraft.id, title: noteDraft.title, length: noteDraft.content.length },
+  };
+}
+
+// ============================================================
+// 7. create_custom_panel → PendingCreateCustomPanel（[054] D.3）
+// ============================================================
+function execCreateCustomPanel(args: CreateCustomPanelArgs, { addPending }: ToolExecutorDeps): ToolResult {
+  if (!args.label || !args.label.trim()) {
+    return { ok: false, message: "create_custom_panel 需要 label" };
+  }
+  const kind: "markdown" | "iframe" = args.kind === "iframe" ? "iframe" : "markdown";
+  if (kind === "iframe" && (!args.url || !args.url.trim())) {
+    return { ok: false, message: "kind=iframe 必须传 url" };
+  }
+  const now = Date.now();
+  const panelDraft: CustomPanel = {
+    id: "custom-" + uid(),
+    label: args.label.slice(0, 12).trim() || "新面板",
+    emoji: (args.emoji || "📋").slice(0, 3),
+    content: args.content ?? "",
+    kind,
+    ...(kind === "iframe" && args.url ? { url: args.url.trim() } : {}),
+    createdAt: now,
+    updatedAt: now,
+  };
+  addPending({
+    id: makeChangeId(),
+    kind: "create-custom-panel",
+    summary: `${panelDraft.emoji} ${panelDraft.label}`,
+    panelDraft,
+  });
+  return {
+    ok: true,
+    message: `已生成自定义面板草稿:「${panelDraft.label}」(${kind})。已加入待核实队列。`,
+    data: { id: panelDraft.id, label: panelDraft.label, kind },
   };
 }
 
