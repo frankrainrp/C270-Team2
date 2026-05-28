@@ -7,7 +7,7 @@
 // ============================================================
 
 import Dexie, { type Table } from "dexie";
-import type { DdlItem, ChatMessage, StoredBlob, ChatSession, Note, ButlerAsset } from "./types";
+import type { DdlItem, ChatMessage, StoredBlob, ChatSession, Note, ButlerAsset, CustomPanel } from "./types";
 
 export class ButlerDB extends Dexie {
   ddls!: Table<DdlItem, string>;          // 主键 id
@@ -16,6 +16,7 @@ export class ButlerDB extends Dexie {
   sessions!: Table<ChatSession, string>;  // 主键 id（多会话）
   notes!: Table<Note, string>;            // 主键 id（笔记，v5 起）
   butlerAssets!: Table<ButlerAsset, string>; // 主键 poseName（v6 起，Phase C 人物自定义）
+  customPanels!: Table<CustomPanel, string>; // 主键 id（v7 起，Phase E 自定义面板）
 
   constructor() {
     super("butler-db");
@@ -80,6 +81,16 @@ export class ButlerDB extends Dexie {
       sessions: "&id, updatedAt",
       notes: "&id, updatedAt, pinned",
       butlerAssets: "&poseName, updatedAt",
+    });
+    // v7: 新增 customPanels 表（[052] Phase E 用户自定义 Tab 面板）
+    this.version(7).stores({
+      ddls: "&id, dueDate, completed, status, source",
+      messages: "&id, sessionId, timestamp, role",
+      blobs: "&id, createdAt",
+      sessions: "&id, updatedAt",
+      notes: "&id, updatedAt, pinned",
+      butlerAssets: "&poseName, updatedAt",
+      customPanels: "&id, updatedAt",
     });
   }
 }

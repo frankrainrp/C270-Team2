@@ -6,8 +6,8 @@
 // ============================================================
 
 import React, { useState } from "react";
-import { Bell, ChevronDown, User as UserIcon, LogOut, CreditCard, LayoutGrid, Settings } from "lucide-react";
-import type { NavId, DdlItem, Note, ChatMessage } from "@/lib/types";
+import { Bell, ChevronDown, User as UserIcon, LogOut, CreditCard, LayoutGrid, Settings, Plus } from "lucide-react";
+import type { NavId, DdlItem, Note, ChatMessage, CustomPanel } from "@/lib/types";
 import GlobalSearch from "./GlobalSearch";
 
 const TAB_LABELS: Record<NavId, string> = {
@@ -37,12 +37,21 @@ interface TopBarProps {
   hiddenTabs?: Set<NavId>;
   /** Phase D 拖拽重排后回调 */
   onTabsReorder?: (newOrder: NavId[]) => void;
+  /** Phase E 自定义面板列表（按 createdAt 升序）*/
+  customPanels?: Pick<CustomPanel, "id" | "label" | "emoji">[];
+  /** Phase E 当前激活的自定义面板 id（非 null 时盖过 activeNav）*/
+  activeCustomPanelId?: string | null;
+  /** Phase E 点击自定义面板 Tab */
+  onSelectCustomPanel?: (id: string) => void;
+  /** Phase E 「+」按钮：创建新自定义面板 */
+  onCreateCustomPanel?: () => void;
 }
 
 export default function TopBar({
   activeNav, onNavChange, miniAppsOpen, onToggleMiniApps,
   ddls = [], notes = [], messages = [], onSearchJump, onOpenPreferences,
   tabsOrder, hiddenTabs, onTabsReorder,
+  customPanels = [], activeCustomPanelId, onSelectCustomPanel, onCreateCustomPanel,
 }: TopBarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   // Phase D Tab 拖拽：dragOverId 指示拖到哪个 tab 上（视觉反馈）
@@ -105,10 +114,11 @@ export default function TopBar({
         </span>
       </div>
 
-      {/* ── 中：Tab Bar （Phase D 可拖拽重排 + 可隐藏） ── */}
+      {/* ── 中：Tab Bar （Phase D 可拖拽重排 + 可隐藏；Phase E 自定义面板）── */}
       <nav style={{ display: "flex", alignItems: "center", gap: 0, height: "100%" }}>
         {visibleTabs.map((id) => {
-          const isActive = activeNav === id;
+          // Phase E：有 activeCustomPanelId 时所有内置 Tab 都不 active
+          const isActive = !activeCustomPanelId && activeNav === id;
           const isDragOver = dragOverId === id;
           return (
             <button
@@ -167,6 +177,88 @@ export default function TopBar({
             </button>
           );
         })}
+
+        {/* Phase E 自定义面板 Tab（按 createdAt 顺序） */}
+        {customPanels.map((p) => {
+          const isActive = activeCustomPanelId === p.id;
+          return (
+            <button
+              key={p.id}
+              onClick={() => onSelectCustomPanel?.(p.id)}
+              title={p.label}
+              style={{
+                position: "relative",
+                padding: "0 12px",
+                height: "100%",
+                border: "none",
+                background: "transparent",
+                fontSize: 14,
+                fontWeight: 500,
+                color: isActive ? "var(--color-text)" : "var(--color-text-muted)",
+                cursor: "pointer",
+                transition: "color 0.15s",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+              onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text)"; }}
+              onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text-muted)"; }}
+            >
+              <span style={{ fontSize: 14, lineHeight: 1 }}>{p.emoji}</span>
+              <span style={{
+                maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>{p.label}</span>
+              {isActive && (
+                <span
+                  style={{
+                    position: "absolute",
+                    bottom: -1,
+                    left: 12,
+                    right: 12,
+                    height: 2,
+                    background: "var(--color-primary)",
+                    borderRadius: 2,
+                  }}
+                />
+              )}
+            </button>
+          );
+        })}
+
+        {/* Phase E 「+」新建按钮 */}
+        {onCreateCustomPanel && (
+          <button
+            onClick={onCreateCustomPanel}
+            title="新建自定义面板"
+            aria-label="新建自定义面板"
+            style={{
+              marginLeft: 4,
+              width: 26, height: 26, borderRadius: 6,
+              border: "1px dashed var(--color-border)",
+              background: "transparent",
+              color: "var(--color-text-faint)",
+              cursor: "pointer",
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              const el = e.currentTarget as HTMLButtonElement;
+              el.style.background = "var(--color-primary-soft)";
+              el.style.color = "var(--color-primary)";
+              el.style.borderColor = "var(--color-primary)";
+              el.style.borderStyle = "solid";
+            }}
+            onMouseLeave={(e) => {
+              const el = e.currentTarget as HTMLButtonElement;
+              el.style.background = "transparent";
+              el.style.color = "var(--color-text-faint)";
+              el.style.borderColor = "var(--color-border)";
+              el.style.borderStyle = "dashed";
+            }}
+          >
+            <Plus size={14} />
+          </button>
+        )}
       </nav>
 
       {/* ── 右：搜索 / 通知 / 用户 ── */}

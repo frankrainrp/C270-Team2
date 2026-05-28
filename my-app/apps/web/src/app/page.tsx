@@ -16,13 +16,14 @@ import ChatCanvas from "@/components/ChatCanvas";
 import TasksPanel from "@/components/TasksPanel";
 import CalendarPanel from "@/components/CalendarPanel";
 import NotesPanel from "@/components/NotesPanel";
+import CustomPanelView from "@/components/CustomPanelView";
 import TaskDetailDrawer, { type EditingTarget, type FormPayload } from "@/components/TaskDetailDrawer";
 import AttachmentPreview from "@/components/AttachmentPreview";
 import NotesPreview from "@/components/NotesPreview";
 import KeyboardShortcutsHelp from "@/components/KeyboardShortcutsHelp";
 import PreferencesPanel, { applyStoredPreferences, getStoredPersonality } from "@/components/PreferencesPanel";
 import OnboardingTour from "@/components/OnboardingTour";
-import type { ChatMessage, ChatSession, ProcessingPipeline, DdlItem, NavId, UploadedFile, DdlAttachment, Note } from "@/lib/types";
+import type { ChatMessage, ChatSession, ProcessingPipeline, DdlItem, NavId, UploadedFile, DdlAttachment, Note, CustomPanel } from "@/lib/types";
 import { INITIAL_STEPS } from "@/lib/mock-pipeline";
 import { streamChat, type ApiMessage } from "@/lib/chat-client";
 import { createToolExecutor } from "@/lib/tool-executor";
@@ -39,6 +40,13 @@ import {
   setTabsOrder,
   type ButlerPosition,
 } from "@/lib/layout-prefs";
+import {
+  CUSTOM_PANEL_EVENT,
+  createCustomPanel,
+  deleteCustomPanel,
+  getAllCustomPanels,
+  updateCustomPanel,
+} from "@/lib/custom-panels";
 
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 
@@ -49,6 +57,9 @@ export default function HomePage() {
   const [tabsOrder, setTabsOrderState] = useState<NavId[]>(["chat", "tasks", "calendar", "notes"]);
   const [hiddenTabs, setHiddenTabsState] = useState<Set<NavId>>(new Set());
   const [butlerPosition, setButlerPositionState] = useState<ButlerPosition>("center");
+  // Phase E 自定义面板（mount 后从 IndexedDB 加载 + 监听 CUSTOM_PANEL_EVENT）
+  const [customPanels, setCustomPanels] = useState<CustomPanel[]>([]);
+  const [activeCustomPanelId, setActiveCustomPanelId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);  // 全 session 共池，渲染时按 activeSessionId 过滤
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -1100,6 +1111,52 @@ export default function HomePage() {
     return () => window.removeEventListener(LAYOUT_PREFS_EVENT, sync);
   }, []);
 
+  // Phase E 自定义面板：mount + 监听 CUSTOM_PANEL_EVENT 重新加载
+  useEffect(() => {
+    const sync = async () => {
+      try {
+        const list = await getAllCustomPanels();
+        setCustomPanels(list);
+        // 若当前激活的面板被删了 → 退回 chat
+        if (activeCustomPanelId && !list.find((p) => p.id === activeCustomPanelId)) {
+          setActiveCustomPanelId(null);
+        }
+      } catch { /* silent */ }
+    };
+    sync();
+    window.addEventListener(CUSTOM_PANEL_EVENT, sync);
+    return () => window.removeEventListener(CUSTOM_PANEL_EVENT, sync);
+  }, [activeCustomPanelId]);
+
+  // Phase E 创建新面板：建一条 + 立即激活
+  const handleCreateCustomPanel = useCallback(async () => {
+    try {
+      const p = await createCustomPanel("新面板");
+      setActiveCustomPanelId(p.id);
+    } catch (e) {
+      toast.error(`创建失败：${(e as Error).message}`);
+    }
+  }, [toast]);
+
+  // Phase E 更新（防抖在 CustomPanelView 内）
+  const handleUpdateCustomPanel = useCallback(async (id: string, patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content">>) => {
+    try { await updateCustomPanel(id, patch); } catch { /* silent */ }
+  }, []);
+
+  // Phase E 删除：清除 active + 退回 chat
+  const handleDeleteCustomPanel = useCallback(async (id: string) => {
+    try {
+      await deleteCustomPanel(id);
+      if (activeCustomPanelId === id) {
+        setActiveCustomPanelId(null);
+        setActiveNav("chat");
+      }
+      toast.success("已删除面板");
+    } catch (e) {
+      toast.error(`删除失败：${(e as Error).message}`);
+    }
+  }, [activeCustomPanelId, toast]);
+
   // G2.1 streak 状态(显示给 TodayHero)
   const [streakDays, setStreakDays] = useState(0);
 
@@ -1418,7 +1475,7 @@ export default function HomePage() {
       {/* 顶 Bar */}
       <TopBar
         activeNav={activeNav}
-        onNavChange={(id) => setActiveNav(id)}
+        onNavChange={(id) => { setActiveNav(id); setActiveCustomPanelId(null); }}
         miniAppsOpen={miniAppsOpen}
         onToggleMiniApps={() => setMiniAppsOpen((v) => !v)}
         ddls={ddls}
@@ -1429,6 +1486,10 @@ export default function HomePage() {
         tabsOrder={tabsOrder}
         hiddenTabs={hiddenTabs}
         onTabsReorder={(newOrder) => setTabsOrder(newOrder)}
+        customPanels={customPanels}
+        activeCustomPanelId={activeCustomPanelId}
+        onSelectCustomPanel={(id) => setActiveCustomPanelId(id)}
+        onCreateCustomPanel={handleCreateCustomPanel}
       />
 
       {/* 学习工具抽屉（fixed 浮在右侧，不阻塞主区操作） */}
@@ -1450,7 +1511,8 @@ export default function HomePage() {
       {/* 主体：左栏 + 内容区 */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         <LeftRail>
-          {activeNav === "chat" && (
+          {/* 自定义面板没有 Rail（MVP），渲染空容器 */}
+          {!activeCustomPanelId && activeNav === "chat" && (
             <ChatRail
               sessions={orderedSessions}
               activeId={activeSessionId}
@@ -1460,7 +1522,7 @@ export default function HomePage() {
               onDelete={handleDeleteSession}
             />
           )}
-          {activeNav === "tasks" && (
+          {!activeCustomPanelId && activeNav === "tasks" && (
             <TasksRail
               onCreateTask={() => setEditing({ mode: "create" })}
               counts={taskCounts}
@@ -1468,7 +1530,7 @@ export default function HomePage() {
               onSelectView={setTaskView}
             />
           )}
-          {activeNav === "calendar" && (
+          {!activeCustomPanelId && activeNav === "calendar" && (
             <CalendarRail
               onCreateEvent={() => setEditing({ mode: "create" })}
               ddls={ddls}
@@ -1478,7 +1540,7 @@ export default function HomePage() {
               }}
             />
           )}
-          {activeNav === "notes" && (
+          {!activeCustomPanelId && activeNav === "notes" && (
             <NotesRail notes={notes} onCreate={handleCreateNote} />
           )}
         </LeftRail>
@@ -1491,7 +1553,7 @@ export default function HomePage() {
             background: "var(--color-bg)",
           }}
         >
-          {activeNav === "chat" && (
+          {!activeCustomPanelId && activeNav === "chat" && (
             <ChatCanvas
               messages={visibleMessages}
               pipelines={pipelines}
@@ -1523,7 +1585,7 @@ export default function HomePage() {
               butlerPosition={butlerPosition}
             />
           )}
-          {activeNav === "tasks" && (
+          {!activeCustomPanelId && activeNav === "tasks" && (
             <TasksPanel
               ddls={ddls}
               view={taskView}
@@ -1540,7 +1602,7 @@ export default function HomePage() {
               highlightTaskId={highlightTaskId}
             />
           )}
-          {activeNav === "calendar" && (
+          {!activeCustomPanelId && activeNav === "calendar" && (
             <CalendarPanel
               ddls={ddls}
               onRequestCreate={(presetDate, presetTime) => setEditing({ mode: "create", presetDate, presetTime })}
@@ -1549,7 +1611,7 @@ export default function HomePage() {
               onMoveEvent={handleMoveEvent}
             />
           )}
-          {activeNav === "notes" && (
+          {!activeCustomPanelId && activeNav === "notes" && (
             <NotesPanel
               notes={notes}
               onCreate={handleCreateNote}
@@ -1561,6 +1623,20 @@ export default function HomePage() {
               onAutoExtractTodos={handleAutoExtractTodos}
             />
           )}
+
+          {/* Phase E 自定义面板：activeCustomPanelId 设置时盖过所有内置面板 */}
+          {activeCustomPanelId && (() => {
+            const panel = customPanels.find((p) => p.id === activeCustomPanelId);
+            if (!panel) return null;
+            return (
+              <CustomPanelView
+                key={panel.id}
+                panel={panel}
+                onUpdate={handleUpdateCustomPanel}
+                onDelete={handleDeleteCustomPanel}
+              />
+            );
+          })()}
 
           {editing && (
             <TaskDetailDrawer

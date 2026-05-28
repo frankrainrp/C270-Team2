@@ -15,7 +15,7 @@
 
 ## 1. 当前 Phase 与最新进度
 
-- **Phase 2 完成 ✅** + 基础功能 4 面板全部有真东西（PROGRESS 最新 **[046]**）；**Chat ~100% / Tasks ~99% / Notes ~92% / Calendar ~100% / 跨面板 ~80% / 平台层全新增 / 5 增长支柱 G1+G2+G3+G5 完成 / 7 管家姿势真资产全部接入（[046]）**
+- **Phase 2 完成 ✅** + 基础功能 4 面板全部有真东西（PROGRESS 最新 **[052]**）；**Chat ~100% / Tasks ~99% / Notes ~92% / Calendar ~100% / 跨面板 ~80% / 平台层全新增 / 5 增长支柱 G1+G2+G3+G5 完成 / 7 管家姿势真资产全部接入 / 自定义系统 5 Phase A-E 全部完成（[048]-[052]：dark mode + 颜色 + 人物 + 位置 + 自定义面板）**
 - UI 重构 5 stage 全部收尾（Stage A 顶 Tab → E 全局清理）
 - **管家形象 + ConfirmCard 核实门控 + Mini Apps Drawer + 模型切换 + Stage C.2 字段扩展 + 多模态 OCR + Notes 浏览器版 + 全局搜索 + AI 开屏问候 + 思考模式 reasoning 可见化** 都已落地
 - Phase 3（Tauri 桌面壳）/ Phase 4（Clerk + Neon 多租户）未启动
@@ -65,6 +65,11 @@
 - **streak + 成就**（[045] G2）localStorage 派生,8 个成就;TodayHero 显示 🔥
 - **PWA manifest**（[045] G2.4）支持装机
 - **Notes 浏览器版**（v5 起）双栏 + 防抖保存。Phase 3 接 Tauri 后会迁移到本地 Obsidian Vault（`vaultPath` 字段已留位）
+- **自定义系统 5 Phase A-E**（[048]-[052]，Dexie v7）：
+  - 主题色 color picker + hex↔HSL 派生（`lib/theme.ts`）
+  - 上传管家形象 + 客户端 Canvas trim（`lib/butler-asset.ts`，IndexedDB butlerAssets）
+  - 布局偏好（`lib/layout-prefs.ts`，Tab 拖拽顺序 + 隐藏 + 管家位置 4 档）
+  - 自定义面板（`lib/custom-panels.ts`，IndexedDB customPanels，Markdown body）
 
 ---
 
@@ -110,7 +115,8 @@ my-app/apps/web/src/
 │   ├── Toast.tsx             ← ★ 全局 Toast 通知（useToast hook，4 档 + action 按钮 Undo）
 │   ├── TodayHero.tsx         ← ★ Chat 欢迎屏「今日聚焦」+ streak 🔥 + 最佳时段 chip
 │   ├── KeyboardShortcutsHelp.tsx ← ★ ? 弹快捷键 modal
-│   ├── PreferencesPanel.tsx  ← ★ 偏好设置 modal（亮/暗主题 + 字号 + 管家性格 3 档）
+│   ├── PreferencesPanel.tsx  ← ★ 偏好设置 modal（主题/字号/主题色/管家形象/布局/管家性格 6 段）
+│   ├── CustomPanelView.tsx   ← ★ [052] 自定义面板渲染（emoji+label+Markdown editor + 防抖保存）
 │   ├── OnboardingTour.tsx    ← ★ 首次 5 步引导（暗色遮罩 + pulse 高亮）
 │   ├── mini-apps/
 │   │   ├── FocusTimer.tsx    ← 番茄钟 + 关联任务下拉
@@ -137,6 +143,10 @@ my-app/apps/web/src/
     ├── streak.ts             ← ★ G2 连续天数 + 8 个成就解锁
     ├── demo-data.ts          ← ★ G1 一键 Demo（3 课 × 8 任务 + 2 笔记）
     ├── ics-import.ts         ← ★ G1 .ics 课表文件解析
+    ├── theme.ts              ← ★ [049] Phase B 颜色：hex↔HSL + deriveAccentScheme + 6 预设
+    ├── butler-asset.ts       ← ★ [050] Phase C 人物：客户端 Canvas trim + IndexedDB CRUD
+    ├── layout-prefs.ts       ← ★ [051] Phase D 布局：tabsOrder/hiddenTabs/butlerPosition
+    ├── custom-panels.ts      ← ★ [052] Phase E 自定义面板 CRUD
     ├── ocr/
     │   ├── providers.ts      ← OCR provider 注册表
     │   └── index.ts          ← runOcr(file) + 50MB 硬拒
@@ -164,4 +174,4 @@ scripts/
 
 ---
 
-*最后更新：2026-05-27 — 同步 [046]：4 张新姿势 SVG → trim PNG 接入，7 姿势真资产全部到位*
+*最后更新：2026-05-27 — 同步 [048]-[052]：自定义系统 5 Phase A-E 全部完成（dark mode + 颜色 + 人物 + 位置 + 自定义面板）*

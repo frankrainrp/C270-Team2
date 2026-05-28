@@ -127,3 +127,14 @@ export interface ButlerAsset {
   height: number;       // trim 后真实高度
   updatedAt: number;
 }
+
+// 用户自定义面板（[052] Phase E，Dexie v7 起）
+// 出现在 Tab Bar 内置 4 Tab 后；目前 Markdown body（iframe / 嵌入网页等后续扩展）
+export interface CustomPanel {
+  id: string;          // "custom-{nanoid}"
+  label: string;       // Tab 显示名（≤12 字符）
+  emoji: string;       // Tab 前缀单字符 emoji
+  content: string;     // Markdown body
+  createdAt: number;
+  updatedAt: number;
+}

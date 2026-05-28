@@ -7,6 +7,7 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [052] | 自定义系统 Phase E — 自定义面板（Roadmap 收尾） | Dexie v7 customPanels + emoji+label+Markdown body + Tab + 「+」+ 即时编辑 |
 | [051] | 自定义系统 Phase D — 元素位置自定义 | Tab 拖拽重排 + 4 档 Tab 隐藏 + 管家位置 4 档（左/中/右/隐藏） |
 | [050] | 自定义系统 Phase C — 人物自定义 | Dexie v6 butlerAssets + 客户端 Canvas trim + 上传 / 预览 / 重置 |
 | [049] | 自定义系统 Phase B — 颜色自定义 | lib/theme.ts hex↔HSL + 派生 + 6 预设 swatch + color picker + 重置 |
@@ -35,7 +36,63 @@
 | [022]-[026] | UI 重构 Stage C-E + Mini Apps + Stage C.2 + 模型切换 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
-> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 11 条 [041]-[051] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 12 条 [041]-[052] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [052] 2026-05-27 — 自定义系统 Phase E：自定义面板（A→E Roadmap 收尾）
+
+> 接 [051] Phase D，Phase E 让用户在内置 4 Tab 之外创建额外面板。整套自定义系统 5 Phase 至此全部交付。
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/lib/types.ts` | 修改 | 新增 `CustomPanel` 接口（id / label≤12 / emoji / Markdown content / createdAt / updatedAt） |
+| `apps/web/src/lib/db.ts` | 修改 | Dexie 升 v6→v7，新增 `customPanels` 表（主键 id，updatedAt 索引） |
+| `apps/web/src/lib/custom-panels.ts` | **新建** | CRUD（getAll / get / create / update / delete）+ `CUSTOM_PANEL_EVENT` CustomEvent 通知 + 自动截断 label≤12 / emoji≤3 |
+| `apps/web/src/components/CustomPanelView.tsx` | **新建** | 单页 Markdown 编辑器风格：header（可编辑 emoji + label + 编辑/预览切换 + 删除）+ body（textarea / ReactMarkdown 渲染）；1.2s 防抖保存 + unmount flush；空 content 时显示 FileText 占位 |
+| `apps/web/src/components/layout/TopBar.tsx` | 修改 | 接 4 个新 props（customPanels / activeCustomPanelId / onSelectCustomPanel / onCreateCustomPanel）；内置 Tab 后追加自定义 Tab（emoji + label，活动用 primary 下划线）+ 「+」虚线按钮触发新建 |
+| `apps/web/src/app/page.tsx` | 修改 | (1) 新增 `customPanels` / `activeCustomPanelId` state；(2) mount + CUSTOM_PANEL_EVENT 监听同步；(3) 3 个 handler：create（建后即激活）/ update（直透 IndexedDB）/ delete（删除并退回 chat）；(4) TopBar onNavChange 同时清 activeCustomPanelId；(5) LeftRail 4 个 `activeNav===xxx` 全加 `!activeCustomPanelId &&` 守卫；(6) 主区追加 CustomPanelView 渲染分支 |
+
+### 🎯 关键设计
+
+- **MVP Markdown only**：iframe / 嵌入网页 / 自由 widget 等延后。MVP 先把"再加一个 Tab 放我的笔记/链接/日志"打通
+- **激活互斥**：`activeNav: NavId` 和 `activeCustomPanelId: string | null` 互斥。点击内置 Tab 清空 activeCustomPanelId；点击自定义 Tab 设置 activeCustomPanelId（activeNav 保持但不显示）。这避免给 NavId 类型加 string 联合，少改 30+ 处 switch
+- **删除即退回**：删除当前激活的面板自动退回 `activeNav="chat"` + 清 activeCustomPanelId，防止"找不到"
+- **emoji 单字符**：MVP 限制 emoji 字段 ≤3 字符（覆盖 surrogate pair emoji 如 🇨🇳）。后续可加 emoji picker
+- **label ≤12**：避免 Tab Bar 撑爆，超长自动截断
+- **MVP 无 Rail**：自定义面板不渲染 LeftRail 内容（节省屏幕、简化交互）；后续可让用户配置 Rail 内容
+- **createdAt 排序**：Tab 顺序固定为创建顺序；后续可加自定义面板间拖拽重排（复用 Phase D 机制）
+- **CustomPanelView 防抖**：编辑 emoji/label/content 都用 1.2s 防抖；unmount/切换面板时立即 flush 防丢失
+
+### 🚦 自定义系统 Roadmap 全部完成 🎉
+
+| Phase | 内容 | 状态 |
+|---|---|---|
+| **A** Dark Mode 优化 | 15+ token + AttachmentPreview 重写 + 5 文件硬编码色收口 | ✅ [048] |
+| **B** 颜色自定义 | lib/theme.ts hex↔HSL 派生 + 6 预设 + color picker + 重置 | ✅ [049] |
+| **C** 人物自定义 | Dexie v6 + 客户端 Canvas trim + 上传/预览/重置 | ✅ [050] |
+| **D** 元素位置自定义 | Tab 拖拽 + 隐藏 + 管家位置 4 档 | ✅ [051] |
+| **E** 自定义面板 | Dexie v7 + emoji+label+Markdown + Tab + 「+」+ 即时编辑 | ✅ 本条 [052] |
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- HMR 自动加载（Dexie v7 升级在用户下次开页面时静默执行）
+- 待用户实测：点顶栏 「+」→ 自动创建 + 激活；改 emoji/label/content 实时保存；点 Trash 确认删除后退回 Chat；切回内置 Tab 正常；多面板互切
+
+### 📝 后续可扩展
+
+- iframe / 嵌入网页类型（kind: "markdown" | "iframe"）
+- 自定义面板间拖拽重排（复用 Phase D 拖拽机制）
+- 自定义 Rail 内容（让用户为每个 panel 配置左侧栏 widget）
+- 多人协作（Phase 4 多租户上线后）
+- AI tool 调 create_custom_panel（让 Butler 主动建面板）
+
+### 💾 备份建议
+
+`backup-051-layout-prefs` 之后，本次紧跟。建议 tag：`backup-052-custom-panels`
 
 ---
 
