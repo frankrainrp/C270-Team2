@@ -7,6 +7,7 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [053] | Notes 92% → 100%（wikilink + 反向引用 + 本地搜索） | [[Title]] 双链 + 缺失链接新建 + backlinks 条 + list 搜索 + 代码块 dark fix |
 | [052] | 自定义系统 Phase E — 自定义面板（Roadmap 收尾） | Dexie v7 customPanels + emoji+label+Markdown body + Tab + 「+」+ 即时编辑 |
 | [051] | 自定义系统 Phase D — 元素位置自定义 | Tab 拖拽重排 + 4 档 Tab 隐藏 + 管家位置 4 档（左/中/右/隐藏） |
 | [050] | 自定义系统 Phase C — 人物自定义 | Dexie v6 butlerAssets + 客户端 Canvas trim + 上传 / 预览 / 重置 |
@@ -36,7 +37,77 @@
 | [022]-[026] | UI 重构 Stage C-E + Mini Apps + Stage C.2 + 模型切换 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
-> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 12 条 [041]-[052] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 13 条 [041]-[053] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [053] 2026-05-27 — Notes 92% → 100%：wikilink 双链 + 反向引用 + 本地搜索
+
+> 多版 PROGRESS 都提到的"下一步候选"，今天落地。Notes 面板补齐 Obsidian-like 三件套，为 Phase 3 Tauri 接本地 Vault 提前打通核心 UX。
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/components/NotesPanel.tsx` | 修改 | (1) 新增 `WIKILINK_RE` 正则 + `preprocessWikilinks` 工具：把 `[[Title]]` 预处理成 `[Title](#butler-wikilink:id-or-missing:title)` markdown link，让 ReactMarkdown 原生渲染但在 `a` 组件 override 里拦截 click；(2) `titleToId` Map（title 小写 → id）+ `handleWikilinkClick`（存在 → setActiveId+preview；缺失 → confirm 新建+用 title 自动命名）；(3) `backlinks` useMemo 扫描其他笔记的 `[[当前 title]]` 引用，渲染独立 "被 N 条笔记引用" 条（蓝色 info 系，与紫色 link2 关联任务条区分）；(4) `query` state + 列表区上方 28px 搜索框（Search/X icon + 实时过滤 + 空匹配占位） |
+| `apps/web/src/components/NotesPanel.tsx` (md-preview) | 修改 | `pre` 代码块 `#1f2937 / #f3f4f6` → `var(--color-code-bg/-text)`（[048] 没扫到的 Notes preview 区漏窗一并 fix） |
+
+### 🎯 wikilink 关键设计
+
+- **预处理而非 remark 插件**：用纯字符串替换 `[[xxx]]` → markdown link，ReactMarkdown 原生渲染。比写 remark 插件简单 10×，行为可预测
+- **内部 marker 用 `#butler-wikilink:` 前缀**：`#` 是浏览器锚点，ReactMarkdown 不会当外链；前缀够特别避免与用户写的真锚点 `#section` 混淆
+- **缺失链接非"破窗"而是"机会"**：点击不存在的 `[[xxx]]` → confirm「是否新建」→ 同意则建一条空笔记并自动用 xxx 命名 → 跳转。Obsidian 同款心智
+- **大小写不敏感匹配**：`[[Linear Algebra]]` 和 `[[linear algebra]]` 都匹配同一笔记。普通用户不会大小写一致
+- **正则避坑**：`[^\[\]\n]` 排除嵌套和跨行；非贪婪 `+?` 限制单 link 不抢后面内容
+- **视觉区分**：存在 → info 蓝下划线 + 浅底块；缺失 → danger 红虚线下划线
+
+### 🎯 反向引用条
+
+- 出现在 active note 编辑器顶部、关联任务条之前
+- 用 `Network` icon + info 色，与现有 `Link2` + primary 色的关联任务条区分
+- 每个 backlink 是可点击 chip → 跳到该笔记的 preview 模式
+- 完全靠 useMemo + WIKILINK_RE 扫描，零持久化（无新表，无迁移成本）
+
+### 🎯 本地搜索
+
+- 紧贴 list 之上，比 TopBar GlobalSearch 更聚焦"在当前笔记列表里找"
+- 子串匹配 title + content + tags（与 GlobalSearch 同算法，但只搜 notes）
+- 空匹配提示「没有匹配 + 一键清除」防迷茫
+- 不引入 fuse.js：当前数据量下子串足够，省 ~10KB 依赖
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- HMR 自动加载
+- 待用户实测：
+  - 笔记 A 写 `[[笔记 B]]` → preview 看到 info 蓝链接 → click 跳到笔记 B
+  - 写 `[[不存在的]]` → 看到红虚线 → click 弹「是否新建」→ 同意建空笔记自动命名
+  - 笔记 B 顶部出现「被 1 条笔记引用：笔记 A」chip → click 回到 A
+  - 列表搜索框输入关键词 → 列表实时过滤
+
+### 📊 完整度
+
+| Tab | 之前 | 现在 |
+|---|---|---|
+| **Notes** | ~92% | **~100%**（wikilink 双链 + backlinks + 本地搜索 全部到位）|
+
+### 📝 后续可扩展
+
+- `[[` autocomplete 浮层（输入 `[[` 时浮出所有笔记 title 列表，Tab 补全）
+- wikilink 跨系统（笔记 → 自定义面板 / 任务）
+- 图谱视图（Mermaid 渲染笔记间的引用网络）
+- 全文搜索高级（fuse.js 模糊匹配 + 关键词高亮）
+
+### 🚦 下一步候选
+
+- 部署到 Vercel（让 PWA 装机能真用）
+- Phase 3 Tauri 桌面壳启动
+- Calendar DayView 拖拽 / iframe 面板 / AI tool create_custom_panel 小补丁串烧
+- 别的方向
+
+### 💾 备份建议
+
+`backup-052-custom-panels` 之后，本次紧跟。建议 tag：`backup-053-notes-100`
 
 ---
 

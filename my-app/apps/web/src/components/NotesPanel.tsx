@@ -9,10 +9,33 @@
 // ============================================================
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Pin, PinOff, Eye, Edit3, FileText, Lock, Link2 } from "lucide-react";
+import { Plus, Trash2, Pin, PinOff, Eye, Edit3, FileText, Lock, Link2, Search, X as XIcon, Network } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Note, DdlItem } from "@/lib/types";
+
+// ============================================================
+// [053] Notes 100%：wikilink 工具
+//   - WIKILINK_RE: 匹配 [[Title]]（避免贪婪 + 排除嵌套右括号）
+//   - WIKI_HREF_PREFIX: 内部跳转 marker，ReactMarkdown 不会把它当外链
+//   - 把 [[xxx]] 预处理成 markdown link [xxx](#butler-wikilink:id-or-missing:title)
+//     既保留 ReactMarkdown 原生渲染又能在 a 组件覆写里拦截 click
+// ============================================================
+const WIKILINK_RE = /\[\[([^\[\]\n]+?)\]\]/g;
+const WIKI_HREF_PREFIX = "#butler-wikilink:";
+
+function preprocessWikilinks(content: string, titleToId: Map<string, string>): string {
+  return content.replace(WIKILINK_RE, (_full, raw: string) => {
+    const title = raw.trim();
+    if (!title) return _full;
+    const id = titleToId.get(title.toLowerCase());
+    // 用 ! 前缀标记缺失，避免与合法 note id 混淆
+    const target = id ?? `!missing:${encodeURIComponent(title)}`;
+    // markdown link 文本里转义可能存在的 ] 防越界
+    const safeText = title.replace(/[\[\]]/g, "");
+    return `[${safeText}](${WIKI_HREF_PREFIX}${target})`;
+  });
+}
 
 interface Props {
   notes: Note[];
@@ -41,6 +64,27 @@ export default function NotesPanel({
       return b.updatedAt - a.updatedAt;
     });
   }, [notes]);
+
+  // [053] title (lowercase) → id 映射，用于 wikilink 解析
+  const titleToId = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const n of notes) {
+      const t = (n.title || "").trim().toLowerCase();
+      if (t) m.set(t, n.id);
+    }
+    return m;
+  }, [notes]);
+
+  // [053] 本地搜索 query → 过滤 sorted（title + content + tags 子串）
+  const [query, setQuery] = useState("");
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return sorted;
+    return sorted.filter((n) => {
+      const hay = `${n.title} ${n.content} ${(n.tags ?? []).join(" ")}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [sorted, query]);
 
   const [activeId, setActiveId] = useState<string | null>(sorted[0]?.id ?? null);
   const [mode, setMode] = useState<"edit" | "preview">("edit");
@@ -71,10 +115,42 @@ export default function NotesPanel({
     [active, ddls],
   );
 
+  // [053] 反向 wikilink：扫描所有其他笔记，找到 `[[当前 title]]` 引用
+  const backlinks = useMemo(() => {
+    if (!active || !active.title.trim()) return [];
+    const titleLower = active.title.trim().toLowerCase();
+    const result: Note[] = [];
+    for (const n of notes) {
+      if (n.id === active.id) continue;
+      // 扫描内容中所有 [[xxx]] 匹配
+      const matches = n.content.match(WIKILINK_RE);
+      if (!matches) continue;
+      const has = matches.some((m) => m.slice(2, -2).trim().toLowerCase() === titleLower);
+      if (has) result.push(n);
+    }
+    return result;
+  }, [active, notes]);
+
   const handleCreate = () => {
     const fresh = onCreate();
     setActiveId(fresh.id);
     setMode("edit");
+  };
+
+  // [053] 处理 wikilink 点击：跳转 id，或缺失时新建该 title
+  const handleWikilinkClick = (target: string) => {
+    if (target.startsWith("!missing:")) {
+      const title = decodeURIComponent(target.slice(9));
+      if (!confirm(`「${title}」 不存在，是否新建？`)) return;
+      const fresh = onCreate();
+      // 新建后立即用该 title 更新
+      onUpdate(fresh.id, { title, updatedAt: Date.now() });
+      setActiveId(fresh.id);
+      setMode("edit");
+    } else {
+      setActiveId(target);
+      setMode("preview");
+    }
   };
 
   return (
@@ -122,6 +198,43 @@ export default function NotesPanel({
           </button>
         </header>
 
+        {/* [053] 本地搜索框 */}
+        <div style={{ padding: "0 12px 8px" }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6,
+            height: 28, borderRadius: 6,
+            background: "var(--color-bg)",
+            border: "1px solid var(--color-border)",
+            padding: "0 8px",
+          }}>
+            <Search size={12} color="var(--color-text-faint)" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="搜索笔记…"
+              style={{
+                flex: 1, border: "none", background: "transparent",
+                outline: "none", fontSize: 12, color: "var(--color-text)",
+                fontFamily: "inherit", width: 0,
+              }}
+            />
+            {query && (
+              <button
+                onClick={() => setQuery("")}
+                aria-label="清除"
+                style={{
+                  width: 16, height: 16, borderRadius: 4, border: "none",
+                  background: "transparent", cursor: "pointer", padding: 0,
+                  color: "var(--color-text-faint)",
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <XIcon size={11} />
+              </button>
+            )}
+          </div>
+        </div>
+
         <div style={{ flex: 1, overflowY: "auto", padding: "0 8px 8px" }}>
           {sorted.length === 0 ? (
             <div style={{
@@ -131,8 +244,25 @@ export default function NotesPanel({
               没有笔记<br />
               <span style={{ color: "var(--color-text-muted)" }}>点 + 新建</span>
             </div>
+          ) : filtered.length === 0 ? (
+            <div style={{
+              textAlign: "center", padding: "30px 12px",
+              color: "var(--color-text-faint)", fontSize: 12,
+            }}>
+              没有匹配「{query}」<br />
+              <button
+                onClick={() => setQuery("")}
+                style={{
+                  marginTop: 6, padding: "3px 10px", border: "1px solid var(--color-border)",
+                  borderRadius: 4, background: "var(--color-bg)", color: "var(--color-text-muted)",
+                  fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                清除筛选
+              </button>
+            </div>
           ) : (
-            sorted.map((n) => (
+            filtered.map((n) => (
               <NoteListItem
                 key={n.id}
                 note={n}
@@ -174,6 +304,10 @@ export default function NotesPanel({
             linkedTasks={linkedTasks}
             onJumpToTask={onJumpToTask}
             onAutoExtractTodos={onAutoExtractTodos}
+            titleToId={titleToId}
+            backlinks={backlinks}
+            onWikilinkClick={handleWikilinkClick}
+            onSelectBacklink={(id) => { setActiveId(id); setMode("preview"); }}
           />
         ) : (
           <EmptyHero onCreate={handleCreate} />
@@ -239,6 +373,7 @@ function NoteListItem({
 // ============================================================
 function NoteEditor({
   note, mode, onModeChange, onUpdate, onDelete, linkedTasks = [], onJumpToTask, onAutoExtractTodos,
+  titleToId, backlinks = [], onWikilinkClick, onSelectBacklink,
 }: {
   note: Note;
   mode: "edit" | "preview";
@@ -248,6 +383,11 @@ function NoteEditor({
   linkedTasks?: DdlItem[];
   onJumpToTask?: (taskId: string) => void;
   onAutoExtractTodos?: (noteId: string, newTodos: string[]) => void;
+  // [053]
+  titleToId?: Map<string, string>;
+  backlinks?: Note[];
+  onWikilinkClick?: (target: string) => void;
+  onSelectBacklink?: (id: string) => void;
 }) {
   const [title, setTitle] = useState(note.title);
   const [content, setContent] = useState(note.content);
@@ -330,6 +470,45 @@ function NoteEditor({
         </button>
       </header>
 
+      {/* [053] 反向 wikilink 条（仅有被引用时显示） */}
+      {backlinks.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 6,
+            padding: "8px 24px",
+            background: "color-mix(in srgb, var(--color-info) 8%, var(--color-bg))",
+            borderBottom: "1px solid color-mix(in srgb, var(--color-info) 20%, transparent)",
+            fontSize: 12,
+            color: "var(--color-text-muted)",
+          }}
+        >
+          <Network size={12} color="var(--color-info)" />
+          <span style={{ marginRight: 4 }}>被 {backlinks.length} 条笔记引用:</span>
+          {backlinks.map((b) => (
+            <button
+              key={b.id}
+              onClick={() => onSelectBacklink?.(b.id)}
+              style={{
+                padding: "2px 8px",
+                borderRadius: 4,
+                border: "1px solid color-mix(in srgb, var(--color-info) 30%, transparent)",
+                background: "var(--color-bg)",
+                color: "var(--color-info)",
+                fontSize: 11,
+                fontWeight: 500,
+                cursor: onSelectBacklink ? "pointer" : "default",
+                fontFamily: "inherit",
+              }}
+            >
+              {b.title || "(无标题)"}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* B1 关联任务条（仅有关联时显示） */}
       {linkedTasks.length > 0 && (
         <div
@@ -392,7 +571,39 @@ function NoteEditor({
           }}
         >
           {content.trim() ? (
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                // [053] 拦截 wikilink href（# 前缀）→ 内部跳转；其余链接照常新窗口打开
+                a: ({ href, children, ...rest }) => {
+                  if (href && href.startsWith(WIKI_HREF_PREFIX)) {
+                    const target = href.slice(WIKI_HREF_PREFIX.length);
+                    const missing = target.startsWith("!missing:");
+                    return (
+                      <a
+                        href={href}
+                        onClick={(e) => { e.preventDefault(); onWikilinkClick?.(target); }}
+                        style={{
+                          color: missing ? "var(--color-danger)" : "var(--color-info)",
+                          textDecoration: missing ? "underline dashed" : "underline",
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          background: missing ? "transparent" : "color-mix(in srgb, var(--color-info) 8%, transparent)",
+                          padding: missing ? 0 : "0 3px",
+                          borderRadius: 3,
+                        }}
+                        title={missing ? "笔记不存在，点击新建" : "跳转到该笔记"}
+                      >
+                        {children}
+                      </a>
+                    );
+                  }
+                  return <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>{children}</a>;
+                },
+              }}
+            >
+              {titleToId ? preprocessWikilinks(content, titleToId) : content}
+            </ReactMarkdown>
           ) : (
             <p style={{ color: "var(--color-text-faint)" }}>（笔记为空）</p>
           )}
@@ -407,7 +618,7 @@ function NoteEditor({
         .md-preview h2 { font-size: 17px; }
         .md-preview h3 { font-size: 15px; }
         .md-preview code { background: var(--color-primary-soft); padding: 1px 6px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--color-primary); }
-        .md-preview pre { background: #1f2937; color: #f3f4f6; padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; margin: 10px 0; }
+        .md-preview pre { background: var(--color-code-bg); color: var(--color-code-text); padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; margin: 10px 0; }
         .md-preview pre code { background: transparent; color: inherit; }
         .md-preview a { color: var(--color-primary); text-decoration: underline; }
         .md-preview blockquote { border-left: 3px solid var(--color-primary); padding: 2px 12px; color: var(--color-text-muted); margin: 8px 0; }

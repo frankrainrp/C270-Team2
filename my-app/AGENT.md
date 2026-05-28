@@ -15,7 +15,7 @@
 
 ## 1. 当前 Phase 与最新进度
 
-- **Phase 2 完成 ✅** + 基础功能 4 面板全部有真东西（PROGRESS 最新 **[052]**）；**Chat ~100% / Tasks ~99% / Notes ~92% / Calendar ~100% / 跨面板 ~80% / 平台层全新增 / 5 增长支柱 G1+G2+G3+G5 完成 / 7 管家姿势真资产全部接入 / 自定义系统 5 Phase A-E 全部完成（[048]-[052]：dark mode + 颜色 + 人物 + 位置 + 自定义面板）**
+- **Phase 2 完成 ✅** + 基础功能 4 面板全部有真东西（PROGRESS 最新 **[053]**）；**Chat ~100% / Tasks ~99% / Notes ~100% / Calendar ~100% / 跨面板 ~80% / 平台层全新增 / 5 增长支柱 G1+G2+G3+G5 完成 / 7 管家姿势真资产全部接入 / 自定义系统 5 Phase A-E 全部完成（[048]-[052]）/ Notes 100% wikilink+反链+搜索（[053]）**
 - UI 重构 5 stage 全部收尾（Stage A 顶 Tab → E 全局清理）
 - **管家形象 + ConfirmCard 核实门控 + Mini Apps Drawer + 模型切换 + Stage C.2 字段扩展 + 多模态 OCR + Notes 浏览器版 + 全局搜索 + AI 开屏问候 + 思考模式 reasoning 可见化** 都已落地
 - Phase 3（Tauri 桌面壳）/ Phase 4（Clerk + Neon 多租户）未启动
@@ -107,7 +107,7 @@ my-app/apps/web/src/
 │   ├── TaskDetailDrawer.tsx  ← 右侧详情抽屉(status/tags/priority/附件/关联笔记/4 模板)
 │   ├── TasksPanel.tsx        ← Linear 列表 + view 过滤 + Deadline 紧急度色彩 + tag chip 聚合 + 高亮闪烁
 │   ├── CalendarPanel.tsx     ← 月 + Day + Week 视图（Week 含点空格创建 + 事件拖拽改时间）
-│   ├── NotesPanel.tsx        ← 浏览器版双栏（v5）+ 关联任务条 + checkbox 自动同步 Tasks
+│   ├── NotesPanel.tsx        ← [053] 浏览器版双栏（v5）+ wikilink 双链 + 反向引用 + 本地搜索 + 关联任务条 + checkbox 自动同步 Tasks
 │   ├── ProcessingPipeline.tsx ← PDF 4 步可视化
 │   ├── InputPod.tsx          ← 输入舱 + 模型下拉 + 中文 IME 防误 + Stop 按钮
 │   ├── AttachmentPreview.tsx ← URL/路径/Blob 3 类预览
@@ -174,4 +174,4 @@ scripts/
 
 ---
 
-*最后更新：2026-05-27 — 同步 [048]-[052]：自定义系统 5 Phase A-E 全部完成（dark mode + 颜色 + 人物 + 位置 + 自定义面板）*
+*最后更新：2026-05-27 — 同步 [053]：Notes 100%（[[wikilink]] 双链 + 反向引用 + 本地搜索）*
