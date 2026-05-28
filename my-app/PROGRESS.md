@@ -7,6 +7,7 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [055] | F Polish — code review 后的 5 个 bug 修复 | CustomPanelView 数据不丢 + 累积 patch + URL race + PreferencesPanel cancelled + ref 闭包 |
 | [054] | D 小补丁串烧三件套（DayView 拖拽 + iframe 面板 + AI 建面板） | TimelinePill draggable + CustomPanel kind=iframe + 第 7 个 AI tool create_custom_panel |
 | [053] | Notes 92% → 100%（wikilink + 反向引用 + 本地搜索） | [[Title]] 双链 + 缺失链接新建 + backlinks 条 + list 搜索 + 代码块 dark fix |
 | [052] | 自定义系统 Phase E — 自定义面板（Roadmap 收尾） | Dexie v7 customPanels + emoji+label+Markdown body + Tab + 「+」+ 即时编辑 |
@@ -38,7 +39,82 @@
 | [022]-[026] | UI 重构 Stage C-E + Mini Apps + Stage C.2 + 模型切换 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
-> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 14 条 [041]-[054] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 15 条 [041]-[055] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [055] 2026-05-27 — F Polish：code review 后的 5 个 bug 修复
+
+> 用户选 F「实测 + Polish」。用 code-review skill 跑 5 angles × 8 candidates → verify → sweep，从 [048]-[054] 发现 12 个 finding，5 个高/中优先级今天修。
+
+### 🐛 修复列表
+
+| # | 严重度 | 文件 | 问题 | 修复 |
+|---|---|---|---|---|
+| **F#1** | 🔴 高 | `CustomPanelView.tsx` | unmount/切面板 cleanup 用 stale 闭包 → 用户未保存的编辑丢失 | 改用 `pendingPatchRef` + `prevIdRef` + `onUpdateRef`；新增 `flushNow(id)` 在切换/卸载时安全 flush |
+| **F#2** | 🔴 高 | `PreferencesPanel.tsx` | 偏好面板在 IIFE await 期间关闭 → cleanup 无法 revoke 后续创建的 ObjectURL | 加 `cancelled` 标志（同 ButlerCharacter 已用模式），IIFE 在 cancelled 时跳过 URL.createObjectURL |
+| **F#3** | 🟡 中 | `CustomPanelView.tsx` | scheduleSave 不同字段连改 → 前一个字段 patch 被 timer reset 覆盖 → 永不持久化 | patch 累积到 `pendingPatchRef`，timer fire 时一次性发出累积 patch |
+| **F#4** | 🟡 中 | `CustomPanelView.tsx` | URL onBlur 立即写库，但 onChange 已 schedule 的原始 URL 1.2s 后覆盖 → DB 存的是未规范化 URL | onBlur 先 clear timer + 清 pendingPatchRef，再 onUpdate 规范化 URL |
+| **F#5** | 🟡 中 | `PreferencesPanel.tsx` | handleUpload 闭包冻结 customPreview → 并发上传时第一次的 URL 永不 revoke | 新增 `customPreviewRef`，render 同步；handleUpload/handleClearCustom 都从 ref 读最新值 |
+
+### 📂 涉及文件
+
+| 文件 | 改动 |
+|---|---|
+| `apps/web/src/components/CustomPanelView.tsx` | F#1+F#3+F#4 联动重写 save 逻辑：refs（pendingPatch / prevId / onUpdate）+ flushNow helper；scheduleSave 累积 patch；切面板 effect 先 flush 旧 id；unmount effect deps=[] 用 prevIdRef；onBlur URL 取消 pending；emoji input title 修正"单字符"→"最多 3 字符" |
+| `apps/web/src/components/PreferencesPanel.tsx` | F#2+F#5：open-effect IIFE 加 cancelled 标志 + createdUrl 跟踪；customPreviewRef render 同步；handleUpload/handleClearCustom 用 ref 替代闭包 customPreview |
+
+### 🎯 修复原理（核心 React pattern）
+
+**问题模式**：useEffect 用 `[panel.id]` deps 时，cleanup 闭包冻结的是 deps 上次变化时的 state 值，不是「最新」值。  
+**修复模式**：用 `useRef` 在每 render 同步最新值，cleanup 通过 ref 读取。这是 React 官方推荐的"latest value"模式。
+
+```ts
+// Before（buggy）
+useEffect(() => {
+  return () => onUpdate(panel.id, { content });  // content 是 effect 上次跑时的值
+}, [panel.id]);
+
+// After（fixed）
+const stateRef = useRef(...); stateRef.current = ...;  // 每 render 更新
+useEffect(() => {
+  return () => onUpdate(prevIdRef.current, stateRef.current);  // ref 总是最新
+}, []);
+```
+
+并发 await + cleanup 的 cancelled 模式同理 — 防止 cleanup 后异步代码继续创建 resource。
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- HMR 自动加载
+- 待用户实测：
+  - 打开自定义面板 A 输入 → 立即切到面板 B（不等 1.2s）→ A 的内容应该已被保存
+  - 快速打开/关闭偏好设置 → 无 ObjectURL leak（可在 chrome devtools Performance → Memory 看）
+  - 自定义面板连改 emoji + label + content → 1.2s 后所有 3 个字段全部持久化（不再丢前面的）
+  - iframe panel 输入 URL `example.com` 失焦 → DB 应存 `https://example.com`
+  - 偏好设置连续上传管家形象 2 张图 → 第一张 URL 应被 revoke
+
+### 📝 剩余未修的 finding（低优先级，code review 报告里）
+
+- 系统 prompt 没提 `create_custom_panel` → AI 触发率可能偏低（行为可接受）
+- DayView 时间格 onClick tagName check 是 paranoia（无 bug）
+- ButlerCharacter ObjectURL race（理论存在，实际单 effect 同步 currentUrl OK）
+- handleAcceptBatch 在 setState updater 里跑 async（StrictMode 双调用；当前 idempotent 无害）
+- Phase E useEffect deps=[activeCustomPanelId] 触发 listener 重挂（性能瑕疵非 bug）
+- iframe sandbox `allow-scripts + allow-same-origin` 组合需文档警告（用户控制 URL 信任自己）
+- butler-asset trimAndCrop 大图阻塞主线程（无进度 UI；MVP 接受）
+
+### 🚦 下一步候选
+
+- C. 部署到 Vercel（随处访问 + PWA 装机能真用）
+- B. Phase 3 Tauri 桌面壳启动
+- G. wikilink autocomplete
+- 别的方向
+
+### 💾 备份建议
+
+`backup-054-d-small-patches` 之后，本次紧跟。建议 tag：`backup-055-polish-bugfixes`
 
 ---
 

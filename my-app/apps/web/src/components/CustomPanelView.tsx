@@ -46,6 +46,8 @@ function KindBtn({ active, onClick, icon, label }: { active: boolean; onClick: (
   );
 }
 
+type PanelPatch = Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url">>;
+
 export default function CustomPanelView({ panel, onUpdate, onDelete }: Props) {
   const kind: CustomPanelKind = panel.kind ?? "markdown";
   const [content, setContent] = useState(panel.content);
@@ -55,8 +57,33 @@ export default function CustomPanelView({ panel, onUpdate, onDelete }: Props) {
   const [mode, setMode] = useState<"edit" | "preview">(panel.content ? "preview" : "edit");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 切换面板时同步 state（panel.id 变化）
+  // [055 F#1+F#3] 修复：
+  //   #1 unmount 用 stale 闭包丢编辑 → 改用 ref 跟踪「上一个 panelId」+「累积 patch」
+  //   #3 scheduleSave 不同字段连改前一个丢失 → patch 累积到 pendingPatchRef，timer fire 一起 flush
+  const pendingPatchRef = useRef<PanelPatch>({});
+  const prevIdRef = useRef(panel.id);
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
+
+  // 立即 flush helper：清 timer + 一次性发出累积 patch
+  // 注意用 onUpdateRef 而非闭包 onUpdate，避免 unmount 时拿到 stale prop
+  const flushNow = (id: string) => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    if (Object.keys(pendingPatchRef.current).length > 0) {
+      onUpdateRef.current(id, pendingPatchRef.current);
+      pendingPatchRef.current = {};
+    }
+  };
+
+  // 切换面板时：先 flush 上一个 panel 的累积 patch（用 prevIdRef）
   useEffect(() => {
+    if (prevIdRef.current !== panel.id) {
+      flushNow(prevIdRef.current);
+      prevIdRef.current = panel.id;
+    }
     setContent(panel.content);
     setLabel(panel.label);
     setEmoji(panel.emoji);
@@ -64,30 +91,30 @@ export default function CustomPanelView({ panel, onUpdate, onDelete }: Props) {
     setMode(panel.content ? "preview" : "edit");
   }, [panel.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // content 防抖保存
-  const scheduleSave = (patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url">>) => {
+  // unmount 时 flush 最终编辑（用 prevIdRef，cleanup 跑在 panel 切换之前）
+  useEffect(() => {
+    return () => {
+      flushNow(prevIdRef.current);
+    };
+  }, []); // 仅 unmount，不重跑
+
+  // content 防抖保存 — patch 累积到 ref，timer fire 时一次性 flush
+  const scheduleSave = (patch: PanelPatch) => {
+    pendingPatchRef.current = { ...pendingPatchRef.current, ...patch };
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      onUpdate(panel.id, patch);
+      const p = pendingPatchRef.current;
+      pendingPatchRef.current = {};
+      onUpdateRef.current(panel.id, p);
       saveTimerRef.current = null;
     }, 1200);
   };
 
-  // unmount 或切换 panel 时立即 flush
-  useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        // 立即保存最新值
-        onUpdate(panel.id, { content, label, emoji, url });
-        saveTimerRef.current = null;
-      }
-    };
-  }, [panel.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const handleDelete = () => {
     if (confirm(`确定删除面板「${panel.label}」？此操作不可撤销。`)) {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      // 删除时丢弃所有 pending 修改
+      if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+      pendingPatchRef.current = {};
       onDelete(panel.id);
     }
   };
@@ -134,7 +161,7 @@ export default function CustomPanelView({ panel, onUpdate, onDelete }: Props) {
           }}
           onFocus={(e) => ((e.currentTarget.style.border = "1px solid var(--color-border)"))}
           onBlur={(e) => ((e.currentTarget.style.border = "1px solid transparent"))}
-          title="单字符 emoji（点击编辑）"
+          title="面板 emoji（最多 3 字符，兼容旗帜/ZWJ emoji）"
         />
         <input
           value={label}
@@ -249,8 +276,14 @@ export default function CustomPanelView({ panel, onUpdate, onDelete }: Props) {
             onChange={(e) => { setUrl(e.target.value); scheduleSave({ url: e.target.value }); }}
             onBlur={(e) => {
               // blur 时规范化 + 立即保存
+              // [055 F#4] 先取消 pending timer + 清累积 patch，避免 1.2s 后用未规范化 URL 覆盖
               const v = normalizeUrl(e.target.value);
-              if (v !== e.target.value) { setUrl(v); onUpdate(panel.id, { url: v }); }
+              if (v !== e.target.value) {
+                setUrl(v);
+                if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+                pendingPatchRef.current = {};
+                onUpdateRef.current(panel.id, { url: v });
+              }
             }}
             placeholder="https://example.com（支持 https/http）"
             style={{

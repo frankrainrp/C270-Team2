@@ -15,7 +15,7 @@
 
 ## 1. 当前 Phase 与最新进度
 
-- **Phase 2 完成 ✅** + 基础功能 4 面板全部有真东西（PROGRESS 最新 **[054]**）；**Chat ~100% / Tasks ~99% / Notes ~100% / Calendar ~100% / 跨面板 ~80% / 平台层全新增 / 5 增长支柱 G1+G2+G3+G5 完成 / 7 管家姿势真资产全部接入 / 自定义系统 5 Phase A-E 全部完成 / Notes 100% / [054] D 小补丁：DayView 拖拽 + iframe 面板 + AI tool create_custom_panel**
+- **Phase 2 完成 ✅** + 基础功能 4 面板全部有真东西（PROGRESS 最新 **[055]**）；**Chat ~100% / Tasks ~99% / Notes ~100% / Calendar ~100% / 跨面板 ~80% / 平台层全新增 / 5 增长支柱 G1+G2+G3+G5 完成 / 7 管家姿势真资产 / 自定义系统 5 Phase A-E / Notes 100% / D 小补丁 / [055] F Polish 5 bug 修复**
 - UI 重构 5 stage 全部收尾（Stage A 顶 Tab → E 全局清理）
 - **管家形象 + ConfirmCard 核实门控 + Mini Apps Drawer + 模型切换 + Stage C.2 字段扩展 + 多模态 OCR + Notes 浏览器版 + 全局搜索 + AI 开屏问候 + 思考模式 reasoning 可见化** 都已落地
 - Phase 3（Tauri 桌面壳）/ Phase 4（Clerk + Neon 多租户）未启动
@@ -175,4 +175,4 @@ scripts/
 
 ---
 
-*最后更新：2026-05-27 — 同步 [054]：D 小补丁串烧（DayView 拖拽 + iframe 面板 + AI tool create_custom_panel）*
+*最后更新：2026-05-27 — 同步 [055]：F Polish — code review 后的 5 bug 修复（数据不丢失 + ObjectURL 不泄漏）*

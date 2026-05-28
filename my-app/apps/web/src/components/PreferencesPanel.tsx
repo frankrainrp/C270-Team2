@@ -76,6 +76,11 @@ export default function PreferencesPanel({ open, onClose }: Props) {
   const [butlerPos, setButlerPos] = useState<ButlerPosition>("center");
   const [hiddenTabs, setHiddenTabsState] = useState<Set<NavId>>(new Set());
 
+  // [055 F#5] customPreview 用 ref 同步最新值，避免 handleUpload 闭包陷阱：
+  // 并发上传时第二次读到 stale closure 的 customPreview → 第一次 URL 永远 revoke 不掉
+  const customPreviewRef = useRef(customPreview);
+  customPreviewRef.current = customPreview;
+
   // 进 panel 时读 localStorage + 自定义形象
   useEffect(() => {
     if (!open) return;
@@ -91,20 +96,26 @@ export default function PreferencesPanel({ open, onClose }: Props) {
       setHiddenTabsState(getHiddenTabs());
     } catch { /* silent */ }
     // 加载自定义形象（用于预览）
-    let revoke: string | null = null;
+    // [055 F#2] cancelled 标志：panel 在 IIFE await 期间关闭 → 跳过 URL.createObjectURL 防 leak
+    let cancelled = false;
+    let createdUrl: string | null = null;
     (async () => {
       try {
         const asset = await getCustomAsset();
+        if (cancelled) return; // panel 已关，不再创建 URL
         if (asset) {
           const url = URL.createObjectURL(asset.blob);
-          revoke = url;
+          createdUrl = url;
           setCustomPreview({ url, w: asset.width, h: asset.height });
         } else {
           setCustomPreview(null);
         }
       } catch { /* silent */ }
     })();
-    return () => { if (revoke) URL.revokeObjectURL(revoke); };
+    return () => {
+      cancelled = true;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
   }, [open]);
 
   // 上传 → trim → 存 + 即时预览
@@ -113,10 +124,13 @@ export default function PreferencesPanel({ open, onClose }: Props) {
     setUploading(true);
     try {
       const asset = await setCustomAsset(file);
-      // 撤销旧预览
-      if (customPreview) URL.revokeObjectURL(customPreview.url);
+      // [055 F#5] 用 ref 拿最新 customPreview，避免闭包陷阱（并发上传旧 URL 永不 revoke）
+      const prev = customPreviewRef.current;
+      if (prev) URL.revokeObjectURL(prev.url);
       const url = URL.createObjectURL(asset.blob);
-      setCustomPreview({ url, w: asset.width, h: asset.height });
+      const next = { url, w: asset.width, h: asset.height };
+      setCustomPreview(next);
+      customPreviewRef.current = next; // 立即更新 ref，下一次并发上传可见
     } catch (e) {
       setUploadErr((e as Error).message);
     } finally {
@@ -127,8 +141,11 @@ export default function PreferencesPanel({ open, onClose }: Props) {
   const handleClearCustom = async () => {
     try {
       await clearCustomAsset();
-      if (customPreview) URL.revokeObjectURL(customPreview.url);
+      // [055 F#5] 同样用 ref
+      const prev = customPreviewRef.current;
+      if (prev) URL.revokeObjectURL(prev.url);
       setCustomPreview(null);
+      customPreviewRef.current = null;
     } catch { /* silent */ }
   };
 
