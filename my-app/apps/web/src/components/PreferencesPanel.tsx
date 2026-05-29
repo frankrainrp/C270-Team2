@@ -10,7 +10,7 @@
 // ============================================================
 
 import React, { useEffect, useRef, useState } from "react";
-import { X, Sun, Moon, Type, Heart, MessageSquare, Flame, Palette, RotateCcw, Upload, User, AlignLeft, AlignCenter, AlignRight, EyeOff, Volume2, VolumeX } from "lucide-react";
+import { X, Sun, Moon, Feather, Type, Heart, MessageSquare, Flame, Palette, RotateCcw, Upload, User, AlignLeft, AlignCenter, AlignRight, EyeOff, Volume2, VolumeX } from "lucide-react";
 import {
   ACCENT_PRESETS,
   DEFAULT_ACCENT,
@@ -20,6 +20,7 @@ import {
   setStoredAccent,
 } from "@/lib/theme";
 import { clearCustomAsset, getCustomAsset, setCustomAsset } from "@/lib/butler-asset";
+import { getWallpaper, setWallpaper, clearWallpaper, getWallpaperDim, setWallpaperDim } from "@/lib/wallpaper";
 import {
   type ButlerPosition,
   getButlerPosition,
@@ -37,7 +38,7 @@ import {
   playSound,
 } from "@/lib/sound";
 
-type Theme = "light" | "dark";
+export type Theme = "light" | "dark" | "retro";
 type FontSize = "sm" | "md" | "lg";
 export type Personality = "gentle" | "standard" | "sassy";
 
@@ -55,6 +56,27 @@ export function applyStoredPreferences() {
   } catch { /* silent */ }
   // Phase B: 应用用户自定义 primary 色（无则跳过，保留 globals.css 默认墨绿）
   applyStoredAccent();
+}
+
+/** 读当前主题（供顶栏昼夜开关等复用）*/
+export function getStoredTheme(): Theme {
+  if (typeof window === "undefined") return "light";
+  try {
+    return (localStorage.getItem(THEME_KEY) as Theme | null) ?? "light";
+  } catch {
+    return "light";
+  }
+}
+
+/** 设置主题：写 data-theme + localStorage（与偏好设置面板共用同一持久化）*/
+export function setStoredTheme(t: Theme) {
+  if (typeof document === "undefined") return;
+  document.documentElement.dataset.theme = t;
+  try {
+    localStorage.setItem(THEME_KEY, t);
+  } catch {
+    /* silent */
+  }
 }
 
 export function getStoredPersonality(): Personality {
@@ -80,6 +102,12 @@ export default function PreferencesPanel({ open, onClose }: Props) {
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // [066] 壁纸状态
+  const [wpKind, setWpKind] = useState<"image" | "video" | null>(null);
+  const [wpDim, setWpDim] = useState(0.2);
+  const [wpUploading, setWpUploading] = useState(false);
+  const [wpErr, setWpErr] = useState<string | null>(null);
+  const wpInputRef = useRef<HTMLInputElement>(null);
   // Phase D 布局
   const [butlerPos, setButlerPos] = useState<ButlerPosition>("center");
   const [hiddenTabs, setHiddenTabsState] = useState<Set<NavId>>(new Set());
@@ -105,7 +133,10 @@ export default function PreferencesPanel({ open, onClose }: Props) {
       setButlerPos(getButlerPosition());
       setHiddenTabsState(getHiddenTabs());
       setSoundPrefsState(getSoundPrefs());
+      setWpDim(getWallpaperDim());
     } catch { /* silent */ }
+    // [066] 读当前壁纸类型（用于显示状态，不创建预览 URL，省内存）
+    void getWallpaper().then((w) => { if (open) setWpKind(w?.kind ?? null); }).catch(() => {});
     // 加载自定义形象（用于预览）
     // [055 F#2] cancelled 标志：panel 在 IIFE await 期间关闭 → 跳过 URL.createObjectURL 防 leak
     let cancelled = false;
@@ -158,6 +189,30 @@ export default function PreferencesPanel({ open, onClose }: Props) {
       setCustomPreview(null);
       customPreviewRef.current = null;
     } catch { /* silent */ }
+  };
+
+  // [066] 壁纸上传 / 清除 / 暗化
+  const handleWallpaperUpload = async (file: File) => {
+    setWpUploading(true);
+    setWpErr(null);
+    try {
+      const wp = await setWallpaper(file); // 存 IndexedDB + dispatch（WallpaperLayer 即时换）
+      setWpKind(wp.kind);
+    } catch (e) {
+      setWpErr(e instanceof Error ? e.message : "上传失败");
+    } finally {
+      setWpUploading(false);
+    }
+  };
+  const handleClearWallpaper = async () => {
+    try {
+      await clearWallpaper();
+      setWpKind(null);
+    } catch { /* silent */ }
+  };
+  const handleWpDimChange = (v: number) => {
+    setWpDim(v);
+    setWallpaperDim(v); // localStorage + dispatch
   };
 
   const applyButlerPos = (p: ButlerPosition) => {
@@ -239,7 +294,7 @@ export default function PreferencesPanel({ open, onClose }: Props) {
         style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(15,23,42,0.30)",
+          background: "var(--color-overlay)",
           zIndex: 80,
           animation: "fade-in 0.18s ease-out",
         }}
@@ -254,10 +309,14 @@ export default function PreferencesPanel({ open, onClose }: Props) {
           transform: "translate(-50%, -50%)",
           width: 420,
           maxWidth: "92vw",
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
           background: "var(--color-bg)",
           borderRadius: 14,
           border: "1px solid var(--color-border)",
-          boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
+          boxShadow: "var(--shadow-modal)",
           zIndex: 81,
           animation: "modal-pop 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
           color: "var(--color-text)",
@@ -269,6 +328,7 @@ export default function PreferencesPanel({ open, onClose }: Props) {
             alignItems: "center",
             padding: "14px 18px",
             borderBottom: "1px solid var(--color-border)",
+            flexShrink: 0,
           }}
         >
           <h2 style={{ flex: 1, fontSize: 14, fontWeight: 700, color: "var(--color-text)", margin: 0 }}>
@@ -290,12 +350,13 @@ export default function PreferencesPanel({ open, onClose }: Props) {
           </button>
         </header>
 
-        <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 18 }}>
+        <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 18, overflowY: "auto", flex: 1, minHeight: 0 }}>
           {/* 主题 */}
           <Section title="主题">
             <SegRow>
               <SegBtn active={theme === "light"} onClick={() => applyTheme("light")} icon={<Sun size={14} />} label="亮色" />
               <SegBtn active={theme === "dark"} onClick={() => applyTheme("dark")} icon={<Moon size={14} />} label="暗色" />
+              <SegBtn active={theme === "retro"} onClick={() => applyTheme("retro")} icon={<Feather size={14} />} label="复古" />
             </SegRow>
           </Section>
 
@@ -606,6 +667,73 @@ export default function PreferencesPanel({ open, onClose }: Props) {
                 }}
               />
             </div>
+          </Section>
+
+          {/* [066] 壁纸 */}
+          <Section title="壁纸">
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                onClick={() => wpInputRef.current?.click()}
+                disabled={wpUploading}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "6px 10px", borderRadius: 6,
+                  border: "1px solid var(--color-border)",
+                  background: "var(--color-bg)", color: "var(--color-text)",
+                  fontSize: 12, fontWeight: 500,
+                  cursor: wpUploading ? "wait" : "pointer", fontFamily: "inherit",
+                }}
+              >
+                <Upload size={12} /> {wpUploading ? "处理中…" : "上传图片 / 视频"}
+              </button>
+              {wpKind && (
+                <button
+                  onClick={handleClearWallpaper}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "6px 10px", borderRadius: 6,
+                    border: "1px solid var(--color-border)",
+                    background: "var(--color-bg)", color: "var(--color-text-muted)",
+                    fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  <RotateCcw size={12} /> 恢复默认
+                </button>
+              )}
+            </div>
+            <p style={{ fontSize: 11, color: "var(--color-text-faint)", margin: "6px 0 0", lineHeight: 1.5 }}>
+              {wpKind
+                ? `当前壁纸：${wpKind === "video" ? "视频" : "图片"}（浮在玻璃胶囊之后）`
+                : "默认网格底。可换成图片（≤10MB）或循环视频（≤60MB）"}
+            </p>
+            {wpErr && (
+              <p style={{ fontSize: 11, color: "var(--color-danger)", margin: "4px 0 0" }}>⚠️ {wpErr}</p>
+            )}
+            {/* 暗化滑块：保证壁纸上玻璃文字可读 */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+              <span style={{ fontSize: 11, color: "var(--color-text-muted)", flexShrink: 0 }}>暗化</span>
+              <input
+                type="range"
+                min={0} max={0.7} step={0.05}
+                value={wpDim}
+                onChange={(e) => handleWpDimChange(parseFloat(e.target.value))}
+                style={{ flex: 1, accentColor: "var(--color-primary)" }}
+              />
+              <span style={{ fontSize: 11, color: "var(--color-text-faint)", width: 34, textAlign: "right" }}>
+                {Math.round(wpDim * 100)}%
+              </span>
+            </div>
+            <input
+              ref={wpInputRef}
+              type="file"
+              accept="image/*,video/*"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleWallpaperUpload(f);
+                if (e.target) e.target.value = "";
+              }}
+            />
           </Section>
 
           {/* G5.1 管家性格 */}

@@ -6,6 +6,7 @@
 // ============================================================
 
 import React from "react";
+import { GlassButton } from "@/components/ui/Glass";
 
 interface LeftRailProps {
   children: React.ReactNode;
@@ -15,11 +16,15 @@ export default function LeftRail({ children }: LeftRailProps) {
   return (
     <aside
       style={{
-        width: 200,
-        minWidth: 200,
+        width: 220,
+        minWidth: 220,
         height: "100%",
-        background: "var(--color-surface)",
-        borderRight: "1px solid var(--color-border)",
+        background: "var(--glass-bg)",
+        backdropFilter: "var(--glass-blur)",
+        WebkitBackdropFilter: "var(--glass-blur)",
+        border: "1px solid var(--glass-border)",
+        borderRadius: "var(--radius-card)",
+        boxShadow: "var(--shadow-card-hover)",
         display: "flex",
         flexDirection: "column",
         padding: "16px 12px",
@@ -49,37 +54,16 @@ export function RailPrimaryBtn({
   onClick?: () => void;
   disabled?: boolean;
 }) {
-  const [hov, setHov] = React.useState(false);
   return (
-    <button
+    <GlassButton
+      variant="primary"
       onClick={onClick}
       disabled={disabled}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        width: "100%",
-        height: 36,
-        borderRadius: 8,
-        border: "none",
-        background: disabled
-          ? "var(--color-border)"
-          : hov
-          ? "var(--color-primary-hover)"
-          : "var(--color-primary)",
-        color: "white",
-        fontSize: 13,
-        fontWeight: 500,
-        cursor: disabled ? "not-allowed" : "pointer",
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 6,
-        transition: "background 0.15s",
-      }}
+      style={{ width: "100%", height: 36, fontSize: 13 }}
     >
       {icon}
       {label}
-    </button>
+    </GlassButton>
   );
 }
 

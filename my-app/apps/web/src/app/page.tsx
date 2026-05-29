@@ -23,6 +23,9 @@ import NotesPreview from "@/components/NotesPreview";
 import KeyboardShortcutsHelp from "@/components/KeyboardShortcutsHelp";
 import PreferencesPanel, { applyStoredPreferences, getStoredPersonality } from "@/components/PreferencesPanel";
 import OnboardingTour from "@/components/OnboardingTour";
+import Portal from "@/components/ui/Portal";
+import WallpaperLayer from "@/components/WallpaperLayer";
+import AchievementsRoom from "@/components/AchievementsRoom";
 import type { ChatMessage, ChatSession, ProcessingPipeline, DdlItem, NavId, UploadedFile, DdlAttachment, Note, CustomPanel } from "@/lib/types";
 import { INITIAL_STEPS } from "@/lib/mock-pipeline";
 import { streamChat, type ApiMessage } from "@/lib/chat-client";
@@ -1070,10 +1073,16 @@ export default function HomePage() {
   }, [sessions, messages, toast]);
 
   // session 列表的显示顺序（最近活跃在前）
-  const orderedSessions = useMemo(
-    () => [...sessions].sort((a, b) => b.updatedAt - a.updatedAt),
-    [sessions],
-  );
+  // #9 默认开新会话：只有「确实有明确交互内容」（出现过用户消息）的会话才进历史列表，
+  // 仅含开屏问候的空白草稿对话不污染 RECENT CHATS（当前活动草稿仍可正常输入，发消息后即出现）。
+  const orderedSessions = useMemo(() => {
+    const interacted = new Set(
+      messages.filter((m) => m.role === "user").map((m) => m.sessionId),
+    );
+    return [...sessions]
+      .filter((s) => interacted.has(s.id))
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }, [sessions, messages]);
 
   // 任务计数（用于 TasksRail 的 views）
   const taskCounts = useMemo(() => {
@@ -1117,6 +1126,8 @@ export default function HomePage() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   // Epic 3 偏好设置 modal
   const [prefsOpen, setPrefsOpen] = useState(false);
+  // #3 成就收藏室 modal
+  const [achievementsOpen, setAchievementsOpen] = useState(false);
   // C1 CalendarRail 迷你月历跳转目标
   const [calendarJumpDay, setCalendarJumpDay] = useState<string | null>(null);
 
@@ -1164,7 +1175,7 @@ export default function HomePage() {
   }, [toast]);
 
   // Phase E 更新（防抖在 CustomPanelView 内）
-  const handleUpdateCustomPanel = useCallback(async (id: string, patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url">>) => {
+  const handleUpdateCustomPanel = useCallback(async (id: string, patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url" | "modules">>) => {
     try { await updateCustomPanel(id, patch); } catch { /* silent */ }
   }, []);
 
@@ -1184,6 +1195,26 @@ export default function HomePage() {
 
   // G2.1 streak 状态(显示给 TodayHero)
   const [streakDays, setStreakDays] = useState(0);
+  // [065] 每日仪式 · 今日简报：每天首次打开显示一次
+  const [showDailyBrief, setShowDailyBrief] = useState(false);
+  const BRIEF_KEY = "butler.brief.lastSeen";
+  const todayKey = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const markBriefSeen = useCallback(() => {
+    try { localStorage.setItem(BRIEF_KEY, todayKey()); } catch { /* silent */ }
+  }, []);
+  const dismissDailyBrief = useCallback(() => {
+    markBriefSeen();
+    setShowDailyBrief(false);
+  }, [markBriefSeen]);
+  const handleStartFocus = useCallback(() => {
+    markBriefSeen();
+    setShowDailyBrief(false);
+    setActiveNav("chat");
+    setMiniAppsOpen(true); // 打开学习工具抽屉（含专注计时）
+  }, [markBriefSeen]);
 
   // G5.2 学习习惯识别:基于 messages 时间戳 + ddls.dueTime 派生「最佳时段」
   const bestHourLabel = useMemo(() => {
@@ -1216,6 +1247,16 @@ export default function HomePage() {
         toast.info(`👋 欢迎回来,重新开始 streak`);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
+
+  // [065] 每日仪式：hydrate 后，若今天还没看过简报则显示一次
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      const lastSeen = localStorage.getItem(BRIEF_KEY);
+      if (lastSeen !== todayKey()) setShowDailyBrief(true);
+    } catch { /* silent */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
 
@@ -1398,6 +1439,26 @@ export default function HomePage() {
     console.log(`[B4] auto-synced ${newTodos.length} todo(s) from note ${noteId}`);
   }, []);
 
+  // #16 推荐每日任务：一键直接创建（不开编辑器），落今天 DDL
+  const handleQuickAddTask = useCallback((title: string) => {
+    const d = new Date();
+    const todayIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    setDdls((prev) => [...prev, {
+      id: uid(),
+      taskName: title,
+      weight: null,
+      dueDate: todayIso,
+      dueTime: "23:59",
+      description: "",
+      isGroupWork: false,
+      source: "推荐任务",
+      completed: false,
+      status: "todo",
+    }]);
+    toast.success(`已添加：${title}`);
+    playSound("panel-create");
+  }, [toast]);
+
   const handleSubmitEdit = useCallback((data: FormPayload) => {
     // 计算被移除的 blob 附件，编辑后清理孤立 blob
     if (editing?.mode === "edit") {
@@ -1494,10 +1555,15 @@ export default function HomePage() {
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
-        background: "var(--color-bg)",
+        background: "transparent",
+        padding: 12,
+        gap: 12,
       }}
     >
-      {/* 顶 Bar */}
+      {/* [066] 壁纸层（固定全屏，在玻璃胶囊之后；无壁纸则露出 body 网格底）*/}
+      <WallpaperLayer />
+
+      {/* 顶 Bar（悬浮胶囊条）*/}
       <TopBar
         activeNav={activeNav}
         onNavChange={(id) => { setActiveNav(id); setActiveCustomPanelId(null); }}
@@ -1508,6 +1574,7 @@ export default function HomePage() {
         messages={messages}
         onSearchJump={handleSearchJump}
         onOpenPreferences={() => setPrefsOpen(true)}
+        onOpenAchievements={() => setAchievementsOpen(true)}
         tabsOrder={tabsOrder}
         hiddenTabs={hiddenTabs}
         onTabsReorder={(newOrder) => setTabsOrder(newOrder)}
@@ -1533,8 +1600,8 @@ export default function HomePage() {
         }}
       />
 
-      {/* 主体：左栏 + 内容区 */}
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+      {/* 主体：左栏 + 内容区（两个独立悬浮胶囊仓，互留间隙）*/}
+      <div style={{ flex: 1, display: "flex", overflow: "hidden", gap: 12 }}>
         <LeftRail>
           {/* 自定义面板没有 Rail（MVP），渲染空容器 */}
           {!activeCustomPanelId && activeNav === "chat" && (
@@ -1575,7 +1642,12 @@ export default function HomePage() {
             flex: 1,
             position: "relative",
             overflow: "hidden",
-            background: "var(--color-bg)",
+            borderRadius: "var(--radius-card)",
+            border: "1px solid var(--glass-border)",
+            background: "var(--glass-bg)",
+            backdropFilter: "var(--glass-blur)",
+            WebkitBackdropFilter: "var(--glass-blur)",
+            boxShadow: "var(--shadow-card-hover)",
           }}
         >
           {!activeCustomPanelId && activeNav === "chat" && (
@@ -1608,6 +1680,9 @@ export default function HomePage() {
               streakDays={streakDays}
               bestHourLabel={bestHourLabel}
               butlerPosition={butlerPosition}
+              showDailyBrief={showDailyBrief}
+              onStartFocus={handleStartFocus}
+              onDismissBrief={dismissDailyBrief}
             />
           )}
           {!activeCustomPanelId && activeNav === "tasks" && (
@@ -1616,6 +1691,7 @@ export default function HomePage() {
               view={taskView}
               onToggleComplete={handleToggleComplete}
               onRequestCreate={() => setEditing({ mode: "create" })}
+              onQuickAdd={handleQuickAddTask}
               onRequestEdit={(d) => setEditing({ mode: "edit", item: d })}
               onRequestDelete={handleDeleteDdl}
               onRequestPreview={(a) => setPreviewing(a)}
@@ -1659,47 +1735,69 @@ export default function HomePage() {
                 panel={panel}
                 onUpdate={handleUpdateCustomPanel}
                 onDelete={handleDeleteCustomPanel}
+                dataCtx={{
+                  ddls,
+                  notes,
+                  streakCurrent: streakDays,
+                  streakLongest: streakDays,
+                }}
               />
             );
           })()}
 
-          {editing && (
-            <TaskDetailDrawer
-              target={editing}
-              onCancel={() => setEditing(null)}
-              onSubmit={handleSubmitEdit}
-              onDelete={handleDeleteDdl}
-              linkedNote={
-                editing.mode === "edit" && editing.item.noteId
-                  ? notes.find((n) => n.id === editing.item.noteId) ?? null
-                  : null
-              }
-              onCreateLinkedNote={handleCreateLinkedNote}
-              onJumpToNote={handleJumpToNote}
-              onUnlinkNote={handleUnlinkNote}
-            />
-          )}
-
-          {previewing && (
-            <AttachmentPreview attachment={previewing} onClose={() => setPreviewing(null)} />
-          )}
-
-          {previewNotes && (
-            <NotesPreview
-              title={previewNotes.taskName}
-              notes={previewNotes.notes ?? ""}
-              onClose={() => setPreviewNotes(null)}
-            />
-          )}
-
-          {/* Epic 2.3 快捷键帮助面板（? 触发） */}
-          <KeyboardShortcutsHelp open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
-          {/* Epic 3 偏好设置 modal */}
-          <PreferencesPanel open={prefsOpen} onClose={() => setPrefsOpen(false)} />
-          {/* G1.3 首次使用 Tour(自动检测 localStorage) */}
-          <OnboardingTour />
         </main>
       </div>
+
+      {/* ── 浮层全部 Portal 到 body：逃离胶囊面板的 overflow/backdrop-filter，避免被截断 ── */}
+      <Portal>
+        {editing && (
+          <TaskDetailDrawer
+            target={editing}
+            onCancel={() => setEditing(null)}
+            onSubmit={handleSubmitEdit}
+            onDelete={handleDeleteDdl}
+            linkedNote={
+              editing.mode === "edit" && editing.item.noteId
+                ? notes.find((n) => n.id === editing.item.noteId) ?? null
+                : null
+            }
+            onCreateLinkedNote={handleCreateLinkedNote}
+            onJumpToNote={handleJumpToNote}
+            onUnlinkNote={handleUnlinkNote}
+          />
+        )}
+
+        {previewing && (
+          <AttachmentPreview attachment={previewing} onClose={() => setPreviewing(null)} />
+        )}
+
+        {previewNotes && (
+          <NotesPreview
+            title={previewNotes.taskName}
+            notes={previewNotes.notes ?? ""}
+            onClose={() => setPreviewNotes(null)}
+          />
+        )}
+
+        {/* Epic 2.3 快捷键帮助面板（? 触发） */}
+        <KeyboardShortcutsHelp open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+        {/* Epic 3 偏好设置 modal */}
+        <PreferencesPanel open={prefsOpen} onClose={() => setPrefsOpen(false)} />
+        {/* #3 成就收藏室 */}
+        <AchievementsRoom
+          open={achievementsOpen}
+          onClose={() => setAchievementsOpen(false)}
+          ctx={{
+            ddlsTotal: ddls.length,
+            ddlsDone: ddls.filter((d) => d.completed).length,
+            notesTotal: notes.length,
+            streakDays,
+            longestStreak: streakDays,
+          }}
+        />
+        {/* G1.3 首次使用 Tour(自动检测 localStorage) */}
+        <OnboardingTour />
+      </Portal>
     </div>
   );
 }

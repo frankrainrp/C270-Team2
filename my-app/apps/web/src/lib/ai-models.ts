@@ -5,7 +5,12 @@
 // 两个候选：V4 Flash（默认）/ V4 思考模式
 // ============================================================
 
-export type AiModelId = "deepseek-v4-flash" | "deepseek-v4-thinking";
+export type AiModelId =
+  | "deepseek-v4-flash"
+  | "deepseek-v4-thinking"
+  | "claude"
+  | "gpt"
+  | "gemini";
 
 export interface AiModelMeta {
   id: AiModelId;
@@ -25,6 +30,8 @@ export interface AiModelMeta {
   thinking?: {
     reasoningEffort: "high" | "max";
   };
+  /** #12 接口预留：下拉可见但暂未接入 API（点击不切换，提示敬请期待）*/
+  placeholder?: boolean;
 }
 
 export const AI_MODELS: AiModelMeta[] = [
@@ -46,6 +53,38 @@ export const AI_MODELS: AiModelMeta[] = [
     tier: "mid",
     supportsTools: true,
     thinking: { reasoningEffort: "high" },
+  },
+  // #12 多模型接口预留（观察.txt）：下拉里保留 Claude / GPT / Gemini 选项，
+  // 暂未接入对应 API Key，点击不切换。接入后把 placeholder 去掉、apiModel/路由补上即可。
+  {
+    id: "claude",
+    apiModel: "claude",
+    label: "Claude",
+    tagline: "接口预留 · 敬请期待",
+    desc: "Anthropic Claude 接口已预留，待接入 API Key 后启用。",
+    tier: "high",
+    supportsTools: true,
+    placeholder: true,
+  },
+  {
+    id: "gpt",
+    apiModel: "gpt",
+    label: "GPT",
+    tagline: "接口预留 · 敬请期待",
+    desc: "OpenAI GPT 接口已预留，待接入 API Key 后启用。",
+    tier: "high",
+    supportsTools: true,
+    placeholder: true,
+  },
+  {
+    id: "gemini",
+    apiModel: "gemini",
+    label: "Gemini",
+    tagline: "接口预留 · 敬请期待",
+    desc: "Google Gemini 接口已预留，待接入 API Key 后启用。",
+    tier: "mid",
+    supportsTools: true,
+    placeholder: true,
   },
 ];
 

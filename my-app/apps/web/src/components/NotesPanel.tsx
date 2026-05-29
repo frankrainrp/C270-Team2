@@ -159,7 +159,7 @@ export default function NotesPanel({
       style={{
         height: "100%",
         display: "flex",
-        background: "var(--color-bg)",
+        background: "transparent",
         overflow: "hidden",
       }}
     >

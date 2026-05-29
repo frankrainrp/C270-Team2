@@ -154,16 +154,19 @@ function ToastStack({ items, onDismiss }: { items: ToastItem[]; onDismiss: (id: 
 
 function ToastRow({ item, onDismiss }: { item: ToastItem; onDismiss: () => void }) {
   const meta = KIND_META[item.kind ?? "info"];
+  // error toast 进场后抖动一下（配 toast-error 音）
+  const isError = item.kind === "error";
   return (
     <div
+      className={isError ? "fx-shake" : undefined}
       style={{
         pointerEvents: "auto",
-        background: "var(--color-bg)",
+        background: "var(--color-surface)",
         border: `1px solid color-mix(in srgb, ${meta.color} 30%, transparent)`,
         borderLeft: `4px solid ${meta.color}`,
         borderRadius: 8,
         padding: "10px 12px",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.10)",
+        boxShadow: "var(--shadow-card-hover)",
         display: "flex",
         alignItems: "flex-start",
         gap: 8,

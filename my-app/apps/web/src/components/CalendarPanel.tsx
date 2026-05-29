@@ -144,7 +144,7 @@ function MonthView({
   };
 
   return (
-    <div style={{ height: "100%", overflow: "auto", padding: "28px 32px 40px", background: "var(--color-bg)" }}>
+    <div style={{ height: "100%", overflow: "auto", padding: "28px 32px 40px", background: "transparent" }}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
         <header
           style={{
@@ -429,7 +429,7 @@ function DayView({
   );
 
   return (
-    <div style={{ height: "100%", overflow: "auto", padding: "28px 32px 40px", background: "var(--color-bg)" }}>
+    <div style={{ height: "100%", overflow: "auto", padding: "28px 32px 40px", background: "transparent" }}>
       <div style={{ maxWidth: 1180, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
         {/* Header */}
         <header
@@ -1069,7 +1069,7 @@ function WeekView({
   const eventsInWeek = weekDays.flatMap((d) => ddlMap.get(d.iso) ?? []);
 
   return (
-    <div style={{ height: "100%", overflow: "auto", padding: "24px 24px 40px", background: "var(--color-bg)" }}>
+    <div style={{ height: "100%", overflow: "auto", padding: "24px 24px 40px", background: "transparent" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         {/* Header */}
         <header

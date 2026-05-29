@@ -8,6 +8,8 @@ import React, { useRef, useEffect, useState } from "react";
 import { Paperclip, ArrowUp, ChevronDown, FileText, Image as ImageIcon, X, File as FileIcon, Check, Square } from "lucide-react";
 import type { UploadedFile } from "@/lib/types";
 import { AI_MODELS, type AiModelId, type AiModelMeta, getModelMeta } from "@/lib/ai-models";
+import { GlassButton } from "@/components/ui/Glass";
+import Portal from "@/components/ui/Portal";
 
 interface InputPodProps {
   value: string;
@@ -37,7 +39,19 @@ export default function InputPod({
   const [focused, setFocused] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  // 模型下拉用 Portal 渲染到 body（逃离输入舱/胶囊的 overflow），需记录按钮位置
+  const modelBtnRef = useRef<HTMLButtonElement>(null);
+  const [modelMenuPos, setModelMenuPos] = useState<{ left: number; bottom: number } | null>(null);
   const modelMeta = getModelMeta(selectedModel);
+
+  const toggleModelMenu = () => {
+    if (!modelMenuOpen && modelBtnRef.current) {
+      const r = modelBtnRef.current.getBoundingClientRect();
+      // 下拉向上弹：bottom 锚到按钮上沿之上 6px
+      setModelMenuPos({ left: r.left, bottom: window.innerHeight - r.top + 6 });
+    }
+    setModelMenuOpen((v) => !v);
+  };
 
   useEffect(() => {
     const ta = textareaRef.current;
@@ -173,7 +187,8 @@ export default function InputPod({
             {/* 模型选择器 */}
             <button
               id="model-selector-btn"
-              onClick={() => setModelMenuOpen((v) => !v)}
+              ref={modelBtnRef}
+              onClick={toggleModelMenu}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 background: modelMenuOpen ? "var(--color-primary-soft)" : "var(--color-surface)",
@@ -191,24 +206,24 @@ export default function InputPod({
               }} />
             </button>
 
-            {modelMenuOpen && (
-              <>
+            {modelMenuOpen && modelMenuPos && (
+              <Portal>
                 <div
-                  style={{ position: "fixed", inset: 0, zIndex: 40 }}
+                  style={{ position: "fixed", inset: 0, zIndex: 80 }}
                   onClick={() => setModelMenuOpen(false)}
                 />
                 <div
                   style={{
-                    position: "absolute",
-                    bottom: "calc(100% + 6px)",
-                    left: 0,
+                    position: "fixed",
+                    left: modelMenuPos.left,
+                    bottom: modelMenuPos.bottom,
                     width: 280,
-                    background: "var(--color-bg)",
+                    background: "var(--color-surface)",
                     border: "1px solid var(--color-border)",
                     borderRadius: 10,
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
+                    boxShadow: "var(--shadow-modal)",
                     overflow: "hidden",
-                    zIndex: 50,
+                    zIndex: 81,
                   }}
                 >
                   {AI_MODELS.map((m, idx) => (
@@ -224,7 +239,7 @@ export default function InputPod({
                     />
                   ))}
                 </div>
-              </>
+              </Portal>
             )}
 
             {/* 附件 */}
@@ -253,58 +268,30 @@ export default function InputPod({
             />
           </div>
 
-          {/* 发送 / 停止按钮 — 生成中切换为方形 stop */}
+          {/* 发送 / 停止按钮 — 生成中切换为方形 stop（液态玻璃圆钮）*/}
           {isLoading && onStop ? (
-            <button
+            <GlassButton
               id="stop-btn"
               aria-label="停止生成"
               onClick={onStop}
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: "50%",
-                border: "none",
-                background: "var(--color-text)",
-                color: "white",
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#000"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--color-text)"; }}
+              variant="primary"
+              circle
+              style={{ width: 36, height: 36 }}
             >
-              <Square size={12} fill="white" strokeWidth={0} />
-            </button>
+              <Square size={12} fill="currentColor" strokeWidth={0} />
+            </GlassButton>
           ) : (
-            <button
+            <GlassButton
               id="send-btn"
               aria-label="发送消息"
               onClick={onSend}
               disabled={!canSend}
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: "50%",
-                border: "none",
-                background: !canSend ? "var(--color-border)" : "var(--color-primary)",
-                color: "white",
-                cursor: !canSend ? "not-allowed" : "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={(e) => {
-                if (canSend) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-primary-hover)";
-              }}
-              onMouseLeave={(e) => {
-                if (canSend) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-primary)";
-              }}
+              variant="primary"
+              circle
+              style={{ width: 36, height: 36 }}
             >
               <ArrowUp size={16} />
-            </button>
+            </GlassButton>
           )}
         </div>
       </div>
@@ -393,15 +380,18 @@ function ModelOption({
   onClick: () => void;
 }) {
   const [hov, setHov] = useState(false);
+  const isPlaceholder = !!meta.placeholder; // #12 接口预留：不可选
   // 注意：不再用 inline style 残留改 background。背景完全由 state 派生
   const bg = isActive
     ? "var(--color-primary-soft)"
-    : hov
+    : hov && !isPlaceholder
     ? "var(--color-surface)"
     : "var(--color-bg)";
   return (
     <button
-      onClick={onClick}
+      onClick={isPlaceholder ? undefined : onClick}
+      disabled={isPlaceholder}
+      aria-disabled={isPlaceholder}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
@@ -412,7 +402,8 @@ function ModelOption({
         borderLeft: `3px solid ${isActive ? "var(--color-primary)" : "transparent"}`,
         borderBottom: isLast ? "none" : "1px solid var(--color-border-soft)",
         background: bg,
-        cursor: "pointer",
+        cursor: isPlaceholder ? "not-allowed" : "pointer",
+        opacity: isPlaceholder ? 0.55 : 1,
         textAlign: "left",
         fontFamily: "inherit",
         transition: "background 0.12s",

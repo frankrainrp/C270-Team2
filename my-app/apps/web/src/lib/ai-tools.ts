@@ -4,7 +4,7 @@
 // AI 通过 5 个工具完成对全局 ddls 列表的 CRUD + 查询
 // ============================================================
 
-import type { DdlItem, TaskStatus, TaskPriority } from "./types";
+import type { DdlItem, TaskStatus, TaskPriority, PanelModuleType, PanelModuleConfig } from "./types";
 
 // OpenAI / DeepSeek tool 定义格式
 export interface ToolDefinition {
@@ -223,24 +223,26 @@ export const TOOLS: ToolDefinition[] = [
       name: "create_custom_panel",
       description:
         "在顶栏 4 内置 Tab 后新建一个自定义面板（用户的自留地）。适用场景：" +
-        "「帮我建一个面板叫 X」「新开一个 Tab 放 Y」「做一个嵌入 X 网页的面板」。" +
-        "kind=markdown 用于内容笔记；kind=iframe 用于嵌入网站（如学习平台/B 站/MOOC）。" +
+        "「帮我建一个面板叫 X」「新开一个 Tab 放 Y」「做一个嵌入 X 网页的面板」「给我做一个 XX 看板/仪表盘」。" +
+        "kind=markdown 用于内容笔记；kind=iframe 用于嵌入网站；" +
+        "**kind=modules 用于数据仪表盘**——把若干模组组合成看板（图表/统计/清单），" +
+        "模组会自动绑定用户真实的任务/笔记/连续天数数据。用户说「做个学习仪表盘/进度看板/统计面板」时优先用 modules。" +
         "走待核实流程，用户接受后才出现在顶栏。",
       parameters: {
         type: "object",
         properties: {
           label: {
             type: "string",
-            description: "Tab 显示名，2-12 个汉字。例如「读书清单」「Bilibili」「期末复习」",
+            description: "Tab 显示名，2-12 个汉字。例如「读书清单」「学习看板」「期末复习」",
           },
           emoji: {
             type: "string",
-            description: "Tab 前缀单字符 emoji，例如 📚 / 🎬 / 📝 / 🎯。不传默认 📋",
+            description: "Tab 前缀单字符 emoji，例如 📚 / 📊 / 📝 / 🎯。不传默认 📋",
           },
           kind: {
             type: "string",
-            enum: ["markdown", "iframe"],
-            description: "面板类型：markdown=Markdown 文档；iframe=嵌入网页。不传默认 markdown",
+            enum: ["markdown", "iframe", "modules"],
+            description: "面板类型：markdown=Markdown 文档；iframe=嵌入网页；modules=数据仪表盘（组合图表/统计模组）。不传默认 markdown",
           },
           content: {
             type: "string",
@@ -249,6 +251,51 @@ export const TOOLS: ToolDefinition[] = [
           url: {
             type: "string",
             description: "kind=iframe 时的网址（http/https）。kind 不是 iframe 时忽略",
+          },
+          modules: {
+            type: "array",
+            description:
+              "kind=modules 时的模组列表，按需组合成仪表盘（顺序即显示顺序）。" +
+              "数据可视化与统计会自动用用户真实数据。例如做学习看板可组合：" +
+              "[待办统计卡, 最近 DDL 倒计时, 任务状态饼图, 近 7 日到期柱状图, 任务热力图, 进行中清单]。",
+            items: {
+              type: "object",
+              properties: {
+                type: {
+                  type: "string",
+                  enum: ["stat", "countdown", "tasklist", "pie", "bar", "heatmap"],
+                  description:
+                    "stat=大数字统计卡；countdown=DDL 倒计时；tasklist=任务清单；pie=饼图；bar=柱状图；heatmap=任务热力图",
+                },
+                title: { type: "string", description: "模组标题，简短中文" },
+                config: {
+                  type: "object",
+                  description: "模组配置（按类型选填）",
+                  properties: {
+                    metric: {
+                      type: "string",
+                      enum: [
+                        "tasks-total", "tasks-done", "tasks-active", "tasks-today",
+                        "notes-total", "streak-current", "streak-longest",
+                        "completion-7d", "tasks-by-status", "tasks-by-source",
+                      ],
+                      description:
+                        "绑定真实数据指标。stat 用单值类（tasks-active/streak-current 等）；" +
+                        "pie/bar 用系列类（tasks-by-status/tasks-by-source/completion-7d）。",
+                    },
+                    filter: {
+                      type: "string",
+                      enum: ["active", "today", "upcoming", "completed", "all"],
+                      description: "tasklist 的筛选范围",
+                    },
+                    targetDate: { type: "string", description: "countdown 目标日期 YYYY-MM-DD；不传=最近未完成 DDL" },
+                    unit: { type: "string", description: "stat 卡单位，如「个」「天」" },
+                    limit: { type: "number", description: "tasklist 最多显示条数（默认 6）" },
+                  },
+                },
+              },
+              required: ["type"],
+            },
           },
         },
         required: ["label"],
@@ -319,9 +366,11 @@ export interface CreateNoteArgs {
 export interface CreateCustomPanelArgs {
   label: string;
   emoji?: string;
-  kind?: "markdown" | "iframe";
+  kind?: "markdown" | "iframe" | "modules";
   content?: string;
   url?: string;
+  /** [064] kind=modules 时的模组规格（AI 不传 id，executor 补）*/
+  modules?: { type: PanelModuleType; title?: string; config?: PanelModuleConfig }[];
 }
 
 // 工具名 → 参数类型 的联合（供执行器使用）

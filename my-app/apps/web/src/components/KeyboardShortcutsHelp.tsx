@@ -65,7 +65,7 @@ export default function KeyboardShortcutsHelp({ open, onClose }: Props) {
         style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(15,23,42,0.30)",
+          background: "var(--color-overlay)",
           zIndex: 90,
           animation: "fade-in 0.18s ease-out",
         }}

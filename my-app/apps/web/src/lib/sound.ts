@@ -54,7 +54,7 @@ export interface SoundPrefs {
 }
 
 export const DEFAULT_SOUND_PREFS: SoundPrefs = {
-  enabled: false, // OPT-IN 防扰民
+  enabled: true, // 观察.txt #2：默认开启（仍可在偏好设置关闭 + 静音时段防扰民）
   categories: { task: true, chat: true, toast: true, achievement: true, focus: true, panel: true },
   volume: 0.5,
   quietHours: { start: 22, end: 8 },
@@ -162,30 +162,85 @@ function noiseBurst(c: AudioContext, duration: number, opts: { volume?: number; 
   src.stop(start + duration + 0.02);
 }
 
+/**
+ * 服务铃（管家签名音）：加法合成——基频 + 两个非谐波分音（2.76× / 5.40×，钟体特征），
+ * 快起音 + 长指数衰减。这是 Butler 的「巴甫洛夫」奖励锚点音。
+ */
+function bell(
+  c: AudioContext, freq: number, duration: number,
+  opts: { volume?: number; startOffset?: number } = {},
+): void {
+  const { volume = 1, startOffset = 0 } = opts;
+  const start = c.currentTime + startOffset;
+  // 非谐波分音比（仿金属钟体），分音越高音量越低
+  const partials: [number, number][] = [[1, 1], [2.76, 0.5], [5.40, 0.25]];
+  for (const [ratio, amp] of partials) {
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq * ratio, start);
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(volume * amp, start + 0.004);
+    gain.gain.exponentialRampToValueAtTime(0.0008, start + duration);
+    osc.connect(gain);
+    gain.connect(c.destination);
+    osc.start(start);
+    osc.stop(start + duration + 0.02);
+  }
+}
+
+/**
+ * 钢笔书写擦音（chat 发送的管家化音色）：高通噪声 + 轻微幅度抖动，模拟笔尖划过纸面。
+ */
+function scratch(c: AudioContext, duration: number, opts: { volume?: number; startOffset?: number } = {}): void {
+  const { volume = 0.12, startOffset = 0 } = opts;
+  const bufferSize = Math.floor(c.sampleRate * duration);
+  const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+  const data = buffer.getChannelData(0);
+  // 噪声 × 低频抖动包络（笔尖断续摩擦感）
+  for (let i = 0; i < bufferSize; i++) {
+    const t = i / bufferSize;
+    const wobble = 0.6 + 0.4 * Math.sin(t * Math.PI * 22);
+    data[i] = (Math.random() * 2 - 1) * wobble;
+  }
+  const src = c.createBufferSource();
+  src.buffer = buffer;
+  const filter = c.createBiquadFilter();
+  filter.type = "highpass";
+  filter.frequency.value = 1800;
+  const gain = c.createGain();
+  const start = c.currentTime + startOffset;
+  gain.gain.setValueAtTime(0, start);
+  gain.gain.linearRampToValueAtTime(volume, start + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(c.destination);
+  src.start(start);
+  src.stop(start + duration + 0.02);
+}
+
 function synth(c: AudioContext, key: SoundKey, vol: number): void {
   // vol 是 [0,1] 主音量，传递到每个 tone 的 volume 系数
   switch (key) {
     // ---- 任务 ----
     case "task-complete":
-      // 上扬三音 C5-E5-G5（满足感的「完成」）
-      tone(c, 523, 0.12, { volume: vol * 0.35 });
-      tone(c, 659, 0.12, { volume: vol * 0.35, startOffset: 0.06 });
-      tone(c, 784, 0.20, { volume: vol * 0.35, startOffset: 0.12 });
+      // 管家签名：清脆服务铃 + 上扬小三度点缀（「为您办妥」）
+      bell(c, 988, 0.55, { volume: vol * 0.32 });           // B5 铃
+      tone(c, 1319, 0.16, { volume: vol * 0.14, startOffset: 0.07 }); // E6 闪点
       break;
     case "task-uncomplete":
-      // 下行二音 G5-E5
-      tone(c, 784, 0.08, { volume: vol * 0.25 });
-      tone(c, 659, 0.12, { volume: vol * 0.25, startOffset: 0.05 });
+      // 低半度的钝铃（撤回）
+      bell(c, 660, 0.30, { volume: vol * 0.20 });
       break;
     // ---- Chat ----
     case "send":
-      // 极轻 whoosh
-      noiseBurst(c, 0.06, { volume: vol * 0.15, freq: 2000 });
+      // 钢笔书写擦音（管家提笔记下）
+      scratch(c, 0.13, { volume: vol * 0.16 });
       break;
     case "ai-reply":
-      // 柔和 ding
-      tone(c, 880, 0.25, { volume: vol * 0.25 });
-      tone(c, 1320, 0.18, { volume: vol * 0.15, startOffset: 0.02 });
+      // 柔和单声台铃（管家应答）
+      bell(c, 784, 0.42, { volume: vol * 0.22 });
       break;
     // ---- Toast ----
     case "toast-success":
@@ -204,30 +259,28 @@ function synth(c: AudioContext, key: SoundKey, vol: number): void {
       break;
     // ---- 成就 ----
     case "achievement":
-      // Level-up: C-E-G-C 上扬旋律
-      tone(c, 523, 0.10, { volume: vol * 0.3 });
-      tone(c, 659, 0.10, { volume: vol * 0.3, startOffset: 0.10 });
-      tone(c, 784, 0.10, { volume: vol * 0.3, startOffset: 0.20 });
-      tone(c, 1047, 0.25, { volume: vol * 0.35, startOffset: 0.30 });
+      // 铃前导 + C-E-G-C 上扬旋律（隆重「晋升」）
+      bell(c, 1047, 0.5, { volume: vol * 0.22 });
+      tone(c, 523, 0.10, { volume: vol * 0.28, startOffset: 0.10 });
+      tone(c, 659, 0.10, { volume: vol * 0.28, startOffset: 0.20 });
+      tone(c, 784, 0.10, { volume: vol * 0.28, startOffset: 0.30 });
+      tone(c, 1047, 0.28, { volume: vol * 0.32, startOffset: 0.40 });
       break;
     case "streak":
-      // 簇钟声：C5 + G5 + C6 同时奏
-      tone(c, 523, 0.40, { volume: vol * 0.20 });
-      tone(c, 784, 0.40, { volume: vol * 0.18 });
-      tone(c, 1047, 0.50, { volume: vol * 0.16 });
+      // 三铃簇鸣（C5 + G5 + C6 钟体）
+      bell(c, 523, 0.55, { volume: vol * 0.18 });
+      bell(c, 784, 0.55, { volume: vol * 0.16, startOffset: 0.02 });
+      bell(c, 1047, 0.65, { volume: vol * 0.14, startOffset: 0.04 });
       break;
     // ---- Focus Timer ----
     case "focus-start":
-      // 清亮单钟
-      tone(c, 880, 0.6, { volume: vol * 0.3 });
-      tone(c, 1760, 0.4, { volume: vol * 0.10, startOffset: 0.02 });
+      // 单声温暖服务铃（开始专注）
+      bell(c, 880, 0.7, { volume: vol * 0.28 });
       break;
     case "focus-end":
-      // 双钟（更隆重）
-      tone(c, 880, 0.4, { volume: vol * 0.3 });
-      tone(c, 1760, 0.3, { volume: vol * 0.10, startOffset: 0.02 });
-      tone(c, 880, 0.5, { volume: vol * 0.3, startOffset: 0.5 });
-      tone(c, 1760, 0.4, { volume: vol * 0.10, startOffset: 0.52 });
+      // 双声服务铃（专注结束，更隆重）
+      bell(c, 880, 0.5, { volume: vol * 0.3 });
+      bell(c, 1047, 0.7, { volume: vol * 0.28, startOffset: 0.42 });
       break;
     case "focus-5min":
       // 极轻 tick 提醒
@@ -235,9 +288,9 @@ function synth(c: AudioContext, key: SoundKey, vol: number): void {
       break;
     // ---- 自定义面板 ----
     case "panel-create":
-      // 上升 swoosh + ding
-      tone(c, 440, 0.15, { volume: vol * 0.2, freqEnd: 880 });
-      tone(c, 1100, 0.12, { volume: vol * 0.18, startOffset: 0.12 });
+      // 纸张落桌轻响 + 钟点缀（管家备好一张新卡片）
+      noiseBurst(c, 0.08, { volume: vol * 0.12, freq: 320 });
+      bell(c, 1175, 0.3, { volume: vol * 0.18, startOffset: 0.06 });
       break;
   }
 }

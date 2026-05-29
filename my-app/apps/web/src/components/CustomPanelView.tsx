@@ -10,16 +10,34 @@
 // ============================================================
 
 import React, { useEffect, useRef, useState } from "react";
-import { Trash2, Eye, Edit3, FileText, Globe, AlertTriangle } from "lucide-react";
+import { Trash2, Eye, Edit3, FileText, Globe, AlertTriangle, LayoutGrid, Plus, BarChart3, PieChart as PieIcon, Hash, Timer, ListChecks, Grid3x3 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { CustomPanel, CustomPanelKind } from "@/lib/types";
+import type { CustomPanel, CustomPanelKind, PanelModule, PanelModuleType } from "@/lib/types";
 import { EmptyPanel } from "./EmptyIllustrations";
+import ModuleRenderer from "./panel-modules/ModuleRenderer";
+import type { PanelDataCtx } from "@/lib/panel-data";
 
 interface Props {
   panel: CustomPanel;
-  onUpdate: (id: string, patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url">>) => void;
+  onUpdate: (id: string, patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url" | "modules">>) => void;
   onDelete: (id: string) => void;
+  /** [064] 模组数据绑定上下文（真实 ddls/notes/streak）*/
+  dataCtx: PanelDataCtx;
+}
+
+// [064] 加模组菜单：每项给一个带 live 默认配置的模组
+const MODULE_PRESETS: { type: PanelModuleType; label: string; icon: React.ReactNode; make: () => PanelModule }[] = [
+  { type: "stat", label: "统计卡", icon: <Hash size={13} />, make: () => ({ id: mid(), type: "stat", title: "待办任务", config: { metric: "tasks-active" } }) },
+  { type: "countdown", label: "倒计时", icon: <Timer size={13} />, make: () => ({ id: mid(), type: "countdown", title: "最近截止", config: {} }) },
+  { type: "tasklist", label: "任务清单", icon: <ListChecks size={13} />, make: () => ({ id: mid(), type: "tasklist", title: "进行中", config: { filter: "active", limit: 6 } }) },
+  { type: "pie", label: "饼图", icon: <PieIcon size={13} />, make: () => ({ id: mid(), type: "pie", title: "任务状态分布", config: { metric: "tasks-by-status" } }) },
+  { type: "bar", label: "柱状图", icon: <BarChart3 size={13} />, make: () => ({ id: mid(), type: "bar", title: "近 7 日到期", config: { metric: "completion-7d" } }) },
+  { type: "heatmap", label: "热力图", icon: <Grid3x3 size={13} />, make: () => ({ id: mid(), type: "heatmap", title: "任务热力图", config: {} }) },
+];
+
+function mid(): string {
+  return "mod-" + Math.random().toString(36).slice(2, 9);
 }
 
 function normalizeUrl(input: string): string {
@@ -47,14 +65,16 @@ function KindBtn({ active, onClick, icon, label }: { active: boolean; onClick: (
   );
 }
 
-type PanelPatch = Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url">>;
+type PanelPatch = Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url" | "modules">>;
 
-export default function CustomPanelView({ panel, onUpdate, onDelete }: Props) {
+export default function CustomPanelView({ panel, onUpdate, onDelete, dataCtx }: Props) {
   const kind: CustomPanelKind = panel.kind ?? "markdown";
   const [content, setContent] = useState(panel.content);
   const [label, setLabel] = useState(panel.label);
   const [emoji, setEmoji] = useState(panel.emoji);
   const [url, setUrl] = useState(panel.url ?? "");
+  const [modules, setModules] = useState<PanelModule[]>(panel.modules ?? []);
+  const [addOpen, setAddOpen] = useState(false);
   const [mode, setMode] = useState<"edit" | "preview">(panel.content ? "preview" : "edit");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -89,6 +109,7 @@ export default function CustomPanelView({ panel, onUpdate, onDelete }: Props) {
     setLabel(panel.label);
     setEmoji(panel.emoji);
     setUrl(panel.url ?? "");
+    setModules(panel.modules ?? []);
     setMode(panel.content ? "preview" : "edit");
   }, [panel.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -111,6 +132,19 @@ export default function CustomPanelView({ panel, onUpdate, onDelete }: Props) {
     }, 1200);
   };
 
+  // [064] 模组增删（立即持久化）
+  const addModule = (m: PanelModule) => {
+    const next = [...modules, m];
+    setModules(next);
+    setAddOpen(false);
+    onUpdateRef.current(panel.id, { modules: next });
+  };
+  const removeModule = (id: string) => {
+    const next = modules.filter((m) => m.id !== id);
+    setModules(next);
+    onUpdateRef.current(panel.id, { modules: next });
+  };
+
   const handleDelete = () => {
     if (confirm(`确定删除面板「${panel.label}」？此操作不可撤销。`)) {
       // 删除时丢弃所有 pending 修改
@@ -127,7 +161,7 @@ export default function CustomPanelView({ panel, onUpdate, onDelete }: Props) {
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        background: "var(--color-bg)",
+        background: "transparent",
         color: "var(--color-text)",
         overflow: "hidden",
       }}
@@ -211,6 +245,12 @@ export default function CustomPanelView({ panel, onUpdate, onDelete }: Props) {
             onClick={() => onUpdate(panel.id, { kind: "iframe" })}
             icon={<Globe size={12} />}
             label="网页"
+          />
+          <KindBtn
+            active={kind === "modules"}
+            onClick={() => onUpdate(panel.id, { kind: "modules" })}
+            icon={<LayoutGrid size={12} />}
+            label="模组"
           />
         </div>
 
@@ -300,7 +340,75 @@ export default function CustomPanelView({ panel, onUpdate, onDelete }: Props) {
 
       {/* Body */}
       <div style={{ flex: 1, overflow: "auto", padding: kind === "iframe" ? 0 : "16px 20px", minHeight: 0 }}>
-        {kind === "iframe" ? (
+        {kind === "modules" ? (
+          <div style={{ maxWidth: 760, margin: "0 auto" }}>
+            {/* 加模组工具条 */}
+            <div style={{ position: "relative", marginBottom: 14 }}>
+              <button
+                onClick={() => setAddOpen((v) => !v)}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "7px 12px", borderRadius: 999,
+                  border: "1px dashed var(--color-border)",
+                  background: addOpen ? "var(--color-primary-soft)" : "var(--color-surface)",
+                  color: addOpen ? "var(--color-primary)" : "var(--color-text-muted)",
+                  fontSize: 12.5, cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                <Plus size={13} /> 加模组
+              </button>
+              {addOpen && (
+                <div
+                  style={{
+                    position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 20,
+                    display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 4,
+                    padding: 6, width: 280,
+                    background: "var(--color-surface)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: "var(--radius-md)",
+                    boxShadow: "var(--shadow-modal)",
+                  }}
+                >
+                  {MODULE_PRESETS.map((p) => (
+                    <button
+                      key={p.type}
+                      onClick={() => addModule(p.make())}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 7,
+                        padding: "8px 10px", borderRadius: 8, border: "none",
+                        background: "transparent", color: "var(--color-text)",
+                        fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                      }}
+                      onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--color-bg)")}
+                      onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "transparent")}
+                    >
+                      <span style={{ color: "var(--color-primary)", display: "inline-flex" }}>{p.icon}</span>
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 模组堆叠（2 列网格自适应）*/}
+            {modules.length === 0 ? (
+              <div style={{
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                gap: 10, padding: "48px 24px", color: "var(--color-text-faint)", textAlign: "center",
+                border: "1px dashed var(--color-border)", borderRadius: "var(--radius-card)",
+              }}>
+                <LayoutGrid size={40} />
+                <p style={{ fontSize: 13, margin: 0 }}>空白仪表盘 — 点「加模组」拼装，或让 Butler 帮你组合</p>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
+                {modules.map((m) => (
+                  <ModuleRenderer key={m.id} module={m} ctx={dataCtx} onRemove={() => removeModule(m.id)} />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : kind === "iframe" ? (
           url.trim() ? (
             <iframe
               src={normalizeUrl(url)}

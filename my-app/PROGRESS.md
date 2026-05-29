@@ -7,6 +7,15 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [066] | 壁纸系统：root 可换图片/视频 | Dexie v8 wallpapers 表 + lib/wallpaper.ts + WallpaperLayer(fixed z-1 img/video+暗化遮罩) + 偏好设置「壁纸」段(传图/视频/重置/暗化滑块)；背景从 body 移到 html 修 z-index:-1 被遮 |
+| [065] | 每日仪式 · Daily Brief（UX 增长：留存）| DailyBrief 玻璃横幅每天首次打开顶部出现一次(localStorage lastSeen)；时段问候+今日到期/逾期摘要+streak+最近任务+一键「开始专注」(开学习工具抽屉)；巴甫洛夫日常触发(观察#15/#16) |
+| [064] | 面板模组系统（观察 #17）：AI/手动组合数据仪表盘 | CustomPanel kind=modules + PanelModule[]；手绘 SVG 饼/柱/热力(零依赖)；panel-data 绑定真实 ddls/notes/streak；6 模组(统计/倒计时/清单/饼/柱/热力)；create_custom_panel 工具扩展 modules，AI 可组合 |
+| [063] | 观察.txt 续：多模型接口预留(#12) · 默认新会话(#9) · 图片素材清单(#5/#6/#14) | AI_MODELS 加 Claude/GPT/Gemini placeholder(下拉可见不可选)；orderedSessions 只显有用户交互的会话(空草稿不入历史)；Doc/图片素材清单.md |
+| [062] | 观察.txt 5 连击：漫画询问卡/删头像 · AI 主动澄清 · 推荐每日任务 · 成就收藏室 | ConfirmCard 去 Sparkles 头像+下尾巴气泡(#4)；系统提示词加澄清规则(#11)；空态 5 推荐任务一键加(#16)；AchievementsRoom 成就陈列馆(#3) |
+| [061] | 任务面板居中化 + AI 动态效果 | TaskDetailDrawer 右抽屉→居中圆角浮层(观察#18)；AI 思考点 dot-bounce 替代干光标 + ConfirmCard pop 入场；A1 面板根透玻璃 |
+| [060] | 代码审计 + 整体动效 + 管家主题音效 | 9 项审计表(修死 token/slate 遮罩/const 提升)；reduced-motion 守卫 + fx-pop/ring/shake 复用动效 + 勾选弹跳；音效改服务铃/钢笔擦音(管家签名)+默认开启 |
+| [059] | 视觉转向 iOS 玻璃胶囊 + 三主题（白/黑网格/复古）| 奶油→iOS 蓝配色 + navbar/history/对话独立悬浮玻璃胶囊 + 去衬线/漫画尾巴/肖像卡；双模式→加复古第三主题地基；昼夜+复古三元切换 |
+| [058] | 视觉地基 v2 — 液态玻璃底 + B 胶囊导航 + GlassButton 通用件 | 奶油液态玻璃 bg + .glass-btn/.pill-nav CSS + ui/Glass.tsx 接发送/导航/Rail 高频钮 |
 | [057] | 修复思考模式多轮 tool calling 丢 reasoning_content | ApiMessage 加 reasoning_content + 带 tool_call 的 assistant 轮回传 |
 | [056] | 音效系统（WebAudio 合成）+ 6 张空状态插画 | 14 音效 opt-in + 偏好段 + 6 内联 SVG 插画接入 7 处空态 |
 | [055] | F Polish — code review 后的 5 个 bug 修复 | CustomPanelView 数据不丢 + 累积 patch + URL race + PreferencesPanel cancelled + ref 闭包 |
@@ -41,7 +50,477 @@
 | [022]-[026] | UI 重构 Stage C-E + Mini Apps + Stage C.2 + 模型切换 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
-> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 17 条 [041]-[057] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 26 条 [041]-[066] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [066] 2026-05-30 — 壁纸系统：root 可换图片/视频
+
+> 用户「增加壁纸系统让现在的 root 可以被替换为视频或者图片」。玻璃胶囊浮在自定义壁纸上 = liquid-glass 灵魂场景。
+
+### 📂 改动
+
+| 文件 | 改动 |
+|---|---|
+| `lib/types.ts` | 加 `Wallpaper { id:"current", kind:"image"\|"video", blob, updatedAt }` |
+| `lib/db.ts` | Dexie v7→**v8**，新增 `wallpapers` 表（主键 id）|
+| `lib/wallpaper.ts` | **新建** CRUD（setWallpaper 校验类型+大小：图≤10MB/视频≤60MB；get/clear）+ 暗化 getter/setter（localStorage `butler.wallpaper.dim`，默认 0.2）+ `WALLPAPER_EVENT` 通知 |
+| `components/WallpaperLayer.tsx` | **新建** fixed inset:0 z-index:-1 层：image→bg-image / video→`<video autoPlay loop muted playsInline objectFit:cover>` + 暗化遮罩；监听事件即时换；ObjectURL 严格 revoke 防泄漏；无壁纸 return null |
+| `app/page.tsx` | 根 div 顶部挂 `<WallpaperLayer />` |
+| `components/PreferencesPanel.tsx` | 新「壁纸」段：上传图片/视频 + 当前状态 + 恢复默认 + 暗化滑块；open 时读当前 kind/dim |
+| `app/globals.css` | **关键修复**：背景（color+grid+halftone+glow）从 `body` 移到 `html`，body 改 `background:transparent` → 让 WallpaperLayer 的 `z-index:-1` 能盖在网格底之上显示（否则被 body 不透明底遮住）|
+
+### 🎯 关键设计
+
+- **存 IndexedDB blob**：图片/视频原始二进制（视频太大 localStorage 装不下，必走 IDB）。复用 [050] butler-asset 的 blob+event+objectURL 模式。
+- **z-index:-1 被 body 底遮住的经典坑**：负 z-index 元素会被祖先（body）的不透明背景盖住 → 把页面底从 body 挪到 html，body 透明，壁纸层就显出来了（无壁纸时 html 网格底照常露）。
+- **暗化遮罩**：壁纸上玻璃文字可读性保险，0-70% 滑块可调。
+- **三主题兼容**：壁纸层与主题正交；亮/暗/复古下都可叠壁纸。
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- preview：注入测试图片壁纸（IDB raw write + dispatch）→ 橙紫渐变浮在玻璃胶囊后、胶囊磨砂出暖色、暗化生效、文字可读；clear → 还原网格底（rowExists:false / layerCount:0）；console 无 error
+
+### 🚦 下一步候选
+
+- 壁纸预设库（几张内置壁纸一键选）+ 模糊度滑块
+- 手机响应式（仍是最大增长天花板，[065] 已验证布局崩）
+- 主动 AI / 周报分享卡
+
+### 💾 备份建议
+
+建议 tag：`backup-066-wallpaper-system`
+
+---
+
+## [065] 2026-05-29 — 每日仪式 · Daily Brief（UX 增长方向：留存）
+
+> 用户「思考 UX 增长点」→ AskUserQuestion 选「每日仪式 + Daily Brief」。先验证了一个硬伤：**手机端布局直接崩**（375px 截图证：桌面胶囊溢出/导航裁切），记入下方增长 backlog。本条做留存复利地基。
+
+### 📂 改动
+
+| 文件 | 改动 |
+|---|---|
+| `components/DailyBrief.tsx` | **新建** 玻璃横幅：时段问候（早/中/下午/晚）+ 今日到期/逾期摘要 + streak chip + 最近任务链接 + 建议语 + 一键「开始专注」（glass-btn-primary）+ dismiss×。100% 本地派生零 token，bubble-pop 入场 |
+| `components/ChatCanvas.tsx` | 接 `showDailyBrief`/`onStartFocus`/`onDismissBrief` props，在浮动管家后、历史区前渲染 DailyBrief |
+| `app/page.tsx` | `showDailyBrief` state + `BRIEF_KEY=butler.brief.lastSeen` 持久化；hydrate 后若 `lastSeen!==今天`则显示；`handleStartFocus`（标记已读+开 MiniAppsDrawer 专注计时）/`dismissDailyBrief`（标记已读）|
+
+### 🎯 设计
+
+- **每日一次**：localStorage 记 `lastSeen` 日期，每个新自然日首开 Chat 才出现一次，不每次 render 都弹（不扰民），是"早晨打开 Butler"的仪式触发。
+- **可行动**：核心是「开始专注」一键进入专注计时——把简报从"展示"变"触发行动"（巴甫洛夫闭环：触发→行动→奖励 streak）。
+- 复用现有：streakDays / ddls / MiniAppsDrawer（FocusTimer），零新依赖。
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- preview eval：清 flag 重载→简报出现（晚上好,Feng + 🔥1天 + 今日1项到期 + 读10页书 + 开始专注）；点开始专注→专注抽屉开 + 标记已读；重载→不再重复出现（lastSeen=今天）；console 无 error
+
+### 🚦 UX 增长 backlog（AskUserQuestion 当时列的，剩余）
+
+- 🔴 **手机响应式**（已验证崩，触达天花板，较大重构：窄屏双栏胶囊折单栏 + 底部 tab）
+- 主动 AI 提醒/周报（差异化）· 魔法首屏+起手 chips（激活）· 周报分享卡（传播）· 管家情绪反应（愉悦）· streak freeze 防断签流失
+
+### 💾 备份建议
+
+建议 tag：`backup-065-daily-brief`
+
+---
+
+---
+
+## [064] 2026-05-29 — 面板模组系统（观察.txt #17，AI/手动组合数据仪表盘）
+
+> 用户思考增值方向 → 选「面板模组系统」（AI 用预设模组组合出用户需要的面板）。这是 Butler 产品命题「AI 创造、面板是产物」的最高杠杆点。把 CustomPanel 从「单一 markdown/iframe」进化成「模组堆叠」。
+
+### 🧱 架构（新增文件 + 改动）
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `lib/types.ts` | 改 | CustomPanelKind 加 `modules`；CustomPanel 加 `modules?: PanelModule[]`；新增 `PanelModule`/`PanelModuleType`(stat/countdown/tasklist/pie/bar/heatmap)/`PanelMetric`/`PanelModuleConfig` |
+| `lib/panel-data.ts` | **新建** | 从真实 ddls/notes/streak 现算绑定数据：resolveStat/resolveSeries/resolveHeatmap/resolveTasks/resolveCountdown。注：任务无 completedAt，时间序列用 dueDate 密度（诚实于现有数据，将来加 completedAt 可换真实完成分布）|
+| `components/panel-modules/Charts.tsx` | **新建** | 手绘 SVG **零依赖** 饼图(arc path)/柱状图/热力图(7×7 GitHub 式)；颜色用 CSS 变量跟随三主题 |
+| `components/panel-modules/ModuleRenderer.tsx` | **新建** | 按 type 分发渲染，卡片包裹 + onRemove；数据走 panel-data |
+| `components/CustomPanelView.tsx` | 改 | 加「模组」kind 按钮；modules 状态 + 加模组 picker(6 预设带 live 默认配置) + 网格渲染 + 删模组；接 `dataCtx` prop |
+| `lib/custom-panels.ts` | 改 | updateCustomPanel patch 类型 + modules |
+| `lib/ai-tools.ts` | 改 | create_custom_panel 加 kind=modules + `modules` 数组参数(type/title/config，含 metric/filter 枚举说明)；CreateCustomPanelArgs 扩展 |
+| `lib/tool-executor.ts` | 改 | execCreateCustomPanel 支持 modules（补 mod id + 校验非空），落 pending 草稿 |
+| `app/api/chat/route.ts` | 改 | 系统提示词守则 9：建看板/仪表盘用 kind=modules |
+| `app/page.tsx` | 改 | handleUpdateCustomPanel patch 类型 + modules；CustomPanelView 传 dataCtx(ddls/notes/streak) |
+
+### 🎯 设计要点
+
+- **Live 数据绑定 = 杀手锏**：模组默认绑定用户真实数据（待办数/状态分布/到期密度/热力），「AI 用你的真实数据搭 dashboard」是区别于 Notion/ChatGPT 的点
+- **零依赖图表**：饼/柱/热力全手绘 SVG，延续项目「WebAudio 合成零依赖」哲学，不引 recharts
+- **双入口**：用户手动「加模组」picker + AI `create_custom_panel(kind=modules, modules=[...])` 组合，产出同一份 modules 数组
+- **派生物**：模组系统一做，Daily Brief / 智能模板 / 自然语言改面板都是它的组合（后续）
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0（修了一处 Map 迭代 → Array.from）
+- preview 手动建面板→切「模组」→加 统计卡/饼图/柱状图/热力图：全部渲染**真实数据**（1 个待办任务 → 饼图 100% 待办、stat 卡「1」、柱状图今天「1」、热力图今日格高亮）；删模组即时生效
+- AI 工具路径 tsc 通过（schema+executor+落库），未跑真实 AI 调用（省 API token；产出与手动同一 modules 数组）
+
+### 🚦 后续（模组系统可延展）
+
+- Phase 2：更多绑定指标 + DdlItem 加 completedAt 换真实完成分布 + 拖拽重排模组 + 模组配置编辑(改 metric/filter)
+- Phase 3：智能模板库(考试/论文/习惯一键建) + 自然语言改面板 + Daily Brief 预设组合
+- 给 ddls 加 completedAt 后热力图/柱状图可显「真实完成」而非「到期密度」
+
+### 💾 备份建议
+
+建议 tag：`backup-064-panel-module-system`
+
+---
+
+## [063] 2026-05-29 — 观察.txt 续：多模型接口 / 默认新会话 / 图片素材清单
+
+> 接 [062]「全部完成」，继续清观察.txt 里**无阻塞可落地**的待办。剩下的（拖拽图表 / 需用户交素材 / 管家元素美术）见末尾如实说明。
+
+| # | 文件 | 改动 |
+|---|---|---|
+| **#12** 多模型接口预留 | `lib/ai-models.ts` · `InputPod.tsx` | AiModelId 加 `claude`/`gpt`/`gemini`，AI_MODELS 加 3 条 `placeholder:true`（tagline「接口预留·敬请期待」）；ModelOption 对 placeholder 渲染灰显 + `disabled` 不可选（接入真 Key 后去 placeholder + 补路由即用）|
+| **#9** 默认新会话 | `page.tsx` | `orderedSessions` 过滤：只有**出现过用户消息**的会话才进 RECENT CHATS；仅含开屏问候的空白草稿不污染历史（活动草稿仍可输入，发消息后即现）。零改 session 生命周期，纯派生 filter，低风险 |
+| **#5/#6/#14** 图片素材清单 | `Doc/图片素材清单.md`（新）| 列已具备/待提供(复古 6 件，最高优先，阻塞 task#11)/可补强/AI 配图四类 + 交付建议；解锁用户按单交图 |
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- preview：①模型下拉 5 项——DeepSeek×2 可选 + Claude/GPT/Gemini 灰显不可选 ②点 New Chat→新问候草稿，RECENT CHATS 仅留有交互的「番茄工作法」会话，空草稿不显 ③素材清单 md 已落盘
+
+### 🚦 观察.txt 剩余（如实说明，非偷懒）
+
+- **需你交素材**：复古 6 件手绘(task#11) · 成就徽章/Tour 插画/管家元素美术(#21 燕尾服/单框眼镜/白手套) · AI 配图集(#14) —— 见 `Doc/图片素材清单.md`
+- **独立大功能（建议单开一轮）**：#17 AI 建面板拖拽自定义图表(饼/柱/热力，需引图表库 + 拖拽 + AI tool schema，工作量大)
+- **语义模糊待你定**：#4 残「对话框按剩余空间放任务左右」(当前居中，左右动态定位需明确触发场景) · #10 系统提示词触发机制(已随 #9/#11 部分覆盖，余下不明确) · #8 建议开源 UI 组件(偏调研)
+- **可选小项**：#1 残 成就/音效更多配套动画 · #19/#20 风格再细化
+
+### 💾 备份建议
+
+建议 tag：`backup-063-multimodel-session-assetlist`
+
+---
+
+## [062] 2026-05-29 — 观察.txt 五连击（按用户「按顺序全部完成」）
+
+> 用户「按照顺序全部完成」上一条列的 5 个观察.txt 候选。逐个落地 + 浏览器验证。
+
+### 📂 涉及文件 & 对应需求
+
+| # 观察 | 文件 | 改动 |
+|---|---|---|
+| **#4** 漫画询问卡 + 删残留头像 | `ConfirmCard.tsx` | 删 Sparkles AI 头像（其余 AI 气泡无头像，这是残留不一致）；卡片做成漫画对话气泡（`--radius-card` + 1.5px 主色边 + **向下尾巴**双三角指向下方管家，"管家在向你确认"）；外层 460 宽居中；删 Sparkles import |
+| **#11** AI 主动澄清 | `api/chat/route.ts` | `buildSystemPrompt` 加守则 8「主动澄清（仅真正模糊时）」：缺无法默认的关键信息 / 多意图冲突 → 先反问给选项；能默认就别问（与守则 1 主动调工具平衡，避免过度发问）|
+| **#16** 推荐每日任务 | `TasksPanel.tsx` + `page.tsx` | 空态加「管家推荐 · 点一下即添加」5 个 RecommendChip 胶囊（复习笔记/规划明天/整理收件箱/运动/读书）；新 `onQuickAdd` prop → page `handleQuickAddTask` 直接建今日 DDL(source=推荐任务) + toast + 音效，**零编辑器一键启动**降门槛 |
+| **#3** 成就收藏室 | `AchievementsRoom.tsx`(新) + `TopBar.tsx` + `page.tsx` | 复用 `lib/streak` 的 ACHIEVEMENTS + getUnlockedSet，陈列 8 成就(已解锁高亮/未解锁灰+锁)；用户菜单加「成就收藏室」(Trophy)入口；Portal 渲染 + 当前 ctx(ddls/notes/streak)即时判定 |
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- preview 实测：①推荐胶囊点「读 10 页书」→ Active 即出现该任务(今天 23:59 · 推荐任务徽章)，计数更新 ②成就收藏室开启「已解锁 1/8」，初心者高亮(刚建任务满足)、其余灰锁 ③ConfirmCard 已无头像、居中带下尾巴 ④system prompt 守则 8 已注入（待真实对话观察澄清行为）
+
+### 🚦 观察.txt 剩余未做
+
+- #4 残项：AI 对话框「按剩余空间放任务左右」（当前居中，左右动态定位未做）
+- #1 残项：成就/音效配套更多动画
+- #5/#6/#8/#14 图片素材清单 · #7 精美组件 · #9 默认开新会话(有内容才存) · #10 系统提示词触发机制 · #12 Claude/GPT/Gemini 多模型接口 · #17 AI 建面板拖拽图表 · #19/#20/#21 风格细化(燕尾服/单框眼镜/白手套元素)
+- 复古主题素材接入（task #11，待用户交图）
+
+### 💾 备份建议
+
+建议 tag：`backup-062-observation-5features`
+
+---
+
+## [061] 2026-05-29 — 任务面板居中化 + AI 额外动态效果
+
+> 用户两连：①处理 AI 额外动态效果清单 ②"创建 list 的丑陋侧边栏"改成独立居中圆角层（= TaskDetailDrawer，正合观察.txt #18「子面板应在屏幕中间」）。
+
+### 🪟 任务/事件面板：右抽屉 → 居中圆角浮层
+
+| 文件 | 改动 |
+|---|---|
+| `TaskDetailDrawer.tsx` | 右侧 `<aside>`(top56/right0/width380/translateX 滑入) → **居中浮层**(top/left 50% + translate(-50%,-50%) + width460/maxWidth94vw/maxHeight88vh + `--radius-modal` 圆角 + 四周 border + `--shadow-modal`)；scrim slate 硬编码 → `var(--color-overlay)`；动画 `drawer-slide`(translateX)→`modal-pop`(scale+fade from center)；form `height:100%`→`flex:1/minHeight:0`(配 maxHeight 内部滚动)；bg `--color-bg`→`--color-surface` |
+
+由 page.tsx 已在 [059] Portal 包裹 → 逃离胶囊 overflow，居中不被裁。
+
+### 🎬 AI 额外动态效果清单（ChatCanvas）
+
+| 效果 | 实现 |
+|---|---|
+| **思考点**（核心）| 新增 `TypingDots`(3 点错相 `dot-bounce` 跳动) + keyframe；AI 加载中**首字未到**(`isTyping && !content`)时替代原来的干光标，"管家斟酌中"更有生命感 |
+| 流式光标 | 保留 `cursor-blink`（有内容时尾随）|
+| **ConfirmCard 入场** | AI 的"任务创建询问"卡 wrapper 加 `.comic-bubble`(bubble-pop 弹入)，呼应观察.txt #4 漫画式任务询问 |
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- preview：New Task 面板已居中圆角浮层(内部滚动 + 取消/创建 footer)；chat 流式正常；`dot-bounce`/`cursor-blink` keyframe 已注入；console 无 error
+
+### 🚦 下一步候选
+
+- 观察.txt 其余：AI 对话框按剩余空间放任务左右 / AI 主动澄清 / 推荐每日任务 / 成就收藏室 / 删残留 AI 头像
+- 复古素材到位接入（task #11）
+- GlassCard 铺各面板内部卡片
+
+### 💾 备份建议
+
+建议 tag：`backup-061-centered-modal-ai-fx`
+
+---
+
+## [060] 2026-05-29 — 代码审计 + 整体动效反馈 + 管家主题音效
+
+> 用户三连：①复古素材接入记入待办 ②整体代码审计出表格 ③整体动效反馈 + 音效独特性。
+
+### 📋 ① 复古素材待办（记入 task #11）
+
+复古主题地基已铺（[059]），待用户提供 6 类手绘素材后接入逼近参考图 1:1：手绘边框九宫格 / 四角飘带·领结 / 标题飘带横幅 / 城市天际线 / 钢笔+墨水瓶 / 管家端盘线描。素材槽 CSS 变量 `--retro-frame/-skyline/-deskware/-butler` 已留，放 `public/assets/retro/`。
+
+### 🔍 ② 代码审计表（9 项；cheap 的当场修）
+
+| # | 严重 | 范围 | 问题 | 状态 |
+|---|---|---|---|---|
+| A1 | 🟡中 | Tasks/Calendar/Notes/Custom 面板根 | 根容器 paint 实色 `--color-bg` 盖住 main 玻璃胶囊 → 仅 Chat 透玻璃，三主题不一致 | 📋 待办(跨4文件逐一验证,不盲改) |
+| A2 | 🟢低 | globals.css | `--texture-paper` 已无引用=死 token | ✅ 删 |
+| A3 | 🟢低 | PreferencesPanel·KbdHelp | modal 遮罩硬编码 slate 蓝不贴主题 | ✅ 改 `var(--color-overlay)` |
+| A4 | 🟢低 | TopBar | `THEME_CYCLE`/`themeMeta` render 内重建 | ✅ 提模块级 `THEME_META` |
+| A5 | 🔵信息 | 全局 | 无 `prefers-reduced-motion` | ✅ 动效任务里加了守卫 |
+| A6 | 🟢接受 | InputPod | 文件类型/档位硬编码语义色 | 设计意图([048])保留 |
+| A7 | 🟢低 | NotesPreview·TaskDrawer·Tour | 同 A3 slate 遮罩(pre-existing) | 📋 后续统一(Tour spotlight 需小心) |
+| A8 | ✅已修 | ConfirmCard | 卡 body `--color-bg` 暗态隐形 | ✅ 本会话→surface |
+| A9 | 🔵信息 | InputPod 模型下拉 | Portal fixed 坐标 open 算一次 resize 不更新 | 接受(固定布局无滚动) |
+
+正面：三主题 token 集完整无 fallthrough；Portal 含 SSR 守卫；组件零重写靠 token 切换。
+
+### 🎬 ③ 动效（task #13）
+
+| 文件 | 改动 |
+|---|---|
+| `globals.css` | 新增 **可复用动效**：`.fx-pop`(完成弹跳,配服务铃)/`.fx-ring`(主色光环回响)/`.fx-shake`(错误抖动,配 error 音)+ keyframes；**`@media (prefers-reduced-motion: reduce)` 全局守卫**(关停所有动画/过渡,A5) |
+| `TasksPanel.tsx` | Checkbox 勾选 unchecked→checked 时挂 `.fx-pop` 450ms（观察.txt #1：task 音效配 UI 动画）|
+| `Toast.tsx` | error toast 挂 `.fx-shake`（配 toast-error 音）；bg `--color-bg`→`--color-surface` + shadow token（暗/复古下浮起，顺修 A 类隐患）|
+
+### 🔔 ③ 音效独特性（task #14，lib/sound.ts）
+
+| 改动 | 细节 |
+|---|---|
+| **管家签名合成器** | 新增 `bell()`（加法合成：基频+2.76×/5.40× 非谐波分音+长衰减=服务铃，巴甫洛夫奖励锚点）+ `scratch()`（高通噪声+抖动包络=钢笔书写擦音）|
+| **关键音管家化** | task-complete→服务铃 B5+E6 闪点；ai-reply→柔和台铃；send→钢笔擦音；achievement→铃前导+琶音；streak→三铃簇鸣；focus 起止→单/双服务铃；panel-create→纸落桌+铃 |
+| **默认开启** | `DEFAULT_SOUND_PREFS.enabled` false→**true**（观察.txt #2；仍可偏好设置关 + 静音时段防扰民）|
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0（两轮：审计后 + 动效音效后）
+- preview eval：fx-pop/ring/shake + prefers-reduced-motion 均注入 CSS；无 stored sound prefs（默认 enabled 生效）；console 无 error；三主题渲染健康
+
+### 🪟 ④ A1 修复：非 Chat 面板根容器透玻璃（task #15）
+
+> 审计 A1 落地。把 5 个面板根容器 `background: var(--color-bg)` → `transparent`，让 `<main>` 玻璃胶囊在所有 Tab 透出（此前仅 Chat 透，Tasks/Calendar/Notes 是实色块，暗色下尤其割裂）。
+
+| 文件 | 根容器 |
+|---|---|
+| `TasksPanel.tsx` | 单列滚动根 |
+| `CalendarPanel.tsx` | 月/周/日 3 个视图根（2 个同串 replace_all + 1 个 day 视图）|
+| `NotesPanel.tsx` | 双列 flex 根（内部 aside 列保留 `--color-surface`，editor 子区元素各自有 bg）|
+| `CustomPanelView.tsx` | flex 列根 |
+
+只改最外层根，内部卡片/按钮/单元格/搜索框/列表列 bg 全不动 → 内容对比度不变，仅面板背板变玻璃。
+
+验证：tsc EXIT=0；preview 实测——暗色 Tasks(网格透出)/Notes(双列玻璃)、亮色 Calendar(白玻璃胶囊明显区别于灰底) 全部可读且与 Chat 一致；三 Tab 现在统一玻璃。
+
+### 🚦 下一步候选
+
+- GlassCard 铺各面板内部卡片（进一步统一玻璃语言）
+- 复古素材到位后接入（task #11）
+- 观察.txt 其余：漫画"任务创建询问"卡 / AI 主动澄清 / 推荐每日任务 / 成就收藏室
+- 偏好设置旧奶油预设色块换 iOS 蓝
+
+### 💾 备份建议
+
+建议 tag：`backup-060-audit-motion-sound`
+
+---
+
+## [059] 2026-05-29 — 视觉转向 iOS 白 + 悬浮胶囊布局（撤回 new.png 复古元素）
+
+> [058] 刚铺好奶油复古未来地基，用户随即转向：**配色换成苹果 iOS 白**，面板拆成**独立悬浮胶囊仓**（navbar / AI 历史 / AI 对话各自一块浮卡），**完全复用 css 液态玻璃**，并**撤回基于 new.png 的改动**（history 下面的管家肖像卡等）。[058] 的结构件（液态玻璃类 / 胶囊导航 / GlassButton）全部复用，只换色 + 重新布成浮卡。
+
+### 🎯 PM 对齐（AskUserQuestion 2 问）
+
+| 分叉 | 用户拍板 |
+|---|---|
+| iOS 白底强调色 | **iOS 蓝 #007AFF**（链接/active/主按钮/发送键）|
+| "撤回基于 new 的改动"撤到哪 | **全面转干净 iOS**（去管家肖像卡 + 漫画气泡尖角尾巴 + 衬线展示字 Fraunces，全换无衬线）|
+
+布局拍板（上一轮已定，本轮落地）：navbar/history/对话三个**独立悬浮胶囊**；液态玻璃技法保留，recolor 成白磨砂。
+
+### 📂 涉及文件
+
+| 文件 | 改动 |
+|---|---|
+| `apps/web/src/app/globals.css` | (1) :root + dark **整块换 iOS 配色**：primary #007AFF / accent 靛蓝 #5856D6 / 系统语义色 / text iOS 灰阶 / **底 #E8E8EF + 白卡** / 白磨砂玻璃（rgba(255,255,255,0.82~0.92) + blur(20px) saturate(1.8)）/ 大圆角(card 22) / 中性黑软阴影（card-hover 加强让白卡浮起）/ code 深炭 / 语义淡底 iOS；(2) `--texture-paper: none`（去纸纹）+ `--bg-liquid` 改极淡蓝/靛蓝光团；(3) font-display/body 改 `-apple-system` 系统无衬线优先；(4) `.glass-btn-primary`/`.glass-btn-accent`/`.pill-nav-item.active` 文字 cream→#fff，删暗色 active 文字 override |
+| `apps/web/src/app/layout.tsx` | 删 Fraunces 衬线字（import + className）；viewport themeColor → #F2F2F7 |
+| `apps/web/src/components/layout/ChatRail.tsx` | **删 ButlerPortraitCard**（AT YOUR SERVICE 管家肖像卡，[058] 加的，即"history 下面那些乱七八糟设计"）|
+| `apps/web/src/components/ChatCanvas.tsx` | 气泡去 `tail-left`/`tail-right` 尖角尾巴（保留 `comic-bubble` pop 动画）；AI 气泡 2px 蓝边 → 1px 中性灰边（error 时才描色边）；root `<main>` bg → transparent（露出胶囊玻璃）|
+| `apps/web/src/app/page.tsx` | 根 div bg→transparent + `padding:12` + `gap:12`；body 行加 `gap:12`；`<main>` 改悬浮玻璃胶囊（圆角/玻璃 bg/blur/border/阴影）|
+| `apps/web/src/components/layout/TopBar.tsx` | 顶栏去 borderBottom，改**悬浮圆角玻璃条**（borderRadius + 四周 border + 阴影）|
+| `apps/web/src/components/layout/LeftRail.tsx` | 左栏去 borderRight，改**悬浮玻璃胶囊**（宽 200→220 + 圆角 + 玻璃 bg/blur/border/阴影）|
+
+### 🎯 关键设计
+
+- **复用 [058] 不重写**：`.liquid-glass`/`.glass-btn`/`.pill-nav` 类 + `ui/Glass.tsx` 原样保留，只改 CSS 变量值 → 全站自动跟随换色。证明 token 化地基的价值
+- **白卡浮起靠对比**：纯白磨砂卡 + #F2F2F7 太接近 → 把底压深到 #E8E8EF + 卡不透明度提到 0.82/0.92 + 强化 card-hover 阴影，胶囊才明显"浮"在带极淡蓝靛 tint 的浅灰底上
+- **撤回范围**：管家肖像卡（明确）+ 漫画尾巴 + 衬线字（用户选"全面转干净 iOS"）。`comic-bubble` 的 pop 入场动画保留（不属于"乱七八糟"）
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0；preview 截图：白底 + navbar/history/对话三独立悬浮白胶囊 + iOS 蓝 active 胶囊/New Chat/发送键 + 无衬线干净字 + 无肖像卡/无气泡尾巴；console 无 error；OnboardingTour 模态也已是 iOS 蓝白样式
+
+### 📝 已知待办 / 下一步候选
+
+- **逐面板铺玻璃**：Tasks/Calendar/Notes 面板内部卡片与按钮还是旧 inline 样式，接 GlassCard/GlassButton
+- **ChatCanvas 残留硬编码 `var(--color-bg)` 块**（greeting/QuickCard/empty-hero 多处）在玻璃胶囊上是不透明浅灰块，可改透明/surface 更融
+- **容器覆盖**（观察.txt #13）：中置管家立绘与输入舱叠放，待处理
+- 暗色模式实机验证（token 已重写 iOS Dark，未实测切换）
+- 观察.txt 其余功能项（音效/漫画任务卡/主动澄清/推荐每日任务等）
+
+### 🔁 同会话追加修订：黑色 + 液态玻璃网格底 + 面板提高透明度
+
+> iOS 白胶囊出来后用户当即再调：「背景用 css 液态玻璃的网格背景 / 前面面板透明度提高 / 配色换成黑色」。在同一 globals.css 上继续改（无新文件、无组件改动）：
+
+| 改动 | 细节 |
+|---|---|
+| **配色换黑** | :root（默认态）整块从 iOS 白 → 黑：`--color-bg #0B0B0F` + surface #17171C + 白字灰阶 + primary 提亮成 #0A84FF。dark block 同步成一致黑（toggle 两态都黑）|
+| **液态玻璃网格底** | 新增 `--grid-line`(rgba(255,255,255,0.07)) + `--bg-grid`（样例「纯CSS液态玻璃」的双 linear-gradient 网格，`background-size:55px`）+ `--bg-glow`（蓝/靛径向晕 + 底部暗角）；body bg = `var(--bg-glow), var(--bg-grid)` |
+| **面板提高透明度** | `--glass-bg` 0.82→**0.45**、strong 0.92→**0.62**；`--glass-blur` 20px→**10px**（低 blur 让网格能透过磨砂玻璃显出来，即"液态玻璃折射网格"效果）|
+
+### 🧩 浮层被胶囊截断修复（Portal）
+
+> 用户实测：模型下拉、偏好设置等弹窗被截断。**根因**：胶囊面板（main/rail/topbar）的 `backdrop-filter` 会成为 `position:fixed` 的**包含块**，叠加 `overflow:hidden` → 所有挂在 `<main>` 内的 fixed 弹窗都被困在胶囊里并裁切。
+
+| 文件 | 改动 |
+|---|---|
+| `apps/web/src/components/ui/Portal.tsx` | **新建** `Portal`（`createPortal` 到 `document.body` + mounted 守卫），让浮层成"独立子容器"逃离胶囊 overflow/backdrop-filter |
+| `apps/web/src/app/page.tsx` | 把 6 个浮层（TaskDetailDrawer / AttachmentPreview / NotesPreview / KeyboardShortcutsHelp / PreferencesPanel / OnboardingTour）整体移出 `<main>`、包进 `<Portal>` |
+| `apps/web/src/components/PreferencesPanel.tsx` | dialog 加 `maxHeight:90vh` + flex 列 + 内容区 `overflow-y:auto`（之前无 maxHeight → 内容超屏被裁）；阴影换 `--shadow-modal` |
+| `apps/web/src/components/InputPod.tsx` | 模型下拉改 `Portal` + `position:fixed`（按钮 `getBoundingClientRect` 算坐标，向上弹），逃离输入舱自身 `overflow:hidden` |
+
+验证：tsc EXIT=0；eval 实测——模型下拉两项完整不裁切；偏好设置 `role=dialog` 已挂到 `body`、居中、`fullyVisible:true`（top64/bottom870/vh934）+ 内部滚动条。
+
+注：白色版（#E8E8EF 底 + 白卡）是中间态。
+
+**再再修订（同会话末）**：用户定「黑色网格版保留为**黑夜模式**，白色版做**常态（亮）模式**」。最终落位：
+- `:root`（默认/常态）= **iOS 白**：#E8E8EF 底 + 白磨砂胶囊（glass 0.82/blur 20）+ `--bg-grid: none`（白模式无网格，只有极淡蓝靛 `--bg-glow` 光团）
+- `html[data-theme="dark"]`（黑夜）= **黑底液态玻璃网格**：#000 底 + 网格 + 高透明黑玻璃胶囊（glass 0.45/blur 10）
+- body bg = `var(--bg-glow), var(--bg-grid)`，两态靠 token 切换；网格仅黑夜出现
+- 切换入口：偏好设置 → 主题 → 亮色/暗色（[048] 已有的 data-theme 机制，原样复用）
+- 验证：默认渲染白胶囊；eval 设 `data-theme=dark` 渲染黑网格；均 OK
+
+### 🌗 顶栏昼夜开关 + 白天也用网格 + 黑夜 logo/人物反色
+
+| 改动 | 细节 |
+|---|---|
+| **顶栏昼夜开关** | TopBar 在搜索栏↔小组件之间加玻璃圆钮（白天显 🌙 / 黑夜显 ☀️）；PreferencesPanel 导出 `getStoredTheme`/`setStoredTheme`/`Theme`，开关复用同一 `butler.theme` 持久化（data-theme + localStorage），与偏好面板同步 |
+| **白天也用网格底** | :root `--bg-grid` 从 `none` 改回网格，`--grid-line: rgba(0,0,0,0.05)`（浅色深线）。两态都有液态玻璃网格 |
+| **黑夜 logo/人物反色** | globals.css `html[data-theme="dark"] .app-logo{filter:invert(1) brightness(1.15)}` + `.butler-figure{filter:invert(1)}`；TopBar logo div 加 `.app-logo`，ButlerCharacter 内置立绘加 `.butler-figure`（**用户自定义形象不反色**）。黑底上 logo/管家变白可见 |
+
+验证：tsc EXIT=0；eval+截图——开关点击 theme 切 dark/light；白天网格线已注入；黑夜 logo `invert(1) brightness(1.15)`、7 张立绘 `invert(1)`，管家成白色立绘清晰可见。
+
+### 🃏 ConfirmCard 黑夜模式"疑似丢失"修复
+
+> 用户报告黑夜模式下核实卡像是消失了。**根因**：卡片 body 用 `background: var(--color-bg)`（黑夜 = #000，与页面同色）→ 卡体融进背景，只剩内部 change-row（`--color-surface` 较亮）+ 蓝边可见，整体看像"卡片丢了"。其实 DOM 一直在（实测「接受(1)」「全部取消」按钮都在）。层级被做反了。
+
+| 文件 | 改动 |
+|---|---|
+| `apps/web/src/components/ConfirmCard.tsx` | 卡 body bg `--color-bg` → **`--color-surface`**（抬起一层）+ 非 pending 态也给 `--shadow-card`；内部 `ChangeRow` bg `--color-surface` → **`--color-bg`** + 加 `--color-border-soft` 描边。恢复"卡面亮 / 行槽暗"的正确两级深度 |
+
+验证：黑夜模式重发建任务消息 → 卡片 body 明显的深灰面（#17171C）区别于 #000 页面 + 蓝边 + 待核实徽章 + 行槽更暗；白天模式白卡同样清晰。两态截图确认。
+
+### 🪶 复古手绘第三主题（地基 + 三元主题系统）
+
+> 用户给了一张复古手绘 Notes 截图（羊皮纸 + 手绘墨线框 + 城市天际线/钢笔墨水瓶插画 + 领结飘带 + 半调网点 + 衬线小型大写），要求「1:1 还原」。**PM 对齐结论**：① 范围 = **可切换的第三主题**（和亮/暗并列，不替换 iOS）；② 插画/边框**素材由用户提供**（1:1 的真正瓶颈，CSS 变不出插画）。本条先做**不依赖素材**的全部地基。
+
+**技术判断（1:1 怎么实现）**：纯 CSS 做不到 = `CSS 结构/配色` + `手绘描边(rough.js / SVG feTurbulence 滤镜 / border-image 九宫格)` + `定制插画素材` 三层叠。能 CSS 的：纸底/半调/衬线/配色；必须素材的：手绘边框、四角飘带、城市天际线、钢笔墨水瓶、管家线描。
+
+| 文件 | 改动 |
+|---|---|
+| `PreferencesPanel.tsx` | `Theme` 类型加 `retro`；主题段 SegRow 加第三个「复古」按钮（Feather 图标）。getStoredTheme/setStoredTheme 自动透传 |
+| `layout/TopBar.tsx` | 顶栏主题钮从 light↔dark 二元切换改为 **亮→暗→复古 三元循环**（`THEME_CYCLE` + `themeMeta` 图标/标签：Sun/Moon/Feather）|
+| `app/globals.css` | 新增 `html[data-theme="retro"]` 全套 token：羊皮纸米底 #ECE3CF / 墨绿 #2D4A3E 主色 / 黄铜金 #B08D57 accent / 墨黑字 / 不透明复古纸面板（glass 0.92, blur 2）/ 衬线展示字 / 暖棕阴影。bg = 暖径向晕 + 纸纹 + **独立半调点阵层**（新增 `--bg-halftone`/`--bg-halftone-size` 机制，body 改 3 层背景，亮/暗设 none）。预留素材槽 `--retro-frame/-skyline/-deskware/-butler`（默认 none）|
+| `app/layout.tsx` | 加载 `Cinzel`（next/font）→ `--font-cinzel`，复古 `--font-display` 用它做小型大写横幅 |
+
+验证：tsc EXIT=0；切 retro 实测——Cinzel 衬线（BUTLER/RECENT CHATS 小型大写）、主色墨绿 #2D4A3E、半调 7px 平铺、羊皮纸底 15 层背景全部生效；logo/管家在复古亮底不反色（正确）。三主题顶栏循环 + 偏好设置三选钮均可切。
+
+### 📋 待用户提供的素材（提供后我接入即逼近 1:1）
+
+建议 SVG 优先（可缩放/跟色），放 `apps/web/public/assets/retro/`：
+1. **手绘边框九宫格** frame.svg（左栏/中栏/主区/卡片通用，含四角排线）→ 填 `--retro-frame` 走 border-image
+2. **四角飘带/领结 ornament**（贴角装饰）
+3. **标题飘带横幅**（PRIVATE WRITING DESK / BUTLER'S MEMOS 那种）
+4. **城市天际线插画**（左栏底部）→ `--retro-skyline`
+5. **钢笔 + 墨水瓶插画**（主区右下）→ `--retro-deskware`
+6. **管家端盘线描立绘**（toast 用）→ `--retro-butler`
+7.（可选）半调网点已用 CSS 实现，如要更精细可换 PNG tile
+
+### 💾 备份建议
+
+`backup-058-visual-foundation` 之后紧跟。建议 tag：`backup-059-black-grid-capsules`
+
+---
+
+## [058] 2026-05-28 — 视觉地基 v2：液态玻璃底 + B 胶囊导航 + GlassButton 通用件
+
+> 用户「接手项目」给出新设计方向：`Doc/new.png`（奶油羊皮纸三栏 = 左导航 + 中对话 + 右 Daily Brief）作北极星，`UI_sample/` 提供具体 CSS 配方。本条按「地基优先」交付视觉地基三件套。`Doc/观察.txt` 为新需求清单（21 条，见下「后续 backlog」）。
+
+### 🎯 PM 对齐（AskUserQuestion 2 问）
+
+| 分叉 | 选项 | 用户拍板 |
+|---|---|---|
+| 导航栏形态（new.png 左竖栏 vs 样例 B 水平胶囊）| 左竖栏+B质感 / **顶部 B 胶囊条** / 顶部胶囊+保留左Rail | **顶部 B 胶囊条**（保持顶栏横向，文字 Tab → B 拟物胶囊；左 Rail 信息架构不动）|
+| 首批范围 | **地基优先** / 整页重排 new.png / 只做导航+背景 | **地基优先**（液态玻璃 bg + 导航 + GlassButton 通用件，验证后再逐面板铺开）|
+
+样例判断：`UI_sample/导航栏对比` 中 **B 明显优于 A** —— B 柔和拟物胶囊（多层柔阴影 + inset 白高光 + 圆角 active + scale 反馈），A 生硬黑边框。液态玻璃底**适配奶油色**，不照搬样例的灰白网格。
+
+### 📂 涉及文件
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `apps/web/src/app/globals.css` | 修改 | (1) 新增 `--bg-liquid`（暖色径向光团基底，给玻璃面板折射源）+ `--glass-highlight` + `--glass-sheen` token（light/dark 各一套）；body bg 叠加 `--bg-liquid`；(2) `@layer components` 新增 `.liquid-glass`（大模块面板）+ `.glass-btn`（+`::after` 斜向折射高光 + hover 抬升 + active 回弹 + disabled flat）+ `.glass-btn-circle/-primary/-accent` 变体 + `.pill-nav`/`.pill-nav-item`（样例 B 适配 espresso/奶油，active = espresso 实色胶囊）|
+| `apps/web/src/components/ui/Glass.tsx` | **新建** | `GlassButton`（forwardRef，variant=default/primary/accent + circle，透传原生 button props）+ `GlassCard`（as 可换标签，套 `.liquid-glass`）|
+| `apps/web/src/components/layout/TopBar.tsx` | 修改 | `<nav>` → `.pill-nav`；内置/自定义 Tab + 「+」改 `.pill-nav-item`（去掉手写 hover/下划线，CSS 接管；保留拖拽重排/自定义面板全部逻辑，dragOver 用 inset ring）；右侧工具/通知钮 → `GlassButton circle`（工具 active 时 variant=primary）|
+| `apps/web/src/components/InputPod.tsx` | 修改 | 发送/停止钮 → `GlassButton variant=primary circle`（disabled/hover 交给 CSS）|
+| `apps/web/src/components/layout/LeftRail.tsx` | 修改 | `RailPrimaryBtn`（+ New Xxx）→ `GlassButton variant=primary`（espresso 实色玻璃胶囊）|
+
+### 🎯 关键设计
+
+- **CSS 类 + React 薄封装**：玻璃按钮需 `::after` 伪元素折射高光，纯 inline 做不到 → 样式落 globals.css，`ui/Glass.tsx` 仅拼 className + 透传 props。变体/禁用/hover 全由 CSS 状态选择器接管，组件无 hover state
+- **液态玻璃适配奶油**：不照搬样例 `.box` 的 `filter:contrast(3)`+灰网格（在奶油底会发灰），改提炼"磨砂半透 + inset 白边高光 + 柔和深度阴影 + 斜向 sheen"，跨不同底色稳健
+- **样例 B → espresso**：active 胶囊用 `linear-gradient(espresso-hover→espresso)` + 顶部 inset 高光；hover 用 primary-soft；暗色下 active 文字反转为深色（`html[data-theme=dark] .pill-nav-item.active`）
+- **保留信息架构**：只换皮，TopBar 顶栏切主区 + 左 Rail 二级上下文的两级导航不变；拖拽重排/隐藏 Tab/自定义面板逻辑零改动
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- preview 截图：胶囊导航（Chat=espresso active）/ 奶油液态玻璃底 / 工具+通知+发送玻璃圆钮 / New Chat espresso 胶囊 / AT YOUR SERVICE 管家卡 全部到位；console 无 error
+
+### 📝 后续 backlog（`Doc/观察.txt` 21 条，未做）
+
+- **逐面板铺开玻璃**（地基已就绪，把 GlassCard/GlassButton 接到 Tasks/Calendar/Notes/各 mini-app）
+- **整页向 new.png 靠**：右栏 Daily Brief、对话区精修
+- **观察.txt 功能**：音效更鲜明+UI 动画/默认开、成就收藏室、AI 对话框按空间放任务左右+漫画"任务创建询问"卡+删残留头像、默认开新会话(有内容才存)、Claude-like 主动澄清、底部保留 Claude/GPT/Gemini 选择、推荐每日任务降门槛、AI 建面板支持拖拽图表(饼/柱/热力)、子面板居中、容器覆盖排查、管家元素(燕尾服/单框眼镜/白手套)+巴甫洛夫音
+
+### 🚦 下一步候选
+
+- 逐面板把组件玻璃化（Tasks/Calendar/Notes 卡片 + 按钮）
+- 整页重排成 new.png 三栏（含右 Daily Brief）
+- 起 观察.txt 功能项（音效强化 / 漫画任务卡 / 主动澄清 / 推荐每日任务）
+- 别的方向
+
+### 💾 备份建议
+
+`backup-057-thinking-toolcall-fix` 之后，本次紧跟。建议 tag：`backup-058-visual-foundation`
 
 ---
 

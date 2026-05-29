@@ -5,10 +5,12 @@
 // Logo+字标 / 4 Tab / 搜索 / 通知 / 用户区
 // ============================================================
 
-import React, { useState } from "react";
-import { Bell, ChevronDown, User as UserIcon, LogOut, CreditCard, LayoutGrid, Settings, Plus } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Bell, ChevronDown, User as UserIcon, LogOut, CreditCard, LayoutGrid, Settings, Plus, Sun, Moon, Feather, Trophy } from "lucide-react";
 import type { NavId, DdlItem, Note, ChatMessage, CustomPanel } from "@/lib/types";
 import GlobalSearch from "./GlobalSearch";
+import { GlassButton } from "@/components/ui/Glass";
+import { getStoredTheme, setStoredTheme, type Theme } from "@/components/PreferencesPanel";
 
 const TAB_LABELS: Record<NavId, string> = {
   chat: "Chat",
@@ -17,6 +19,14 @@ const TAB_LABELS: Record<NavId, string> = {
   notes: "Notes",
 };
 const DEFAULT_TAB_ORDER: NavId[] = ["chat", "tasks", "calendar", "notes"];
+
+// 主题循环：亮 → 暗 → 复古
+const THEME_CYCLE: Theme[] = ["light", "dark", "retro"];
+const THEME_META: Record<Theme, { icon: React.ReactNode; label: string }> = {
+  light: { icon: <Sun size={16} />, label: "亮色" },
+  dark: { icon: <Moon size={16} />, label: "暗色" },
+  retro: { icon: <Feather size={16} />, label: "复古" },
+};
 
 interface TopBarProps {
   activeNav: NavId;
@@ -31,6 +41,8 @@ interface TopBarProps {
   onSearchJump?: (target: NavId, refId?: string) => void;
   /** Epic 3 偏好设置入口 */
   onOpenPreferences?: () => void;
+  /** #3 成就收藏室入口 */
+  onOpenAchievements?: () => void;
   /** Phase D 用户自定义 Tab 顺序，未传则用默认 */
   tabsOrder?: NavId[];
   /** Phase D 隐藏的 Tab 集合 */
@@ -49,13 +61,22 @@ interface TopBarProps {
 
 export default function TopBar({
   activeNav, onNavChange, miniAppsOpen, onToggleMiniApps,
-  ddls = [], notes = [], messages = [], onSearchJump, onOpenPreferences,
+  ddls = [], notes = [], messages = [], onSearchJump, onOpenPreferences, onOpenAchievements,
   tabsOrder, hiddenTabs, onTabsReorder,
   customPanels = [], activeCustomPanelId, onSelectCustomPanel, onCreateCustomPanel,
 }: TopBarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   // Phase D Tab 拖拽：dragOverId 指示拖到哪个 tab 上（视觉反馈）
   const [dragOverId, setDragOverId] = useState<NavId | null>(null);
+  // 主题开关（与偏好设置共用 butler.theme 持久化）：循环 亮→暗→复古
+  const [themeMode, setThemeMode] = useState<Theme>("light");
+  useEffect(() => { setThemeMode(getStoredTheme()); }, []);
+  const cycleTheme = () => {
+    const idx = THEME_CYCLE.indexOf(themeMode);
+    const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
+    setStoredTheme(next);
+    setThemeMode(next);
+  };
 
   const order = tabsOrder ?? DEFAULT_TAB_ORDER;
   const hidden = hiddenTabs ?? new Set<NavId>();
@@ -77,11 +98,15 @@ export default function TopBar({
         height: 56,
         minHeight: 56,
         flexShrink: 0,
-        borderBottom: "1px solid var(--color-border)",
-        background: "var(--color-bg)",
+        borderRadius: "var(--radius-card)",
+        border: "1px solid var(--glass-border)",
+        background: "var(--glass-bg-strong)",
+        backdropFilter: "var(--glass-blur)",
+        WebkitBackdropFilter: "var(--glass-blur)",
+        boxShadow: "var(--shadow-card-hover)",
         display: "flex",
         alignItems: "center",
-        padding: "0 20px",
+        padding: "0 16px",
         gap: 28,
         zIndex: 50,
         position: "relative",
@@ -92,6 +117,7 @@ export default function TopBar({
         <div
           aria-label="Butler"
           role="img"
+          className="app-logo"
           style={{
             width: 28,
             height: 28,
@@ -103,19 +129,20 @@ export default function TopBar({
           }}
         />
         <span
+          className="font-display"
           style={{
-            fontWeight: 700,
-            fontSize: 14,
-            letterSpacing: 1.5,
+            fontWeight: 600,
+            fontSize: 18,
+            letterSpacing: 2,
             color: "var(--color-text)",
           }}
         >
-          BUTLER
+          Butler
         </span>
       </div>
 
-      {/* ── 中：Tab Bar （Phase D 可拖拽重排 + 可隐藏；Phase E 自定义面板）── */}
-      <nav style={{ display: "flex", alignItems: "center", gap: 0, height: "100%" }}>
+      {/* ── 中：拟物胶囊导航条（样例 #B）— Phase D 拖拽重排/隐藏 + Phase E 自定义面板 ── */}
+      <nav className="pill-nav">
         {visibleTabs.map((id) => {
           // Phase E：有 activeCustomPanelId 时所有内置 Tab 都不 active
           const isActive = !activeCustomPanelId && activeNav === id;
@@ -141,39 +168,10 @@ export default function TopBar({
                 if (sourceId && sourceId !== id) handleDropTab(sourceId, id);
               }}
               title="点击切换，拖拽重排"
-              style={{
-                position: "relative",
-                padding: "0 14px",
-                height: "100%",
-                border: "none",
-                background: isDragOver ? "var(--color-primary-soft)" : "transparent",
-                fontSize: 14,
-                fontWeight: 500,
-                color: isActive ? "var(--color-text)" : "var(--color-text-muted)",
-                cursor: "pointer",
-                transition: "color 0.15s, background 0.12s",
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text)";
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text-muted)";
-              }}
+              className={isActive ? "pill-nav-item active" : "pill-nav-item"}
+              style={isDragOver ? { boxShadow: "inset 0 0 0 2px var(--color-primary)" } : undefined}
             >
               {TAB_LABELS[id]}
-              {isActive && (
-                <span
-                  style={{
-                    position: "absolute",
-                    bottom: -1,
-                    left: 14,
-                    right: 14,
-                    height: 2,
-                    background: "var(--color-primary)",
-                    borderRadius: 2,
-                  }}
-                />
-              )}
             </button>
           );
         })}
@@ -186,41 +184,13 @@ export default function TopBar({
               key={p.id}
               onClick={() => onSelectCustomPanel?.(p.id)}
               title={p.label}
-              style={{
-                position: "relative",
-                padding: "0 12px",
-                height: "100%",
-                border: "none",
-                background: "transparent",
-                fontSize: 14,
-                fontWeight: 500,
-                color: isActive ? "var(--color-text)" : "var(--color-text-muted)",
-                cursor: "pointer",
-                transition: "color 0.15s",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-              }}
-              onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text)"; }}
-              onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text-muted)"; }}
+              className={isActive ? "pill-nav-item active" : "pill-nav-item"}
+              style={{ paddingLeft: 12, paddingRight: 12 }}
             >
               <span style={{ fontSize: 14, lineHeight: 1 }}>{p.emoji}</span>
               <span style={{
                 maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               }}>{p.label}</span>
-              {isActive && (
-                <span
-                  style={{
-                    position: "absolute",
-                    bottom: -1,
-                    left: 12,
-                    right: 12,
-                    height: 2,
-                    background: "var(--color-primary)",
-                    borderRadius: 2,
-                  }}
-                />
-              )}
             </button>
           );
         })}
@@ -231,32 +201,10 @@ export default function TopBar({
             onClick={onCreateCustomPanel}
             title="新建自定义面板"
             aria-label="新建自定义面板"
-            style={{
-              marginLeft: 4,
-              width: 26, height: 26, borderRadius: 6,
-              border: "1px dashed var(--color-border)",
-              background: "transparent",
-              color: "var(--color-text-faint)",
-              cursor: "pointer",
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-              transition: "all 0.15s",
-            }}
-            onMouseEnter={(e) => {
-              const el = e.currentTarget as HTMLButtonElement;
-              el.style.background = "var(--color-primary-soft)";
-              el.style.color = "var(--color-primary)";
-              el.style.borderColor = "var(--color-primary)";
-              el.style.borderStyle = "solid";
-            }}
-            onMouseLeave={(e) => {
-              const el = e.currentTarget as HTMLButtonElement;
-              el.style.background = "transparent";
-              el.style.color = "var(--color-text-faint)";
-              el.style.borderColor = "var(--color-border)";
-              el.style.borderStyle = "dashed";
-            }}
+            className="pill-nav-item"
+            style={{ padding: 0, width: 30, justifyContent: "center" }}
           >
-            <Plus size={14} />
+            <Plus size={15} />
           </button>
         )}
       </nav>
@@ -274,56 +222,37 @@ export default function TopBar({
           }}
         />
 
+        {/* 主题切换（搜索栏 ↔ 小组件 之间）：亮→暗→复古 循环 */}
+        <GlassButton
+          aria-label={`切换主题（当前：${THEME_META[themeMode].label}）`}
+          title={`主题：${THEME_META[themeMode].label}（点击切换）`}
+          onClick={cycleTheme}
+          circle
+          style={{ width: 36, height: 36, color: "var(--color-text-muted)" }}
+        >
+          {THEME_META[themeMode].icon}
+        </GlassButton>
+
         {/* 学习工具抽屉切换 */}
-        <button
+        <GlassButton
           aria-label="学习工具"
           title="学习工具（专注计时等）"
           onClick={onToggleMiniApps}
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            border: miniAppsOpen ? "1px solid var(--color-primary)" : "none",
-            background: miniAppsOpen ? "var(--color-primary-soft)" : "transparent",
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: miniAppsOpen ? "var(--color-primary)" : "var(--color-text-muted)",
-            position: "relative",
-            transition: "all 0.15s",
-          }}
-          onMouseEnter={(e) => {
-            if (!miniAppsOpen) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-surface)";
-          }}
-          onMouseLeave={(e) => {
-            if (!miniAppsOpen) (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-          }}
+          circle
+          variant={miniAppsOpen ? "primary" : "default"}
+          style={{ width: 36, height: 36 }}
         >
           <LayoutGrid size={16} />
-        </button>
+        </GlassButton>
 
         {/* 通知 */}
-        <button
+        <GlassButton
           aria-label="Notifications"
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            border: "none",
-            background: "transparent",
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "var(--color-text-muted)",
-            position: "relative",
-          }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--color-surface)")}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "transparent")}
+          circle
+          style={{ width: 36, height: 36, color: "var(--color-text-muted)" }}
         >
           <Bell size={16} />
-        </button>
+        </GlassButton>
 
         {/* 用户区 */}
         <div style={{ position: "relative" }}>
@@ -393,6 +322,11 @@ export default function TopBar({
                   icon={<Settings size={14} />}
                   label="偏好设置"
                   onClick={() => { setShowUserMenu(false); onOpenPreferences?.(); }}
+                />
+                <MenuBtn
+                  icon={<Trophy size={14} />}
+                  label="成就收藏室"
+                  onClick={() => { setShowUserMenu(false); onOpenAchievements?.(); }}
                 />
                 <MenuBtn icon={<CreditCard size={14} />} label="账单管理" />
                 <MenuBtn icon={<LogOut size={14} />} label="退出登录" danger />

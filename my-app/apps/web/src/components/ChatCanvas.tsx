@@ -21,6 +21,7 @@ import ButlerCharacter, { type ButlerPose } from "./ButlerCharacter";
 import ConfirmCard from "./ConfirmCard";
 import InputPod from "./InputPod";
 import TodayHero from "./TodayHero";
+import DailyBrief from "./DailyBrief";
 
 export type Message = ChatMessage;
 
@@ -67,6 +68,10 @@ interface ChatCanvasProps {
   bestHourLabel?: string | null;
   // Phase D 管家位置（"left" | "center" | "right" | "hidden"）
   butlerPosition?: "left" | "center" | "right" | "hidden";
+  // [065] 每日仪式 · 今日简报（每天首次打开顶部出现一次）
+  showDailyBrief?: boolean;
+  onStartFocus?: () => void;
+  onDismissBrief?: () => void;
 }
 
 // ============================================================
@@ -77,11 +82,13 @@ function UserBubble({ msg }: { msg: ChatMessage }) {
   return (
     <div style={{ display: "flex", justifyContent: "flex-end" }}>
       <div
+        className="comic-bubble"
         style={{
+          position: "relative",
           maxWidth: "80%",
           background: "var(--color-primary-soft)",
           border: "1px solid color-mix(in srgb, var(--color-primary) 18%, transparent)",
-          borderRadius: 14,
+          borderRadius: "var(--radius-card)",
           padding: "10px 14px",
           userSelect: "text",
           WebkitUserSelect: "text",
@@ -330,6 +337,27 @@ function MessageToolbar({
   );
 }
 
+/** 思考点：AI 首字未到时的「管家斟酌中」指示（3 点错相跳动）*/
+function TypingDots() {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 18, padding: "2px 0" }}>
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            background: "var(--color-primary)",
+            animation: "dot-bounce 1.2s ease-in-out infinite",
+            animationDelay: `${i * 0.16}s`,
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
 function ButlerBubble({
   content, reasoning, isTyping, showReasoning = true, isError, onRegenerate,
 }: {
@@ -346,19 +374,19 @@ function ButlerBubble({
   const hasReasoning = showReasoning && !!(reasoning && reasoning.trim());
   // 思考过程已结束的判断：reasoning 存在但正文已经开始（content 非空）
   const thinkingActive = hasReasoning && !content;
-  const borderColor = isError ? "var(--color-danger, #dc2626)" : "var(--color-primary)";
+  const borderColor = isError ? "var(--color-danger)" : "var(--color-primary)";
   return (
     <div style={{ display: "flex", justifyContent: "flex-start" }} className="bubble-wrap">
       <div
+        className="comic-bubble"
         style={{
           position: "relative",
           maxWidth: "90%",
-          background: "var(--color-bg)",
-          border: `2px solid ${borderColor}`,
-          borderRadius: 18,
+          background: "var(--color-surface)",
+          border: isError ? `1.5px solid ${borderColor}` : "1px solid var(--color-border)",
+          borderRadius: "var(--radius-card)",
           padding: "12px 16px",
           boxShadow: "var(--shadow-bubble)",
-          animation: "bubble-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
           userSelect: "text",
           WebkitUserSelect: "text",
         }}
@@ -370,19 +398,26 @@ function ButlerBubble({
           className="ai-md"
           style={{ fontSize: 14, color: "var(--color-text)", lineHeight: 1.65 }}
         >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || " "}</ReactMarkdown>
-          {isTyping && (
-            <span
-              style={{
-                display: "inline-block",
-                width: 6,
-                height: 14,
-                background: "var(--color-primary)",
-                marginLeft: 2,
-                verticalAlign: "middle",
-                animation: "cursor-blink 1s steps(2) infinite",
-              }}
-            />
+          {isTyping && !content ? (
+            /* 首字未到：管家斟酌中的思考点 */
+            <TypingDots />
+          ) : (
+            <>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || " "}</ReactMarkdown>
+              {isTyping && (
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: 6,
+                    height: 14,
+                    background: "var(--color-primary)",
+                    marginLeft: 2,
+                    verticalAlign: "middle",
+                    animation: "cursor-blink 1s steps(2) infinite",
+                  }}
+                />
+              )}
+            </>
           )}
         </div>
         {/* 工具栏：流式中（isTyping）隐藏；error 时常显；其他 hover 显示 */}
@@ -432,6 +467,9 @@ export default function ChatCanvas(props: ChatCanvasProps) {
     streakDays = 0,
     bestHourLabel,
     butlerPosition = "center",
+    showDailyBrief = false,
+    onStartFocus,
+    onDismissBrief,
   } = props;
 
   // Phase D 管家位置 → 容器定位
@@ -489,7 +527,7 @@ export default function ChatCanvas(props: ChatCanvasProps) {
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        background: "var(--color-bg)",
+        background: "transparent",
         position: "relative",
       }}
     >
@@ -498,6 +536,17 @@ export default function ChatCanvas(props: ChatCanvasProps) {
         <div style={butlerStyle}>
           <ButlerCharacter pose={butlerPose} />
         </div>
+      )}
+
+      {/* [065] 每日仪式 · 今日简报（每天首次打开顶部出现一次）*/}
+      {showDailyBrief && onStartFocus && onDismissBrief && (
+        <DailyBrief
+          ddls={ddls}
+          streakDays={streakDays}
+          onStartFocus={onStartFocus}
+          onJumpToTask={onJumpToTask}
+          onDismiss={onDismissBrief}
+        />
       )}
 
       {/* 历史区 */}
@@ -578,7 +627,7 @@ export default function ChatCanvas(props: ChatCanvasProps) {
                 if (!batch) return null;
                 // 核实卡居中浮在管家上方（区别于普通 AI 消息的左对齐,强调"等待你决策"）
                 return (
-                  <div key={msg.id} style={{ display: "flex", justifyContent: "center" }}>
+                  <div key={msg.id} className="comic-bubble" style={{ display: "flex", justifyContent: "center" }}>
                     <ConfirmCard
                       batch={batch}
                       onAccept={onAcceptBatch}
@@ -655,6 +704,10 @@ export default function ChatCanvas(props: ChatCanvasProps) {
         }
         @keyframes cursor-blink {
           to { background: transparent; }
+        }
+        @keyframes dot-bounce {
+          0%, 80%, 100% { transform: translateY(0); opacity: 0.45; }
+          40% { transform: translateY(-4px); opacity: 1; }
         }
         .ai-md p { margin: 0 0 6px; }
         .ai-md p:last-child { margin-bottom: 0; }

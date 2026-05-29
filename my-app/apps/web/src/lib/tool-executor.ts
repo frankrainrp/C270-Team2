@@ -258,11 +258,20 @@ function execCreateCustomPanel(args: CreateCustomPanelArgs, { addPending }: Tool
   if (!args.label || !args.label.trim()) {
     return { ok: false, message: "create_custom_panel 需要 label" };
   }
-  const kind: "markdown" | "iframe" = args.kind === "iframe" ? "iframe" : "markdown";
+  const kind: "markdown" | "iframe" | "modules" =
+    args.kind === "iframe" ? "iframe" : args.kind === "modules" ? "modules" : "markdown";
   if (kind === "iframe" && (!args.url || !args.url.trim())) {
     return { ok: false, message: "kind=iframe 必须传 url" };
   }
+  if (kind === "modules" && (!args.modules || args.modules.length === 0)) {
+    return { ok: false, message: "kind=modules 必须传至少 1 个 module" };
+  }
   const now = Date.now();
+  // [064] 给每个模组补 id（AI 不传 id）
+  const modules =
+    kind === "modules" && args.modules
+      ? args.modules.map((m) => ({ id: "mod-" + uid(), type: m.type, title: m.title, config: m.config }))
+      : undefined;
   const panelDraft: CustomPanel = {
     id: "custom-" + uid(),
     label: args.label.slice(0, 12).trim() || "新面板",
@@ -270,13 +279,16 @@ function execCreateCustomPanel(args: CreateCustomPanelArgs, { addPending }: Tool
     content: args.content ?? "",
     kind,
     ...(kind === "iframe" && args.url ? { url: args.url.trim() } : {}),
+    ...(modules ? { modules } : {}),
     createdAt: now,
     updatedAt: now,
   };
   addPending({
     id: makeChangeId(),
     kind: "create-custom-panel",
-    summary: `${panelDraft.emoji} ${panelDraft.label}`,
+    summary: kind === "modules"
+      ? `${panelDraft.emoji} ${panelDraft.label}（${modules!.length} 个模组）`
+      : `${panelDraft.emoji} ${panelDraft.label}`,
     panelDraft,
   });
   return {

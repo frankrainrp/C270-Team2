@@ -162,6 +162,8 @@ export default function ButlerCharacter({
             ref={(el) => { imgRefs.current[p] = el || undefined; }}
             src={src}
             alt={`Butler ${p}`}
+            // 内置黑色立绘在黑夜模式自动反色成白；用户自定义形象不反色
+            className={!useCustom ? "butler-figure" : undefined}
             draggable={false}
             onError={() => {
               if (!useCustom && p !== "standing" && !errored.has(p)) {

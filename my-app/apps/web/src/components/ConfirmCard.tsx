@@ -6,7 +6,7 @@
 // ============================================================
 
 import React from "react";
-import { Plus, Pencil, Trash2, X, Check, Sparkles, BookOpen, LayoutGrid } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Check, BookOpen, LayoutGrid } from "lucide-react";
 import type { PendingBatch, PendingChange } from "@/lib/pending";
 
 interface ConfirmCardProps {
@@ -23,33 +23,19 @@ export default function ConfirmCard({ batch, onAccept, onReject, onDropChange }:
   const isRejected = batch.status === "rejected";
   const remaining = batch.changes.length;
 
+  const borderColor = isPending ? "var(--color-primary)" : "var(--color-border)";
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-      {/* AI 头像（与 AssistantMessage 一致的视觉锚点） */}
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: 10,
-          flexShrink: 0,
-          background: "var(--color-primary)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          marginTop: 2,
-        }}
-      >
-        <Sparkles size={14} color="white" />
-      </div>
-
-      <div style={{ flex: 1, minWidth: 0 }}>
+    // 漫画对话气泡：去掉残留 AI 头像，做成「管家发起的任务创建询问」（观察.txt #4）
+    <div style={{ width: "100%", maxWidth: 460, minWidth: 0 }}>
+      <div style={{ position: "relative" }}>
         <div
           style={{
-            background: "var(--color-bg)",
-            border: `1px solid ${isPending ? "var(--color-primary)" : "var(--color-border)"}`,
-            borderRadius: 12,
+            position: "relative",
+            background: "var(--color-surface)",
+            border: `1.5px solid ${borderColor}`,
+            borderRadius: "var(--radius-card)",
             padding: 14,
-            boxShadow: isPending ? "var(--shadow-card-hover)" : "none",
+            boxShadow: isPending ? "var(--shadow-card-hover)" : "var(--shadow-card)",
             opacity: isRejected ? 0.55 : 1,
           }}
         >
@@ -148,6 +134,35 @@ export default function ConfirmCard({ batch, onAccept, onReject, onDropChange }:
             </div>
           )}
         </div>
+        {/* 向下尾巴：指向下方的管家，强调「管家在向你确认」 */}
+        <span
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: "50%",
+            bottom: -9,
+            transform: "translateX(-50%)",
+            width: 0,
+            height: 0,
+            borderLeft: "9px solid transparent",
+            borderRight: "9px solid transparent",
+            borderTop: `9px solid ${borderColor}`,
+          }}
+        />
+        <span
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: "50%",
+            bottom: -6,
+            transform: "translateX(-50%)",
+            width: 0,
+            height: 0,
+            borderLeft: "7px solid transparent",
+            borderRight: "7px solid transparent",
+            borderTop: "7px solid var(--color-surface)",
+          }}
+        />
       </div>
     </div>
   );
@@ -189,7 +204,8 @@ function ChangeRow({
         gap: 10,
         padding: "6px 8px",
         borderRadius: 6,
-        background: "var(--color-surface)",
+        background: "var(--color-bg)",
+        border: "1px solid var(--color-border-soft)",
       }}
     >
       <span

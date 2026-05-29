@@ -19,6 +19,8 @@ interface Props {
   ddls: DdlItem[];
   onToggleComplete: (id: string) => void;
   onRequestCreate: () => void;
+  /** #16 推荐每日任务：一键直接添加（不开编辑器） */
+  onQuickAdd?: (title: string) => void;
   onRequestEdit: (ddl: DdlItem) => void;
   onRequestDelete: (id: string) => void;
   onRequestPreview: (att: DdlAttachment) => void;
@@ -114,7 +116,7 @@ function classifyGroup(ddl: DdlItem): GroupKey {
 }
 
 export default function TasksPanel({
-  ddls, onToggleComplete, onRequestCreate, onRequestEdit, onRequestDelete,
+  ddls, onToggleComplete, onRequestCreate, onQuickAdd, onRequestEdit, onRequestDelete,
   onRequestPreview, onRequestNotesPreview, onExportIcs, onExportJson, onImportJson, onImportIcs, view,
   highlightTaskId,
 }: Props) {
@@ -164,7 +166,7 @@ export default function TasksPanel({
         height: "100%",
         overflow: "auto",
         padding: "28px 32px 40px",
-        background: "var(--color-bg)",
+        background: "transparent",
       }}
     >
       <div style={{ maxWidth: 880, margin: "0 auto" }}>
@@ -272,7 +274,7 @@ export default function TasksPanel({
         )}
 
         {ddls.length === 0 ? (
-          <EmptyState onCreate={onRequestCreate} />
+          <EmptyState onCreate={onRequestCreate} onQuickAdd={onQuickAdd} />
         ) : filteredDdls.length === 0 ? (
           <ViewEmptyState viewTitle={VIEW_TITLE[view]} />
         ) : (
@@ -693,10 +695,23 @@ function RowIconBtn({
 // 复选框
 // ============================================================
 function Checkbox({ checked, onClick }: { checked: boolean; onClick: () => void }) {
+  // 勾选完成时弹跳一下（配 task-complete 服务铃，观察.txt #1：音效配 UI 动画）
+  const [popping, setPopping] = useState(false);
+  const prevChecked = useRef(checked);
+  useEffect(() => {
+    if (checked && !prevChecked.current) {
+      setPopping(true);
+      const t = setTimeout(() => setPopping(false), 450);
+      prevChecked.current = checked;
+      return () => clearTimeout(t);
+    }
+    prevChecked.current = checked;
+  }, [checked]);
   return (
     <button
       onClick={onClick}
       aria-label={checked ? "标记未完成" : "标记完成"}
+      className={popping ? "fx-pop" : undefined}
       style={{
         width: 18,
         height: 18,
@@ -795,7 +810,16 @@ function PrimaryBtn({
 // ============================================================
 // 空状态
 // ============================================================
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+// #16 推荐每日任务：降低启动门槛，一键添加
+const RECOMMENDED_TASKS = [
+  "复习今天的笔记 25 分钟",
+  "规划明天的 3 件事",
+  "整理待办收件箱",
+  "运动 / 散步 15 分钟",
+  "读 10 页书",
+];
+
+function EmptyState({ onCreate, onQuickAdd }: { onCreate: () => void; onQuickAdd?: (title: string) => void }) {
   return (
     <div
       style={{
@@ -831,10 +855,53 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       >
         ☕「放假了？让我陪你休息一下」— Butler
       </p>
+
+      {/* #16 推荐任务：一键启动，降低门槛 */}
+      {onQuickAdd && (
+        <div style={{ marginBottom: 18 }}>
+          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.6, textTransform: "uppercase", color: "var(--color-text-faint)", margin: "0 0 8px" }}>
+            管家推荐 · 点一下即添加
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", maxWidth: 460, margin: "0 auto" }}>
+            {RECOMMENDED_TASKS.map((t) => (
+              <RecommendChip key={t} label={t} onClick={() => onQuickAdd(t)} />
+            ))}
+          </div>
+        </div>
+      )}
+
       <div>
         <PrimaryBtn onClick={onCreate} icon={<Plus size={14} />} label="New Task" />
       </div>
     </div>
+  );
+}
+
+function RecommendChip({ label, onClick }: { label: string; onClick: () => void }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "7px 12px",
+        borderRadius: 999,
+        border: `1px solid ${hov ? "var(--color-primary)" : "var(--color-border)"}`,
+        background: hov ? "var(--color-primary-soft)" : "var(--color-surface)",
+        color: hov ? "var(--color-primary)" : "var(--color-text)",
+        fontSize: 12.5,
+        cursor: "pointer",
+        transition: "all 0.15s",
+        fontFamily: "inherit",
+      }}
+    >
+      <Plus size={12} />
+      {label}
+    </button>
   );
 }
 

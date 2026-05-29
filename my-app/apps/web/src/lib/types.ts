@@ -128,9 +128,18 @@ export interface ButlerAsset {
   updatedAt: number;
 }
 
+// 壁纸（[066]，Dexie v8 起）：root 背景可替换为图片或视频，浮在玻璃胶囊后
+export interface Wallpaper {
+  id: string;              // 固定 "current"
+  kind: "image" | "video";
+  blob: Blob;              // 原始图片/视频二进制
+  updatedAt: number;
+}
+
 // 用户自定义面板（[052] Phase E，Dexie v7 起；[054] D.2 加 kind/url 支持 iframe）
 // 出现在 Tab Bar 内置 4 Tab 后
-export type CustomPanelKind = "markdown" | "iframe";
+// [064] 模组系统：kind=modules → 面板由一摞 PanelModule 组合（AI 可调用拼装 / 用户手动加）
+export type CustomPanelKind = "markdown" | "iframe" | "modules";
 export interface CustomPanel {
   id: string;          // "custom-{nanoid}"
   label: string;       // Tab 显示名（≤12 字符）
@@ -142,4 +151,48 @@ export interface CustomPanel {
   kind?: CustomPanelKind;
   /** [054] D.2：嵌入网页 URL（kind=iframe 时用）*/
   url?: string;
+  /** [064] kind=modules 时的模组列表（按顺序竖排渲染）*/
+  modules?: PanelModule[];
+}
+
+// ============================================================
+// [064] 面板模组系统
+// ============================================================
+export type PanelModuleType =
+  | "stat"      // 统计大数字卡（Butler 数据绑定）
+  | "countdown" // DDL 倒计时（绑定最近截止 / 指定日期）
+  | "tasklist"  // 任务清单（按筛选）
+  | "pie"       // 饼图
+  | "bar"       // 柱状图
+  | "heatmap";  // 活动热力图（绑定每日完成数）
+
+/** 绑定到 Butler 真实数据的指标 key（resolve 时从 ddls/notes/streak 算）*/
+export type PanelMetric =
+  | "tasks-total" | "tasks-done" | "tasks-active" | "tasks-today"
+  | "notes-total" | "streak-current" | "streak-longest"
+  | "completion-7d"       // 近 7 日每日完成数（series）
+  | "tasks-by-status"     // 按状态分布（series）
+  | "tasks-by-source";    // 按来源分布（series）
+
+export interface PanelModuleConfig {
+  /** 绑定指标（stat/pie/bar/heatmap 用；填了走 live 数据）*/
+  metric?: PanelMetric;
+  /** 静态数据（不绑定时用；pie/bar 的数据系列）*/
+  data?: { label: string; value: number }[];
+  /** stat 卡单位（如「个」「天」）*/
+  unit?: string;
+  /** countdown 目标日期 YYYY-MM-DD（缺省=最近 DDL）*/
+  targetDate?: string;
+  /** tasklist 筛选 */
+  filter?: "active" | "today" | "upcoming" | "completed" | "all";
+  /** tasklist 上限 */
+  limit?: number;
+}
+
+export interface PanelModule {
+  id: string;
+  type: PanelModuleType;
+  /** 模组标题（可选，显示在模组顶部）*/
+  title?: string;
+  config?: PanelModuleConfig;
 }

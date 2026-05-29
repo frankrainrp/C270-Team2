@@ -162,35 +162,39 @@ export default function TaskDetailDrawer({
 
   return (
     <>
-      {/* 半透明遮罩（轻量级，点击关闭） */}
+      {/* 半透明遮罩（点击关闭） */}
       <div
         onClick={onCancel}
         style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(15, 23, 42, 0.18)",
+          background: "var(--color-overlay)",
           zIndex: 70,
           animation: "drawer-fade 0.18s ease-out",
         }}
       />
-      {/* 右侧抽屉 */}
+      {/* 居中圆角浮层（观察.txt #18：子面板放屏幕中间）*/}
       <aside
         style={{
           position: "fixed",
-          top: 56,
-          right: 0,
-          bottom: 0,
-          width: 380,
-          background: "var(--color-bg)",
-          borderLeft: "1px solid var(--color-border)",
-          boxShadow: "-8px 0 24px rgba(0,0,0,0.08)",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          width: 460,
+          maxWidth: "94vw",
+          maxHeight: "88vh",
+          background: "var(--color-surface)",
+          border: "1px solid var(--color-border)",
+          borderRadius: "var(--radius-modal)",
+          boxShadow: "var(--shadow-modal)",
           zIndex: 71,
           display: "flex",
           flexDirection: "column",
-          animation: "drawer-slide 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
+          overflow: "hidden",
+          animation: "modal-pop 0.24s cubic-bezier(0.16, 1, 0.3, 1)",
         }}
       >
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
           {/* Header */}
           <header
             style={{
@@ -543,9 +547,9 @@ export default function TaskDetailDrawer({
           from { opacity: 0; }
           to { opacity: 1; }
         }
-        @keyframes drawer-slide {
-          from { transform: translateX(100%); }
-          to { transform: translateX(0); }
+        @keyframes modal-pop {
+          from { transform: translate(-50%, -50%) scale(0.94); opacity: 0; }
+          to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
         }
       `}</style>
     </>
