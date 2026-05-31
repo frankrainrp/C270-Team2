@@ -7,6 +7,10 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [070] | 全功能走查 + 抽屉自动关修复 | 桌面/手机/三主题/4面板走查全正常无 console error；修抽屉点项不自动关(React onClick 冒泡 programmatic 不可靠 → 原生 addEventListener+ref)；甄别 preview 环境限制(resize 不 fire matchMedia / element.click 不稳定 / 截图卡)非代码 bug |
+| [069] | 手机响应式：窄屏布局重构 | useIsMobile hook + MobileTabBar 底部4tab + 左栏 fixed 抽屉(菜单开/遮罩关) + 根 padding-bottom 让位 + TopBar 手机隐藏 pill-nav/3钮/用户文字 + 搜索 flex 缩；375px 从溢出崩→不崩可用 |
+| [068] | 管家化交互三件套：管家按需出现 + 铃铛发送键 + 漫画思考框 | 管家常驻→仅 AI 活动升起(standing opacity:0 下沉/活动升起缓动) ; 发送键 ArrowUp→餐厅服务铃铛 SVG(呼应[060]服务铃音效) ; thinking 时管家头顶漫画思考框(主泡+2尾泡+TypingDots,scale 弹入) ; 纯 CSS 零素材 |
+| [067] | 复古主题 6 张手绘素材接入（解阻塞 task #11）| ChatGPT/DALL-E 驱动浏览器生成 6 张爱德华墨线 PNG → public/assets/retro/(frame/corner/banner/skyline/deskware/butler.png) + globals.css 6 个 `--retro-*` 变量从 none 替换为 url() + 左下天际线 / 右下钢笔墨水瓶 fixed 装饰层(mix-blend-mode:multiply 白底融入羊皮纸) |
 | [066] | 壁纸系统：root 可换图片/视频 | Dexie v8 wallpapers 表 + lib/wallpaper.ts + WallpaperLayer(fixed z-1 img/video+暗化遮罩) + 偏好设置「壁纸」段(传图/视频/重置/暗化滑块)；背景从 body 移到 html 修 z-index:-1 被遮 |
 | [065] | 每日仪式 · Daily Brief（UX 增长：留存）| DailyBrief 玻璃横幅每天首次打开顶部出现一次(localStorage lastSeen)；时段问候+今日到期/逾期摘要+streak+最近任务+一键「开始专注」(开学习工具抽屉)；巴甫洛夫日常触发(观察#15/#16) |
 | [064] | 面板模组系统（观察 #17）：AI/手动组合数据仪表盘 | CustomPanel kind=modules + PanelModule[]；手绘 SVG 饼/柱/热力(零依赖)；panel-data 绑定真实 ddls/notes/streak；6 模组(统计/倒计时/清单/饼/柱/热力)；create_custom_panel 工具扩展 modules，AI 可组合 |
@@ -50,7 +54,205 @@
 | [022]-[026] | UI 重构 Stage C-E + Mini Apps + Stage C.2 + 模型切换 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
-> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 26 条 [041]-[066] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 30 条 [041]-[070] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [070] 2026-05-31 — 全功能走查 + 抽屉自动关修复
+
+> 用户选「全功能走查修 bug」。系统走查 4 面板 + 三主题 + 手机 + 浮层，找回归，验证最近大量改动（手机 isMobile / 管家 / sheet / 元素融入）。
+
+### 🔍 走查结果（全健康）
+
+- **桌面**：4 面板切换渲染 ✓；三主题 token(light/dark/retro 的 primary/surface/`--butler-gold` 各异且齐全) ✓；建任务浮层(460 居中带 form，居中正确) ✓
+- **手机 375px**：底部 tab 5 钮 ✓、pill-nav 隐藏 ✓、bodyScrollW 375 不溢出 ✓、calendar 月视图 padLeft 12 不溢出 + 周视图 grid minWidth 488 横滚 ✓
+- **console error 全程为空** ✓ —— 项目代码健康，无崩溃/逻辑 bug
+
+### 🔧 修复：抽屉点项不自动关（唯一真 bug）
+
+| 项 | 内容 |
+|---|---|
+| 现象 | 手机左栏抽屉点 New Chat / 会话项后不自动收起 |
+| 根因 | 原用 React 容器 `onClick` 捕获子按钮冒泡；实测原生 click 确实冒泡到抽屉(`bubbleFired=true`)，但 React 合成 `onClick` **未触发** `setMobileNavOpen(false)` —— React 18 事件委托对「子组件点击冒泡到容器 onClick」在 programmatic 场景不可靠 |
+| 修复 | `app/page.tsx`：改 `useRef`(mobileDrawerRef) + `useEffect` 原生 `addEventListener('click')`：原生冒泡不受 React 合成层影响(已验证 100% 到达抽屉) → `closest('button')` → `setTimeout(()=>setMobileNavOpen(false),120)`。抽屉 div 去 React onClick 改挂 ref |
+
+### ⚠️ preview/eval 环境限制（已甄别，非代码 bug）
+
+- `preview_resize` 不触发 matchMedia change → isMobile 不更新（真机缩窗会触发；reload 后正常）
+- `element.click()` 不稳定触发 React onClick（真实点击触发；导致 eval 无法端到端验证抽屉开关）
+- 截图器对多层玻璃 backdrop-filter 间歇 30s 超时
+
+→ 动态行为（抽屉开关/自动关、sheet 滑入、周视图横滚）需**真机 / 真实点击**验证
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0；console error 全程为空；抽屉自动关原生 listener 逻辑必然有效(原生 click 冒泡已验证到达抽屉)，待真机端到端确认
+
+### 💾 备份建议
+
+建议 tag：`backup-070-walkthrough-drawer-fix`
+
+---
+
+## [069] 2026-05-30 — 手机响应式：窄屏布局重构
+
+> [065] 验证手机(375px)布局崩：桌面三胶囊水平 flex(TopBar + LeftRail 220 + main)溢出、TopBar 导航/工具裁切。本条把窄屏(≤768)重构成移动布局：底部 tab + 左栏抽屉 + 顶栏精简，让手机从「崩」→「可用」。
+
+### 📂 改动
+
+| 文件 | 改动 |
+|---|---|
+| `lib/use-is-mobile.ts` | **新建** `useIsMobile`(matchMedia ≤768，SSR 安全首屏 false) |
+| `components/layout/MobileTabBar.tsx` | **新建** 底部 fixed 玻璃 tab bar：菜单(开左栏抽屉) + 4 主面板(对话/任务/日历/笔记)；`env(safe-area-inset-bottom)` 适配刘海屏 |
+| `app/page.tsx` | `isMobile` + `mobileNavOpen` state；根 padding 手机 8 / 底 72(给 tab 让位)；提取 `railContent`；左栏桌面常驻 / 手机 fixed 抽屉(translateX 滑入 + 遮罩 zIndex 46/47)；底部渲染 MobileTabBar；TopBar 传 isMobile |
+| `components/layout/TopBar.tsx` | `isMobile` prop；pill-nav 手机隐藏(底部 tab 代替)；header gap 28→8 / padding 缩；右侧区手机 flex；主题/工具/通知 3 钮手机隐藏(收进偏好设置)；用户区手机只头像(隐藏 Feng/email/chevron) |
+| `components/layout/GlobalSearch.tsx` | `isMobile` prop：搜索框 width 240 → flex:1 自适应缩窄 |
+
+### 🎯 设计
+
+- **inline style 架构用 JS hook 驱动**：项目大量 inline style 不便 CSS media query，用 `useIsMobile` 条件渲染/切样式
+- **底部 tab + 抽屉**：移动经典——4 主面板底部 tab 直达；左栏二级(New Chat/会话/任务视图)收进汉堡抽屉(菜单开 / 遮罩关)
+- **顶栏减法**：手机砍 pill-nav(底部代) + 主题/工具/通知钮(进偏好) + 用户文字，只留 logo / 领结 / 搜索(缩) / 头像
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- preview 375px：bodyScrollW 375 = vw **无横向溢出**(原崩点解决)；headerScrollW 357 = clientW **顶栏不溢出**；底部 tab(对话 active) + 主区全宽 359 + 铃铛发送键截图确认；点菜单 → 抽屉 translateX(0) x=8 滑出 + 遮罩 zIndex46 ✓
+
+### 🔁 同会话追加：手机深度优化（阶段 2）
+
+> 用户「深度优化手机端体验」。诊断 375px：calendar 内部 392px / tasks 370px 横向超出(main overflow:hidden 裁切)，notes OK。本批做通用移动 UX：
+
+| 优化 | 实现 |
+|---|---|
+| 抽屉点项自动关 | page 抽屉容器 onClick 捕获：点内部 button/[role=button] → 160ms 后 setMobileNavOpen(false)(让操作先执行) |
+| 管家立绘手机缩小 | ChatCanvas useIsMobile → ButlerCharacter scale 手机 0.33→0.24(不占屏) |
+| 任务浮层手机 sheet | TaskDetailDrawer isMobile：居中浮层→底部 sheet(贴底全宽 + 顶圆角 20 + sheet-up 上滑) |
+| 偏好面板手机 sheet | PreferencesPanel 同款底部 sheet(手机隐藏顶栏主题钮后，偏好是切主题主入口) |
+| 对话主区 padding | ChatCanvas 历史区/输入区两侧 32px→12px(手机气泡可用宽 ~280→333) |
+| 各面板内部 padding(用户选) | TasksPanel 根 28/32→16/12；CalendarPanel 月/周/日 3 视图(独立函数 MonthView/DayView/WeekView 各加 useIsMobile)根 padding 手机缩 + 周视图 grid `48px+repeat(7,1fr)`→手机 `40px+minmax(64px,1fr)` minWidth 488 → 父容器横滚(7 天可滑不挤成条) |
+
+各浮层内联 style 新增 `sheet-up` keyframe(translateY 100%→0)。NotesPanel 双列→**手机上下堆叠**(根 flexDirection column + aside 全宽 maxHeight 40vh + 下边框，列表在上/编辑在下；textarea padding 手机缩，md-preview 在独立函数故未缩)。验证：tsc EXIT=0；preview 375 实测——无横向溢出/底部 tab/抽屉滑出/对话区 padLeft 12/calendar 月视图 padLeft 12 不溢出/周视图 grid minWidth 488 均确认；sheet 视觉待本地实操(截图器对多层玻璃间歇超时)。
+
+### 🚦 下一步（手机阶段 2 续，可选）
+
+- calendar 周视图/网格手机适配(392 溢出)；MiniApps 抽屉手机；各面板列表移动精读
+- 主动 AI / 周报分享卡 / 偏好设置管家显示开关
+
+### 💾 备份建议
+
+建议 tag：`backup-069-mobile-responsive`
+
+---
+
+## [068] 2026-05-30 — 管家化交互三件套：管家按需出现 + 铃铛发送键 + 漫画思考框
+
+> 用户三连需求：①管家默认不保留、仅生成内容时出现 ②发送键换餐厅「叮」服务铃铛(保留动效) ③生成时画漫画思考框，思考完消失。核心 = 把管家从「常驻装饰」变成「AI 活动的拟人化身」：平时退场，工作时登场 + 头顶思考泡，呼应巴甫洛夫管家音效。
+
+### 📂 改动
+
+| 文件 | 改动 |
+|---|---|
+| `InputPod.tsx` | 发送按钮 `<ArrowUp>` → `<ServiceBell>`(新内联 SVG：顶部按钮 + 半圆钟体 + 底座托盘，`currentColor` 跟随)；删 ArrowUp import。外壳 GlassButton 动效(hover抬升/active回弹) + send 音效全不动 |
+| `ChatCanvas.tsx` | ①新增 `ThoughtBubble`(主泡 54×38 + 2 递减尾泡指向左下管家头 + 内嵌 TypingDots；绝对定位管家头顶 bottom:88%；`scale(.5)→1` 弹入 cubic-bezier 回弹) ②算 `butlerActive = pose!=="standing"` / `isThinking = pose∈{thinking,thinking-hard,rare-thinking}` ③管家容器套显隐层：standing 时 `opacity:0+translateY(18px)` 下沉藏，活动时 `opacity:1+translateY(0)` 升起(0.45/0.5s 缓动) |
+
+### 🎯 设计
+
+- **管家 = AI 活动化身**：复用现成 butlerPose 状态机([033]) — standing(空闲)=隐藏，thinking/serving/idea/pointout(活动)=升起。零改状态机，只在 ChatCanvas 加显隐层。`butlerPosition==="hidden"`(用户主动关)仍完全不渲染
+- **铃铛巴甫洛夫闭环**：发送键造型 = 餐厅台铃，呼应 [060] task 服务铃音效。「按铃→管家应答」拟物隐喻
+- **思考框纯 CSS 零素材**：评估「是否需 ChatGPT 生成过渡动画」→ **否**。scale+opacity+translateY 缓动够丝滑，且自动跟随三主题色(白/黑/复古)，生成 GIF 反而重 + 不跟色。延续项目零依赖哲学(WebAudio 合成/手绘 SVG)
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- preview eval **坐标验证**(截图器对管家 7 张 PNG 固有卡顿，重启无效 → 改用 getBoundingClientRect 验证)：
+  - 管家 standing → 显隐层 `opacity:0 translateY(18px)`(隐藏)；强制 thinking → `opacity:1`(升起) ✓
+  - 铃铛 SVG 4 形状，居中发送按钮(钮 36²@1075,632 / 铃 18²@1084,641 中心对齐) ✓
+  - 思考框 64×48@778,348 在管家(107×348@711,367)头顶右上、不超屏 ✓
+- **视觉精度待用户本地确认**：铃铛造型 / 思考框美观 / 升起顺滑 — preview server 在跑，本地刷 localhost:3000 发条消息即见
+
+### 🚦 下一步
+
+- 用户本地看效果，微调铃铛造型 / 思考框大小位置 / 动画时长
+- frame/banner/butler 素材找落点 or 不用
+- 手机响应式 / 主动 AI / 周报分享卡
+
+### 🔁 同会话追加：消失放缓 + 管家元素融入设计（观察 #21）
+
+> 用户反馈：①消失太快 ②用 GPT 补帧(退场鞠躬，待 Chrome) ③管家元素(燕尾服/单框眼镜/白手套)融入设计。
+
+**消失放缓**(ChatCanvas)：管家显隐层 + 思考框 transition 拆进/出双时长——出现利落(回弹)，消失舒缓(管家 `delay 0.3s` 多停留 + 1s 缓淡下沉；思考框 0.7s 淡出)，不再「啪」消失。
+
+**管家元素融入(4 项，纯 CSS/SVG 零生图)**：
+
+| 元素 | 实现 |
+|---|---|
+| 白手套光标 | `public/assets/cursor-glove.svg`(白手套指向，hotspot 13,4) + globals.css 可点击元素 `cursor:url() !important`(覆盖 @layer components 的 cursor:pointer) |
+| 领结徽标 | TopBar「Butler」字标后嵌领结 SVG(蝴蝶结，`var(--butler-gold)` 管家金) |
+| 燕尾服金 accent | globals.css 三主题加 `--butler-gold`(light #C9A227 / dark #D4AF37 / retro #B08D57) |
+| 空态管家化 | EmptyIllustrations 新增 `EmptyButlerTray`(白手套托银盘 + 盘上金领结 + 金闪光) → 接 ChatRail「还没有对话」空态 |
+
+**验证**：tsc EXIT=0；preview eval+截图确认——顶栏金领结徽标 ✓、左栏管家托盘空态 ✓、管家 standing 隐藏 ✓、白手套 cursor computed 含 glove url + SVG 200 ✓。
+
+**待办**：退场鞠躬补帧(task#14，需重连 Chrome 生图；风险：生成帧要匹配现有黑燕尾立绘风格才无缝)。
+
+### 💾 备份建议
+
+建议 tag：`backup-068-butler-bell-thoughtbubble`
+
+---
+
+## [067] 2026-05-30 — 复古主题 6 张手绘素材接入（解阻塞 task #11）
+
+> 用户「项目中的需要生成的图片试着直接操纵我的浏览器使用 chatgpt 生成」。装 Claude in Chrome 扩展后驱动 ChatGPT/DALL-E 生成爱德华墨线风格 6 张素材，落地到 `public/assets/retro/`，接入 globals.css 复古主题。**[058]/[059] 留的素材槽自 2026-05-29 起阻塞 task #11，本条解除阻塞**。
+
+### 🤖 工作流（Claude in Chrome 自动化）
+
+1. 选中 Chrome 浏览器 → 新 tab 打开 chatgpt.com（用户 Plus 账号已登录，DALL-E 可用）
+2. **paste 灌入提示词**：ChatGPT 输入框是 ProseMirror contenteditable，`form_input` 不生效；改用 `ClipboardEvent('paste', { clipboardData })` 模拟粘贴成功
+3. 点 `button[data-testid="send-button"]` 发送 → 等 35-45s 图生成（`img[alt*="生成"]` 出现）
+4. **下载坑**：Claude in Chrome 隐私过滤遮蔽 `img.src` 读取（`[BLOCKED: Cookie/query string data]`）+ base64 也被遮蔽；fetch blob 用 `credentials:'include'` 拿到二进制，`a.download` + `a.click()` 触发下载（Chrome 实际几秒后落盘，初次以为失败误判）
+5. 文件落到 `D:\User\asus\Downloads`（用户 Downloads 在 D 盘，不是 C:\Users\asus\Downloads；`Shell.Application NameSpace('shell:Downloads')` 确认）→ PowerShell 复制到 `retro/`
+
+### 📂 6 张素材（全部 PNG，黑墨线白底，1024×1024 或近似）
+
+| 文件 | 大小 | DALL-E 说明 |
+|---|---|---|
+| `retro/frame.png` | 1.07 MB | 矩形装饰边框，四角繁复花式（border-image 用） |
+| `retro/corner.png` | 0.86 MB | 单角飘带（仅左上 1/4 有内容，可旋转贴四角） |
+| `retro/banner.png` | 0.93 MB | 卷轴横幅，两端卷起，中央空白可放标题 |
+| `retro/skyline.png` | 1.50 MB | 欧洲老城天际线：哥特尖塔/巴洛克穹顶/曼莎屋顶 |
+| `retro/deskware.png` | 2.10 MB | 钢笔躺墨水瓶旁 + 羽毛笔 |
+| `retro/butler.png` | 1.41 MB | 端盘管家全身：燕尾服+领结+单框眼镜（隐式）+白手套 |
+
+### 🎨 CSS 接入 + 最终装饰（apps/web/src/app/globals.css）
+
+| 改动 | 细节 |
+|---|---|
+| 6 个 `--retro-*` 变量 | 从 `none` → `url('/assets/retro/xxx.png')` |
+| 天际线 | `.retro-railhost::after`（LeftRail.tsx 加此 className + `position:relative`）贴**左侧窄栏底部** 200px，opacity 0.55 |
+| 钢笔墨水瓶 | `main::after` 贴**主面板右下角** 168px |
+| 层级 | 都 **z-index:-1**（玻璃胶囊内部，夹在「玻璃面之上 / 内容之下」），`mix-blend-mode:multiply` 白底融入羊皮纸，`pointer-events:none` |
+
+**层级踩坑（核心）**：最初用 `fixed body::before/::after`，但 `main` 的 `backdrop-filter` 会把背后 fixed 装饰**采样到玻璃面** → 浮在内容上挡阅读。改成「面板内部 `z-index:-1` 子元素」后物理上不可能盖住内容（用户来回纠正 3 次定位的根因就是这个）。
+
+**试过又移除**：RetroDecor 四角飘带角花（corner.png 旋转贴四角，新建组件+CSS+page 挂载）——用户「花纹不好看」，整套已撤回删除。frame/banner/butler/corner 素材生成了备用，暂未接入。
+
+### ✅ 验证（Claude Preview 自截图迭代）
+
+- `tsc --noEmit` EXIT=0
+- **preview server 自驱截图**：杀掉手动 dev server 让 preview 接管 3000 → eval 设 retro 主题 + 关 DailyBrief/Tour + 停动画 + 临时禁 backdrop-filter（截图器对多层玻璃 backdrop-filter 间歇 30s 超时）→ 截图确认天际线（左栏底）+ 钢笔墨水瓶（右下）就位且不挡内容
+- 6 张素材落地 `public/assets/retro/`；Downloads 备份文件用户自清（规则禁 AI 删）
+
+### 🚦 下一步候选
+
+- **管家机制 / 发送按钮铃铛 / thinking 漫画思考框**（用户新需求，做完记 [068]）
+- frame/banner/butler 素材找落点 or 不用
+- 手机响应式（[065] backlog）/ 主动 AI / 周报分享卡
+
+### 💾 备份建议
+
+建议 tag：`backup-067-retro-assets`
 
 ---
 

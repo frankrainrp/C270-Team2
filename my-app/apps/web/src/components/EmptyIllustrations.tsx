@@ -55,6 +55,41 @@ export function EmptyTasks({ size = 160 }: Props) {
   );
 }
 
+// 管家呈递空托盘（管家化空态）：白手套托银盘 + 盘上金领结 — 暂无内容，静候吩咐
+export function EmptyButlerTray({ size = 160 }: Props) {
+  return (
+    <svg width={size} height={size * 0.75} viewBox="0 0 160 120" fill="none" aria-hidden>
+      {/* 银托盘（双椭圆立体）*/}
+      <ellipse cx="80" cy="60" rx="46" ry="11" stroke={COMMON_STROKE} strokeWidth="2" fill={COMMON_FILL} />
+      <ellipse cx="80" cy="56" rx="46" ry="11" stroke={COMMON_STROKE} strokeWidth="2" fill="var(--color-bg)" />
+      {/* 盘上管家金领结 */}
+      <g transform="translate(80 51)">
+        <path d="M-2 0 L-13 -5.5 a1.4 1.4 0 0 0-2 1.2 V4.3 a1.4 1.4 0 0 0 2 1.2 L-2 0 z" fill="var(--butler-gold)" />
+        <path d="M2 0 L13 -5.5 a1.4 1.4 0 0 1 2 1.2 V4.3 a1.4 1.4 0 0 1-2 1.2 L2 0 z" fill="var(--butler-gold)" />
+        <circle r="2.8" fill="var(--butler-gold)" />
+      </g>
+      {/* 白手套托举（手掌 + 4 指 + 燕尾袖口）*/}
+      <g transform="translate(80 64)">
+        <path d="M-16 4 Q-16 -4 -8 -4 H8 Q16 -4 16 4 Q16 10 10 12 H-10 Q-16 10 -16 4 z" stroke={COMMON_STROKE} strokeWidth="2" fill="var(--color-bg)" />
+        <g stroke={COMMON_STROKE} strokeWidth="1.5" strokeLinecap="round">
+          <line x1="-9" y1="-3" x2="-9" y2="-9" />
+          <line x1="-3" y1="-4" x2="-3" y2="-10" />
+          <line x1="3" y1="-4" x2="3" y2="-10" />
+          <line x1="9" y1="-3" x2="9" y2="-9" />
+        </g>
+        <path d="M-14 12 H14 L11 23 H-11 z" stroke={COMMON_STROKE} strokeWidth="2" fill={COMMON_FILL} strokeLinejoin="round" />
+        <line x1="-10.5" y1="17" x2="10.5" y2="17" stroke={COMMON_STROKE} strokeWidth="1.2" strokeLinecap="round" />
+      </g>
+      {/* 金闪光（呈递的仪式感）*/}
+      <g stroke="var(--butler-gold)" strokeWidth="1.5" strokeLinecap="round">
+        <line x1="120" y1="32" x2="126" y2="26" />
+        <line x1="126" y1="38" x2="132" y2="40" />
+        <line x1="124" y1="32" x2="130" y2="32" />
+      </g>
+    </svg>
+  );
+}
+
 // 笔记面板空：折叠纸张 + 笔
 export function EmptyNotes({ size = 160 }: Props) {
   return (

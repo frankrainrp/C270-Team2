@@ -5,7 +5,7 @@
 // ============================================================
 
 import React, { useRef, useEffect, useState } from "react";
-import { Paperclip, ArrowUp, ChevronDown, FileText, Image as ImageIcon, X, File as FileIcon, Check, Square } from "lucide-react";
+import { Paperclip, ChevronDown, FileText, Image as ImageIcon, X, File as FileIcon, Check, Square } from "lucide-react";
 import type { UploadedFile } from "@/lib/types";
 import { AI_MODELS, type AiModelId, type AiModelMeta, getModelMeta } from "@/lib/ai-models";
 import { GlassButton } from "@/components/ui/Glass";
@@ -290,7 +290,7 @@ export default function InputPod({
               circle
               style={{ width: 36, height: 36 }}
             >
-              <ArrowUp size={16} />
+              <ServiceBell size={18} />
             </GlassButton>
           )}
         </div>
@@ -350,6 +350,22 @@ function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** 餐厅前台服务铃铛（台铃）：点一下"叮"——呼应管家签名服务铃音效 [060]，
+ *  发送 = 按铃唤管家的巴甫洛夫闭环。currentColor 跟随按钮文字色。 */
+function ServiceBell({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      {/* 顶部按钮 + 短杆 */}
+      <circle cx="12" cy="3.6" r="1.7" fill="currentColor" />
+      <rect x="11.2" y="4.8" width="1.6" height="2.4" rx="0.8" fill="currentColor" />
+      {/* 半圆钟体 */}
+      <path d="M3.6 17.4 C3.6 12.8 7.4 8.9 12 8.9 C16.6 8.9 20.4 12.8 20.4 17.4 Z" fill="currentColor" />
+      {/* 底座托盘 */}
+      <rect x="2" y="17.2" width="20" height="2.6" rx="1.3" fill="currentColor" />
+    </svg>
+  );
 }
 
 // ============================================================

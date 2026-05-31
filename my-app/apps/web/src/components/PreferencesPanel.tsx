@@ -10,6 +10,7 @@
 // ============================================================
 
 import React, { useEffect, useRef, useState } from "react";
+import { useIsMobile } from "@/lib/use-is-mobile";
 import { X, Sun, Moon, Feather, Type, Heart, MessageSquare, Flame, Palette, RotateCcw, Upload, User, AlignLeft, AlignCenter, AlignRight, EyeOff, Volume2, VolumeX } from "lucide-react";
 import {
   ACCENT_PRESETS,
@@ -93,6 +94,7 @@ interface Props {
 }
 
 export default function PreferencesPanel({ open, onClose }: Props) {
+  const isMobile = useIsMobile();
   const [theme, setTheme] = useState<Theme>("light");
   const [font, setFont] = useState<FontSize>("md");
   const [personality, setPersonality] = useState<Personality>("standard");
@@ -304,21 +306,34 @@ export default function PreferencesPanel({ open, onClose }: Props) {
         aria-label="偏好设置"
         style={{
           position: "fixed",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: 420,
-          maxWidth: "92vw",
-          maxHeight: "90vh",
+          ...(isMobile
+            ? {
+                // 手机：底部 sheet（贴底全宽，顶部圆角，上滑入场）
+                left: 0,
+                right: 0,
+                bottom: 0,
+                maxHeight: "90vh",
+                borderRadius: "20px 20px 0 0",
+                animation: "sheet-up 0.28s cubic-bezier(0.16, 1, 0.3, 1)",
+              }
+            : {
+                // 桌面：居中圆角浮层
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                width: 420,
+                maxWidth: "92vw",
+                maxHeight: "90vh",
+                borderRadius: 14,
+                animation: "modal-pop 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
+              }),
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
           background: "var(--color-bg)",
-          borderRadius: 14,
           border: "1px solid var(--color-border)",
           boxShadow: "var(--shadow-modal)",
           zIndex: 81,
-          animation: "modal-pop 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
           color: "var(--color-text)",
         }}
       >
@@ -767,6 +782,10 @@ export default function PreferencesPanel({ open, onClose }: Props) {
         @keyframes modal-pop {
           from { transform: translate(-50%, -50%) scale(0.96); opacity: 0; }
           to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        @keyframes sheet-up {
+          from { transform: translateY(100%); opacity: 0.5; }
+          to { transform: translateY(0); opacity: 1; }
         }
       `}</style>
     </>

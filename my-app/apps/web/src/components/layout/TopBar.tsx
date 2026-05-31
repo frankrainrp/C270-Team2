@@ -57,6 +57,8 @@ interface TopBarProps {
   onSelectCustomPanel?: (id: string) => void;
   /** Phase E 「+」按钮：创建新自定义面板 */
   onCreateCustomPanel?: () => void;
+  /** 手机响应式：隐藏 pill-nav（底部 tab 代替）*/
+  isMobile?: boolean;
 }
 
 export default function TopBar({
@@ -64,6 +66,7 @@ export default function TopBar({
   ddls = [], notes = [], messages = [], onSearchJump, onOpenPreferences, onOpenAchievements,
   tabsOrder, hiddenTabs, onTabsReorder,
   customPanels = [], activeCustomPanelId, onSelectCustomPanel, onCreateCustomPanel,
+  isMobile = false,
 }: TopBarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   // Phase D Tab 拖拽：dragOverId 指示拖到哪个 tab 上（视觉反馈）
@@ -106,8 +109,8 @@ export default function TopBar({
         boxShadow: "var(--shadow-card-hover)",
         display: "flex",
         alignItems: "center",
-        padding: "0 16px",
-        gap: 28,
+        padding: isMobile ? "0 10px" : "0 16px",
+        gap: isMobile ? 8 : 28,
         zIndex: 50,
         position: "relative",
       }}
@@ -139,9 +142,16 @@ export default function TopBar({
         >
           Butler
         </span>
+        {/* 管家领结徽标（燕尾服元素点缀，管家金）*/}
+        <svg width="20" height="13" viewBox="0 0 24 16" aria-hidden="true" style={{ marginLeft: 1, color: "var(--butler-gold)", flexShrink: 0 }}>
+          <path d="M11 8 L2.5 3.2 a1 1 0 0 0-1.5 0.9 V11.9 a1 1 0 0 0 1.5 0.9 L11 8 z" fill="currentColor" />
+          <path d="M13 8 L21.5 3.2 a1 1 0 0 1 1.5 0.9 V11.9 a1 1 0 0 1-1.5 0.9 L13 8 z" fill="currentColor" />
+          <circle cx="12" cy="8" r="2.2" fill="currentColor" />
+        </svg>
       </div>
 
-      {/* ── 中：拟物胶囊导航条（样例 #B）— Phase D 拖拽重排/隐藏 + Phase E 自定义面板 ── */}
+      {/* ── 中：拟物胶囊导航条（样例 #B）；手机隐藏，底部 MobileTabBar 代替 ── */}
+      {!isMobile && (
       <nav className="pill-nav">
         {visibleTabs.map((id) => {
           // Phase E：有 activeCustomPanelId 时所有内置 Tab 都不 active
@@ -208,11 +218,13 @@ export default function TopBar({
           </button>
         )}
       </nav>
+      )}
 
       {/* ── 右：搜索 / 通知 / 用户 ── */}
-      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ ...(isMobile ? { flex: 1, marginLeft: 10 } : { marginLeft: "auto" }), display: "flex", alignItems: "center", gap: isMobile ? 8 : 10 }}>
         {/* 全局搜索（接 ddls/notes/messages） */}
         <GlobalSearch
+          isMobile={isMobile}
           ddls={ddls}
           notes={notes}
           messages={messages}
@@ -222,37 +234,37 @@ export default function TopBar({
           }}
         />
 
-        {/* 主题切换（搜索栏 ↔ 小组件 之间）：亮→暗→复古 循环 */}
-        <GlassButton
-          aria-label={`切换主题（当前：${THEME_META[themeMode].label}）`}
-          title={`主题：${THEME_META[themeMode].label}（点击切换）`}
-          onClick={cycleTheme}
-          circle
-          style={{ width: 36, height: 36, color: "var(--color-text-muted)" }}
-        >
-          {THEME_META[themeMode].icon}
-        </GlassButton>
-
-        {/* 学习工具抽屉切换 */}
-        <GlassButton
-          aria-label="学习工具"
-          title="学习工具（专注计时等）"
-          onClick={onToggleMiniApps}
-          circle
-          variant={miniAppsOpen ? "primary" : "default"}
-          style={{ width: 36, height: 36 }}
-        >
-          <LayoutGrid size={16} />
-        </GlassButton>
-
-        {/* 通知 */}
-        <GlassButton
-          aria-label="Notifications"
-          circle
-          style={{ width: 36, height: 36, color: "var(--color-text-muted)" }}
-        >
-          <Bell size={16} />
-        </GlassButton>
+        {/* 主题/工具/通知：手机隐藏（收进偏好设置 + 用户菜单，避免顶栏溢出）*/}
+        {!isMobile && (
+          <>
+            <GlassButton
+              aria-label={`切换主题（当前：${THEME_META[themeMode].label}）`}
+              title={`主题：${THEME_META[themeMode].label}（点击切换）`}
+              onClick={cycleTheme}
+              circle
+              style={{ width: 36, height: 36, color: "var(--color-text-muted)" }}
+            >
+              {THEME_META[themeMode].icon}
+            </GlassButton>
+            <GlassButton
+              aria-label="学习工具"
+              title="学习工具（专注计时等）"
+              onClick={onToggleMiniApps}
+              circle
+              variant={miniAppsOpen ? "primary" : "default"}
+              style={{ width: 36, height: 36 }}
+            >
+              <LayoutGrid size={16} />
+            </GlassButton>
+            <GlassButton
+              aria-label="Notifications"
+              circle
+              style={{ width: 36, height: 36, color: "var(--color-text-muted)" }}
+            >
+              <Bell size={16} />
+            </GlassButton>
+          </>
+        )}
 
         {/* 用户区 */}
         <div style={{ position: "relative" }}>
@@ -285,11 +297,15 @@ export default function TopBar({
             >
               <UserIcon size={14} />
             </div>
-            <div style={{ textAlign: "left", lineHeight: 1.2 }}>
-              <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text)" }}>Feng</div>
-              <div style={{ fontSize: 11, color: "var(--color-text-muted)" }}>feng@example.com</div>
-            </div>
-            <ChevronDown size={14} color="var(--color-text-muted)" />
+            {!isMobile && (
+              <>
+                <div style={{ textAlign: "left", lineHeight: 1.2 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text)" }}>Feng</div>
+                  <div style={{ fontSize: 11, color: "var(--color-text-muted)" }}>feng@example.com</div>
+                </div>
+                <ChevronDown size={14} color="var(--color-text-muted)" />
+              </>
+            )}
           </button>
 
           {showUserMenu && (

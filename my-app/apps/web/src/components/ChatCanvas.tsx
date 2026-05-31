@@ -18,6 +18,7 @@ import type { PendingBatch } from "@/lib/pending";
 import { getModelMeta, type AiModelId } from "@/lib/ai-models";
 import ProcessingPipeline from "./ProcessingPipeline";
 import ButlerCharacter, { type ButlerPose } from "./ButlerCharacter";
+import { useIsMobile } from "@/lib/use-is-mobile";
 import ConfirmCard from "./ConfirmCard";
 import InputPod from "./InputPod";
 import TodayHero from "./TodayHero";
@@ -358,6 +359,47 @@ function TypingDots() {
   );
 }
 
+/** 管家头顶漫画思考框：thinking 阶段缩放弹入，思考完淡出（纯 CSS，零素材）。
+ *  主泡 + 两个递减尾泡指向左下管家头，内嵌 TypingDots 跳动点。 */
+function ThoughtBubble({ visible }: { visible: boolean }) {
+  const bubble: React.CSSProperties = {
+    position: "absolute",
+    background: "var(--color-surface)",
+    border: "1.5px solid var(--color-primary)",
+    borderRadius: "50%",
+    boxShadow: "var(--shadow-bubble)",
+  };
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: "absolute",
+        bottom: "88%",
+        left: "calc(50% + 14px)",
+        width: 64,
+        height: 48,
+        opacity: visible ? 1 : 0,
+        transform: visible ? "scale(1)" : "scale(0.5)",
+        transformOrigin: "bottom left",
+        // 出现弹入 / 消失舒缓（拉长淡出，避免"啪"地消失）
+        transition: visible
+          ? "opacity 0.3s ease, transform 0.4s cubic-bezier(.5,1.7,.45,1)"
+          : "opacity 0.7s ease, transform 0.6s ease",
+        pointerEvents: "none",
+        zIndex: 3,
+      }}
+    >
+      {/* 主泡（内含跳动点）*/}
+      <div style={{ ...bubble, left: 8, top: 0, width: 54, height: 38, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <TypingDots />
+      </div>
+      {/* 尾泡（指向左下管家头）*/}
+      <div style={{ ...bubble, left: 6, top: 33, width: 12, height: 12 }} />
+      <div style={{ ...bubble, left: 0, top: 42, width: 7, height: 7 }} />
+    </div>
+  );
+}
+
 function ButlerBubble({
   content, reasoning, isTyping, showReasoning = true, isError, onRegenerate,
 }: {
@@ -518,6 +560,12 @@ export default function ChatCanvas(props: ChatCanvasProps) {
   }, [messages]);
 
   const isEmpty = messages.length === 0;
+  const isMobile = useIsMobile();
+
+  // 需求1：管家默认隐藏，仅 AI 活动（pose 非 standing 空闲态）时升起出现
+  const butlerActive = butlerPose !== "standing";
+  // 需求3：思考阶段（首字未到）头顶显示漫画思考框
+  const isThinking = butlerPose === "thinking" || butlerPose === "thinking-hard" || butlerPose === "rare-thinking";
 
   return (
     <main
@@ -531,10 +579,24 @@ export default function ChatCanvas(props: ChatCanvasProps) {
         position: "relative",
       }}
     >
-      {/* 浮动管家 — Phase D：位置可配 left/center/right；hidden 时不渲染 */}
+      {/* 浮动管家 — Phase D 位置可配；需求1：standing(空闲)时透明下沉隐藏，
+          AI 活动时升起出现；需求3：thinking 时头顶漫画思考框 */}
       {butlerStyle && (
         <div style={butlerStyle}>
-          <ButlerCharacter pose={butlerPose} />
+          <div
+            style={{
+              position: "relative",
+              opacity: butlerActive ? 1 : 0,
+              transform: butlerActive ? "translateY(0)" : "translateY(18px)",
+              // 出现利落(回弹) / 消失舒缓：退场延迟 0.3s 让管家多停留，再 1s 缓缓淡下沉
+              transition: butlerActive
+                ? "opacity 0.4s ease, transform 0.5s cubic-bezier(.34,1.4,.5,1)"
+                : "opacity 1s ease 0.3s, transform 1s ease 0.3s",
+            }}
+          >
+            <ThoughtBubble visible={isThinking} />
+            <ButlerCharacter pose={butlerPose} scale={isMobile ? 0.24 : 0.33} />
+          </div>
         </div>
       )}
 
@@ -557,7 +619,7 @@ export default function ChatCanvas(props: ChatCanvasProps) {
         style={{
           flex: 1,
           overflowY: "auto",
-          padding: "24px 32px 14px",
+          padding: isMobile ? "14px 12px 10px" : "24px 32px 14px",
           minHeight: 0,
           position: "relative",
           zIndex: 2,
@@ -662,7 +724,7 @@ export default function ChatCanvas(props: ChatCanvasProps) {
       {/* 输入区 — 透明背景 + 无边框，让管家完整露出 */}
       <div
         style={{
-          padding: "12px 32px 14px",
+          padding: isMobile ? "8px 10px 10px" : "12px 32px 14px",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",

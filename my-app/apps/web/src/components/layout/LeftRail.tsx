@@ -15,7 +15,9 @@ interface LeftRailProps {
 export default function LeftRail({ children }: LeftRailProps) {
   return (
     <aside
+      className="retro-railhost"
       style={{
+        position: "relative", // 让复古天际线装饰（::after）能贴左栏底部定位
         width: 220,
         minWidth: 220,
         height: "100%",

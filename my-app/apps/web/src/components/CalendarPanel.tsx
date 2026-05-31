@@ -13,6 +13,7 @@ import {
   ChevronLeft, ChevronRight, CalendarDays, ArrowLeft, Plus, Clock, ListChecks, LayoutGrid,
 } from "lucide-react";
 import type { DdlItem } from "@/lib/types";
+import { useIsMobile } from "@/lib/use-is-mobile";
 
 interface Props {
   ddls: DdlItem[];
@@ -29,6 +30,7 @@ const WEEK_LABELS = ["一", "二", "三", "四", "五", "六", "日"];
 type ViewMode = "month" | "week" | "day";
 
 export default function CalendarPanel({ ddls, onRequestCreate, onRequestEdit, jumpToDay, onMoveEvent }: Props) {
+  const isMobile = useIsMobile();
   const [view, setView] = useState<ViewMode>("month");
   const [selectedDate, setSelectedDate] = useState<string>(isoDate(new Date()));
 
@@ -122,6 +124,7 @@ function MonthView({
   onCreate: () => void;
   onEditEvent: (d: DdlItem) => void;
 }) {
+  const isMobile = useIsMobile();
   const [hoverDay, setHoverDay] = useState<string | null>(null);
   const { cells, monthLabel } = useMemo(() => buildMonth(cursor), [cursor]);
   const todayIso = isoDate(new Date());
@@ -144,7 +147,7 @@ function MonthView({
   };
 
   return (
-    <div style={{ height: "100%", overflow: "auto", padding: "28px 32px 40px", background: "transparent" }}>
+    <div style={{ height: "100%", overflow: "auto", padding: isMobile ? "16px 12px 24px" : "28px 32px 40px", background: "transparent" }}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
         <header
           style={{
@@ -386,6 +389,7 @@ function DayView({
   /** [054] D.1 拖动事件改时间 */
   onMoveEvent?: (id: string, newDate: string, newTime: string) => void;
 }) {
+  const isMobile = useIsMobile();
   const dateObj = new Date(date);
   const weekday = "日一二三四五六"[dateObj.getDay()];
   const isToday = date === isoDate(new Date());
@@ -429,7 +433,7 @@ function DayView({
   );
 
   return (
-    <div style={{ height: "100%", overflow: "auto", padding: "28px 32px 40px", background: "transparent" }}>
+    <div style={{ height: "100%", overflow: "auto", padding: isMobile ? "16px 12px 24px" : "28px 32px 40px", background: "transparent" }}>
       <div style={{ maxWidth: 1180, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
         {/* Header */}
         <header
@@ -1039,6 +1043,7 @@ function WeekView({
   /** C4 拖动事件改时间 */
   onMoveEvent?: (id: string, newDate: string, newTime: string) => void;
 }) {
+  const isMobile = useIsMobile();
   // 计算所选日期所在周的 7 天（周一开始）
   const weekDays = useMemo(() => {
     const d = new Date(date);
@@ -1069,7 +1074,7 @@ function WeekView({
   const eventsInWeek = weekDays.flatMap((d) => ddlMap.get(d.iso) ?? []);
 
   return (
-    <div style={{ height: "100%", overflow: "auto", padding: "24px 24px 40px", background: "transparent" }}>
+    <div style={{ height: "100%", overflow: "auto", padding: isMobile ? "14px 10px 24px" : "24px 24px 40px", background: "transparent" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         {/* Header */}
         <header
@@ -1118,7 +1123,9 @@ function WeekView({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "48px repeat(7, 1fr)",
+            // 手机：列加最小宽 + 网格整体 minWidth → 父容器横滚（7 天可左右滑，不挤成条）
+            gridTemplateColumns: isMobile ? "40px repeat(7, minmax(64px, 1fr))" : "48px repeat(7, 1fr)",
+            minWidth: isMobile ? 488 : undefined,
             border: "1px solid var(--color-border)",
             borderRadius: 10,
             overflow: "hidden",

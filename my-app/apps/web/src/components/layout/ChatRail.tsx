@@ -9,7 +9,7 @@ import React, { useState } from "react";
 import { Plus, MessageSquare } from "lucide-react";
 import type { ChatSession } from "@/lib/types";
 import { RailPrimaryBtn, RailGroupTitle, RailItem } from "./LeftRail";
-import { EmptyChat } from "@/components/EmptyIllustrations";
+import { EmptyButlerTray } from "@/components/EmptyIllustrations";
 
 const RECENT_LIMIT = 12;
 
@@ -55,8 +55,8 @@ export default function ChatRail({
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
           {recent.length === 0 && (
             <div style={{ padding: "20px 8px", textAlign: "center", color: "var(--color-text-faint)" }}>
-              {/* [056] 插画 */}
-              <EmptyChat size={120} />
+              {/* [068] 管家化空态：白手套呈递空托盘 */}
+              <EmptyButlerTray size={120} />
               <p style={{ fontSize: 12, margin: "8px 0 0" }}>还没有对话<br />点上方 + 开始第一个</p>
             </div>
           )}

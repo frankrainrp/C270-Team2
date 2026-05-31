@@ -14,6 +14,7 @@ import {
 import type { DdlItem, DdlAttachment, TaskPriority, TaskStatus } from "@/lib/types";
 import type { TaskViewId } from "./layout/TasksRail";
 import { EmptyTasks, EmptyFilter } from "./EmptyIllustrations";
+import { useIsMobile } from "@/lib/use-is-mobile";
 
 interface Props {
   ddls: DdlItem[];
@@ -120,6 +121,7 @@ export default function TasksPanel({
   onRequestPreview, onRequestNotesPreview, onExportIcs, onExportJson, onImportJson, onImportIcs, view,
   highlightTaskId,
 }: Props) {
+  const isMobile = useIsMobile();
   const filteredDdls = useMemo(() => filterByView(ddls, view), [ddls, view]);
 
   // B3 高亮目标 row 时 scrollIntoView（CSS 闪烁由 className 控制）
@@ -165,7 +167,7 @@ export default function TasksPanel({
       style={{
         height: "100%",
         overflow: "auto",
-        padding: "28px 32px 40px",
+        padding: isMobile ? "16px 12px 24px" : "28px 32px 40px",
         background: "transparent",
       }}
     >

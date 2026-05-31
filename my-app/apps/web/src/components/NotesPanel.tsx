@@ -14,6 +14,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Note, DdlItem } from "@/lib/types";
 import { EmptyNotes, EmptyFilter } from "./EmptyIllustrations";
+import { useIsMobile } from "@/lib/use-is-mobile";
 
 // ============================================================
 // [053] Notes 100%：wikilink 工具
@@ -59,6 +60,7 @@ export default function NotesPanel({
   notes, onCreate, onUpdate, onDelete,
   ddls = [], selectActiveId, onJumpToTask, onAutoExtractTodos,
 }: Props) {
+  const isMobile = useIsMobile();
   const sorted = useMemo(() => {
     return [...notes].sort((a, b) => {
       if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
@@ -159,6 +161,7 @@ export default function NotesPanel({
       style={{
         height: "100%",
         display: "flex",
+        flexDirection: isMobile ? "column" : "row",
         background: "transparent",
         overflow: "hidden",
       }}
@@ -166,9 +169,11 @@ export default function NotesPanel({
       {/* 左：笔记列表 */}
       <aside
         style={{
-          width: 280,
+          width: isMobile ? "100%" : 280,
+          maxHeight: isMobile ? "40vh" : undefined,
           flexShrink: 0,
-          borderRight: "1px solid var(--color-border)",
+          borderRight: isMobile ? "none" : "1px solid var(--color-border)",
+          borderBottom: isMobile ? "1px solid var(--color-border)" : "none",
           display: "flex",
           flexDirection: "column",
           background: "var(--color-surface)",

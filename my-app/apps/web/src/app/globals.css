@@ -16,6 +16,7 @@
     --color-primary-soft: #E3F0FF;
     /* ---- Accent：iOS 靛蓝（次级 tint）---- */
     --color-accent: #5856D6;
+    --butler-gold: #C9A227; /* 管家金（燕尾服金纽扣）— 领结/徽标点缀 */
     --color-accent-hover: #6C6BE0;
     --color-accent-soft: #ECECFB;
     /* ---- 语义色（iOS 系统色）---- */
@@ -98,6 +99,7 @@
     --color-primary-hover: #409CFF;
     --color-primary-soft: #0A2540;
     --color-accent: #5E5CE6;
+    --butler-gold: #D4AF37; /* 暗夜下提亮的管家金 */
     --color-accent-hover: #7D7BEC;
     --color-accent-soft: #1E1E3A;
     --color-success: #30D158;
@@ -163,6 +165,7 @@
     --color-primary-soft: #DCE6DD;
     /* ---- Accent：黄铜金（描边/装饰高光）---- */
     --color-accent: #B08D57;
+    --butler-gold: #B08D57; /* 复古复用黄铜金 */
     --color-accent-hover: #C29B61;
     --color-accent-soft: #EFE4CB;
     /* ---- 语义色（复古去饱和）---- */
@@ -228,18 +231,62 @@
       inset -1px -1px 0 rgba(58, 46, 24, 0.06);
     --glass-sheen: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, transparent 34%, transparent 72%, rgba(255, 255, 255, 0.2) 100%);
 
-    /* ---- 素材槽（用户提供后填入；默认无）----
-       --retro-frame:     手绘边框九宫格 border-image（如 url(/assets/retro/frame.svg) 32 fill / 32px）
-       --retro-corner-tl/tr/bl/br: 四角飘带/领结 ornament（绝对定位贴角）
-       --retro-skyline:   左栏底部城市天际线插画
-       --retro-deskware:  主区右下钢笔+墨水瓶插画
-       --retro-butler:    toast 管家端盘线描立绘
+    /* ---- 素材槽（2026-05-30 通过 ChatGPT/DALL-E 生成接入；都是黑墨线白底 PNG，
+           用 mix-blend-mode:multiply 让白底融入羊皮纸）----
+       --retro-frame:     手绘墨线装饰边框（边框/卡片的 border-image 或装饰背景）
+       --retro-corner:    单角飘带角花（可旋转贴四角）
+       --retro-banner:    标题卷轴横幅（标题段背景）
+       --retro-skyline:   左下角城市天际线
+       --retro-deskware:  右下角钢笔+墨水瓶
+       --retro-butler:    管家端盘线描立绘（toast/管家肖像）
     */
-    --retro-frame: none;
-    --retro-skyline: none;
-    --retro-deskware: none;
-    --retro-butler: none;
+    --retro-frame: url('/assets/retro/frame.png');
+    --retro-corner: url('/assets/retro/corner.png');
+    --retro-banner: url('/assets/retro/banner.png');
+    --retro-skyline: url('/assets/retro/skyline.png');
+    --retro-deskware: url('/assets/retro/deskware.png');
+    --retro-butler: url('/assets/retro/butler.png');
   }
+
+  /* ---- 复古主题装饰：放进 main 主面板内部，夹在"玻璃面之上 / 内容文字之下" ----
+     关键层级（main 的 stacking context 内，从底到顶）：
+       1. main 玻璃背景 + 边框
+       2. **::before/::after 装饰（z-index:-1）** ← 在玻璃面上，清晰可见
+       3. main 的子内容（ChatCanvas/TasksPanel… 默认 static，永远在装饰之上）
+     于是装饰是"纸面内衬纹理"，用户要看的消息/任务始终压在装饰上方，绝不被盖。
+     用 main::before/::after（不是 body fixed）→ 避开 main 的 backdrop-filter 把背景装饰
+     采样到玻璃面的问题。pointer-events:none 不挡交互；multiply 让白底融入羊皮纸。 */
+  html[data-theme="retro"] .retro-railhost::after,
+  html[data-theme="retro"] main::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    z-index: -1;
+    opacity: 0.4;
+    background-repeat: no-repeat;
+    background-size: contain;
+    mix-blend-mode: multiply;
+  }
+  /* 城市天际线：贴左侧窄栏底部（最初设计：宽≈左栏 220px） */
+  html[data-theme="retro"] .retro-railhost::after {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 200px;
+    opacity: 0.55;
+    background-position: bottom center;
+    background-image: var(--retro-skyline);
+  }
+  /* 钢笔 + 墨水瓶：主面板右下角 */
+  html[data-theme="retro"] main::after {
+    right: 20px;
+    bottom: 20px;
+    width: 168px;
+    height: 168px;
+    background-position: center;
+    background-image: var(--retro-deskware);
+  }
+
 
   /* 字体档位 */
   html[data-font-size="sm"] { --font-base: 13px; }
@@ -248,6 +295,12 @@
   * {
     box-sizing: border-box;
     text-decoration: none;
+  }
+
+  /* 管家白手套光标：可点击元素变白手套指向（disabled/文本输入框除外）。
+     !important 覆盖 @layer components 里 .pill-nav-item/.glass-btn 的 cursor:pointer */
+  button:not(:disabled), a, [role="button"], .glass-btn, .pill-nav-item, summary, select, label[for] {
+    cursor: url('/assets/cursor-glove.svg') 13 4, pointer !important;
   }
 
   html, body {
@@ -587,5 +640,13 @@
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
+  }
+
+  /* 手机端体验优化：防 iOS 双击放大 / 去点击高亮蓝框 / 平滑触摸滚动 / 消点击延迟 */
+  @media (max-width: 768px) {
+    html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+    body { -webkit-tap-highlight-color: transparent; }
+    main, .message-stream, aside { -webkit-overflow-scrolling: touch; }
+    button, [role="button"], a { touch-action: manipulation; }
   }
 }

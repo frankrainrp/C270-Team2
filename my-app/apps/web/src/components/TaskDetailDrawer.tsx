@@ -12,6 +12,7 @@ import {
   FileText, Image as ImageIcon, File as FileIcon, BookOpen, Unlink,
 } from "lucide-react";
 import type { DdlItem, DdlAttachment, TaskStatus, TaskPriority, Note } from "@/lib/types";
+import { useIsMobile } from "@/lib/use-is-mobile";
 
 export type EditingTarget =
   | { mode: "create"; presetDate?: string; presetTime?: string }
@@ -111,6 +112,7 @@ export default function TaskDetailDrawer({
     ? target.item.dueTime
     : (target.mode === "create" && target.presetTime) || "23:59";
 
+  const isMobile = useIsMobile();
   const [taskName, setTaskName] = useState(init?.taskName ?? "");
   const [dueDate, setDueDate] = useState(initialDate);
   const [dueTime, setDueTime] = useState(initialTime);
@@ -177,21 +179,34 @@ export default function TaskDetailDrawer({
       <aside
         style={{
           position: "fixed",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: 460,
-          maxWidth: "94vw",
-          maxHeight: "88vh",
+          ...(isMobile
+            ? {
+                // 手机：底部 sheet（贴底全宽，顶部圆角，上滑入场）
+                left: 0,
+                right: 0,
+                bottom: 0,
+                maxHeight: "90vh",
+                borderRadius: "20px 20px 0 0",
+                animation: "sheet-up 0.28s cubic-bezier(0.16, 1, 0.3, 1)",
+              }
+            : {
+                // 桌面：居中圆角浮层
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                width: 460,
+                maxWidth: "94vw",
+                maxHeight: "88vh",
+                borderRadius: "var(--radius-modal)",
+                animation: "modal-pop 0.24s cubic-bezier(0.16, 1, 0.3, 1)",
+              }),
           background: "var(--color-surface)",
           border: "1px solid var(--color-border)",
-          borderRadius: "var(--radius-modal)",
           boxShadow: "var(--shadow-modal)",
           zIndex: 71,
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
-          animation: "modal-pop 0.24s cubic-bezier(0.16, 1, 0.3, 1)",
         }}
       >
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
@@ -550,6 +565,10 @@ export default function TaskDetailDrawer({
         @keyframes modal-pop {
           from { transform: translate(-50%, -50%) scale(0.94); opacity: 0; }
           to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        @keyframes sheet-up {
+          from { transform: translateY(100%); opacity: 0.5; }
+          to { transform: translateY(0); opacity: 1; }
         }
       `}</style>
     </>

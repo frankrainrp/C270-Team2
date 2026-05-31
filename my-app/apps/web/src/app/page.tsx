@@ -26,6 +26,8 @@ import OnboardingTour from "@/components/OnboardingTour";
 import Portal from "@/components/ui/Portal";
 import WallpaperLayer from "@/components/WallpaperLayer";
 import AchievementsRoom from "@/components/AchievementsRoom";
+import MobileTabBar from "@/components/layout/MobileTabBar";
+import { useIsMobile } from "@/lib/use-is-mobile";
 import type { ChatMessage, ChatSession, ProcessingPipeline, DdlItem, NavId, UploadedFile, DdlAttachment, Note, CustomPanel } from "@/lib/types";
 import { INITIAL_STEPS } from "@/lib/mock-pipeline";
 import { streamChat, type ApiMessage } from "@/lib/chat-client";
@@ -58,6 +60,23 @@ const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(3
 export default function HomePage() {
   const toast = useToast();
   const [activeNav, setActiveNav] = useState<NavId>("chat");
+  // 手机响应式：窄屏布局 + 左栏抽屉开关
+  const isMobile = useIsMobile();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const mobileDrawerRef = useRef<HTMLDivElement>(null);
+  // 抽屉内点操作按钮/项后自动关（用原生 click 监听，绕过 React 合成事件冒泡到容器的边界问题）
+  useEffect(() => {
+    const el = mobileDrawerRef.current;
+    if (!el || !isMobile) return;
+    const handler = (e: Event) => {
+      if ((e.target as HTMLElement).closest('button, [role="button"]')) {
+        // 微延迟让 rail 操作（切会话/建任务等）先执行，再收起抽屉
+        setTimeout(() => setMobileNavOpen(false), 120);
+      }
+    };
+    el.addEventListener("click", handler);
+    return () => el.removeEventListener("click", handler);
+  }, [isMobile]);
   // Phase D 布局偏好（mount 后从 localStorage 读 + 监听 LAYOUT_PREFS_EVENT）
   const [tabsOrder, setTabsOrderState] = useState<NavId[]>(["chat", "tasks", "calendar", "notes"]);
   const [hiddenTabs, setHiddenTabsState] = useState<Set<NavId>>(new Set());
@@ -1547,6 +1566,42 @@ export default function HomePage() {
   }, [toast]);
 
   // ---------- 渲染 ----------
+  // 左栏二级导航内容（桌面常驻胶囊 / 手机抽屉复用同一份）
+  const railContent = (
+    <LeftRail>
+      {!activeCustomPanelId && activeNav === "chat" && (
+        <ChatRail
+          sessions={orderedSessions}
+          activeId={activeSessionId}
+          onCreate={handleNewChat}
+          onSelect={handleSelectSession}
+          onRename={handleRenameSession}
+          onDelete={handleDeleteSession}
+        />
+      )}
+      {!activeCustomPanelId && activeNav === "tasks" && (
+        <TasksRail
+          onCreateTask={() => setEditing({ mode: "create" })}
+          counts={taskCounts}
+          view={taskView}
+          onSelectView={setTaskView}
+        />
+      )}
+      {!activeCustomPanelId && activeNav === "calendar" && (
+        <CalendarRail
+          onCreateEvent={() => setEditing({ mode: "create" })}
+          ddls={ddls}
+          onJumpToDay={(iso) => {
+            setCalendarJumpDay(iso + "#" + Date.now());
+          }}
+        />
+      )}
+      {!activeCustomPanelId && activeNav === "notes" && (
+        <NotesRail notes={notes} onCreate={handleCreateNote} />
+      )}
+    </LeftRail>
+  );
+
   return (
     <div
       style={{
@@ -1556,8 +1611,8 @@ export default function HomePage() {
         display: "flex",
         flexDirection: "column",
         background: "transparent",
-        padding: 12,
-        gap: 12,
+        padding: isMobile ? "8px 8px 72px" : 12,
+        gap: isMobile ? 8 : 12,
       }}
     >
       {/* [066] 壁纸层（固定全屏，在玻璃胶囊之后；无壁纸则露出 body 网格底）*/}
@@ -1565,6 +1620,7 @@ export default function HomePage() {
 
       {/* 顶 Bar（悬浮胶囊条）*/}
       <TopBar
+        isMobile={isMobile}
         activeNav={activeNav}
         onNavChange={(id) => { setActiveNav(id); setActiveCustomPanelId(null); }}
         miniAppsOpen={miniAppsOpen}
@@ -1601,41 +1657,35 @@ export default function HomePage() {
       />
 
       {/* 主体：左栏 + 内容区（两个独立悬浮胶囊仓，互留间隙）*/}
-      <div style={{ flex: 1, display: "flex", overflow: "hidden", gap: 12 }}>
-        <LeftRail>
-          {/* 自定义面板没有 Rail（MVP），渲染空容器 */}
-          {!activeCustomPanelId && activeNav === "chat" && (
-            <ChatRail
-              sessions={orderedSessions}
-              activeId={activeSessionId}
-              onCreate={handleNewChat}
-              onSelect={handleSelectSession}
-              onRename={handleRenameSession}
-              onDelete={handleDeleteSession}
-            />
-          )}
-          {!activeCustomPanelId && activeNav === "tasks" && (
-            <TasksRail
-              onCreateTask={() => setEditing({ mode: "create" })}
-              counts={taskCounts}
-              view={taskView}
-              onSelectView={setTaskView}
-            />
-          )}
-          {!activeCustomPanelId && activeNav === "calendar" && (
-            <CalendarRail
-              onCreateEvent={() => setEditing({ mode: "create" })}
-              ddls={ddls}
-              onJumpToDay={(iso) => {
-                // 用 timestamp 避免相同 iso 二次点击不触发 useEffect
-                setCalendarJumpDay(iso + "#" + Date.now());
+      <div style={{ flex: 1, display: "flex", overflow: "hidden", gap: isMobile ? 0 : 12 }}>
+        {/* 左栏：桌面常驻胶囊；手机 fixed 抽屉（点底部菜单滑入，点遮罩关）*/}
+        {isMobile ? (
+          <>
+            {mobileNavOpen && (
+              <div
+                onClick={() => setMobileNavOpen(false)}
+                style={{ position: "fixed", inset: 0, background: "var(--color-overlay)", zIndex: 46 }}
+              />
+            )}
+            <div
+              ref={mobileDrawerRef}
+              style={{
+                position: "fixed",
+                top: 8,
+                left: 8,
+                bottom: 8,
+                width: 240,
+                zIndex: 47,
+                transform: mobileNavOpen ? "translateX(0)" : "translateX(-110%)",
+                transition: "transform 0.3s cubic-bezier(.4,0,.2,1)",
               }}
-            />
-          )}
-          {!activeCustomPanelId && activeNav === "notes" && (
-            <NotesRail notes={notes} onCreate={handleCreateNote} />
-          )}
-        </LeftRail>
+            >
+              {railContent}
+            </div>
+          </>
+        ) : (
+          railContent
+        )}
 
         <main
           style={{
@@ -1747,6 +1797,16 @@ export default function HomePage() {
 
         </main>
       </div>
+
+      {/* 手机底部主导航 tab bar（替代 TopBar pill-nav）*/}
+      {isMobile && (
+        <MobileTabBar
+          activeNav={activeNav}
+          inCustomPanel={!!activeCustomPanelId}
+          onNavChange={(id) => { setActiveNav(id); setActiveCustomPanelId(null); }}
+          onOpenNav={() => setMobileNavOpen(true)}
+        />
+      )}
 
       {/* ── 浮层全部 Portal 到 body：逃离胶囊面板的 overflow/backdrop-filter，避免被截断 ── */}
       <Portal>

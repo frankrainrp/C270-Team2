@@ -27,11 +27,13 @@ interface Props {
   notes: Note[];
   messages: ChatMessage[];
   onJump: (target: NavId, refId?: string) => void;
+  /** 手机：搜索框 flex 自适应缩窄（不固定 240）*/
+  isMobile?: boolean;
 }
 
 const MAX_RESULTS = 24;
 
-export default function GlobalSearch({ ddls, notes, messages, onJump }: Props) {
+export default function GlobalSearch({ ddls, notes, messages, onJump, isMobile = false }: Props) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -113,7 +115,7 @@ export default function GlobalSearch({ ddls, notes, messages, onJump }: Props) {
   };
 
   return (
-    <div style={{ position: "relative", width: 240 }}>
+    <div style={{ position: "relative", ...(isMobile ? { flex: 1, minWidth: 0 } : { width: 240 }) }}>
       <div
         style={{
           width: "100%", height: 32,
