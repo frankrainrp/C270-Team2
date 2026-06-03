@@ -5,28 +5,14 @@
 // Logo+字标 / 4 Tab / 搜索 / 通知 / 用户区
 // ============================================================
 
-import React, { useState, useEffect } from "react";
-import { Bell, ChevronDown, User as UserIcon, LogOut, CreditCard, LayoutGrid, Settings, Plus, Sun, Moon, Feather, Trophy } from "lucide-react";
+import React, { useState } from "react";
+import { ChevronDown, User as UserIcon, CreditCard, LayoutGrid, Settings, Plus, Trophy, Crown } from "lucide-react";
 import type { NavId, DdlItem, Note, ChatMessage, CustomPanel } from "@/lib/types";
 import GlobalSearch from "./GlobalSearch";
-import { GlassButton } from "@/components/ui/Glass";
-import { getStoredTheme, setStoredTheme, type Theme } from "@/components/PreferencesPanel";
+import { useT } from "@/lib/i18n";
+import { useCurrentPlan, getPlanDef } from "@/lib/billing";
 
-const TAB_LABELS: Record<NavId, string> = {
-  chat: "Chat",
-  tasks: "Tasks",
-  calendar: "Calendar",
-  notes: "Notes",
-};
 const DEFAULT_TAB_ORDER: NavId[] = ["chat", "tasks", "calendar", "notes"];
-
-// 主题循环：亮 → 暗 → 复古
-const THEME_CYCLE: Theme[] = ["light", "dark", "retro"];
-const THEME_META: Record<Theme, { icon: React.ReactNode; label: string }> = {
-  light: { icon: <Sun size={16} />, label: "亮色" },
-  dark: { icon: <Moon size={16} />, label: "暗色" },
-  retro: { icon: <Feather size={16} />, label: "复古" },
-};
 
 interface TopBarProps {
   activeNav: NavId;
@@ -59,6 +45,10 @@ interface TopBarProps {
   onCreateCustomPanel?: () => void;
   /** 手机响应式：隐藏 pill-nav（底部 tab 代替）*/
   isMobile?: boolean;
+  /** [072] 账单管理入口 */
+  onOpenBilling?: () => void;
+  /** [072] 升级 CTA（开定价页）*/
+  onUpgrade?: () => void;
 }
 
 export default function TopBar({
@@ -66,20 +56,14 @@ export default function TopBar({
   ddls = [], notes = [], messages = [], onSearchJump, onOpenPreferences, onOpenAchievements,
   tabsOrder, hiddenTabs, onTabsReorder,
   customPanels = [], activeCustomPanelId, onSelectCustomPanel, onCreateCustomPanel,
-  isMobile = false,
+  isMobile = false, onOpenBilling, onUpgrade,
 }: TopBarProps) {
+  const { t } = useT();
+  const plan = useCurrentPlan();
+  const isPaid = plan !== "free";
   const [showUserMenu, setShowUserMenu] = useState(false);
   // Phase D Tab 拖拽：dragOverId 指示拖到哪个 tab 上（视觉反馈）
   const [dragOverId, setDragOverId] = useState<NavId | null>(null);
-  // 主题开关（与偏好设置共用 butler.theme 持久化）：循环 亮→暗→复古
-  const [themeMode, setThemeMode] = useState<Theme>("light");
-  useEffect(() => { setThemeMode(getStoredTheme()); }, []);
-  const cycleTheme = () => {
-    const idx = THEME_CYCLE.indexOf(themeMode);
-    const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
-    setStoredTheme(next);
-    setThemeMode(next);
-  };
 
   const order = tabsOrder ?? DEFAULT_TAB_ORDER;
   const hidden = hiddenTabs ?? new Set<NavId>();
@@ -142,12 +126,6 @@ export default function TopBar({
         >
           Butler
         </span>
-        {/* 管家领结徽标（燕尾服元素点缀，管家金）*/}
-        <svg width="20" height="13" viewBox="0 0 24 16" aria-hidden="true" style={{ marginLeft: 1, color: "var(--butler-gold)", flexShrink: 0 }}>
-          <path d="M11 8 L2.5 3.2 a1 1 0 0 0-1.5 0.9 V11.9 a1 1 0 0 0 1.5 0.9 L11 8 z" fill="currentColor" />
-          <path d="M13 8 L21.5 3.2 a1 1 0 0 1 1.5 0.9 V11.9 a1 1 0 0 1-1.5 0.9 L13 8 z" fill="currentColor" />
-          <circle cx="12" cy="8" r="2.2" fill="currentColor" />
-        </svg>
       </div>
 
       {/* ── 中：拟物胶囊导航条（样例 #B）；手机隐藏，底部 MobileTabBar 代替 ── */}
@@ -181,7 +159,7 @@ export default function TopBar({
               className={isActive ? "pill-nav-item active" : "pill-nav-item"}
               style={isDragOver ? { boxShadow: "inset 0 0 0 2px var(--color-primary)" } : undefined}
             >
-              {TAB_LABELS[id]}
+              {t(`nav.${id}`)}
             </button>
           );
         })}
@@ -209,8 +187,8 @@ export default function TopBar({
         {onCreateCustomPanel && (
           <button
             onClick={onCreateCustomPanel}
-            title="新建自定义面板"
-            aria-label="新建自定义面板"
+            title={t("nav.newPanel")}
+            aria-label={t("nav.newPanel")}
             className="pill-nav-item"
             style={{ padding: 0, width: 30, justifyContent: "center" }}
           >
@@ -234,36 +212,37 @@ export default function TopBar({
           }}
         />
 
-        {/* 主题/工具/通知：手机隐藏（收进偏好设置 + 用户菜单，避免顶栏溢出）*/}
+        {/* [072] 升级 CTA：免费用户显示「升级到 Pro」胶囊；付费用户显示档位徽标 */}
         {!isMobile && (
-          <>
-            <GlassButton
-              aria-label={`切换主题（当前：${THEME_META[themeMode].label}）`}
-              title={`主题：${THEME_META[themeMode].label}（点击切换）`}
-              onClick={cycleTheme}
-              circle
-              style={{ width: 36, height: 36, color: "var(--color-text-muted)" }}
+          isPaid ? (
+            <span
+              title={`Butler ${t(getPlanDef(plan).nameKey)}`}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 4,
+                height: 30, padding: "0 11px", borderRadius: 999,
+                background: plan === "max" ? "var(--butler-gold)" : "var(--color-primary)",
+                color: plan === "max" ? "#1c1c1e" : "#fff",
+                fontSize: 12, fontWeight: 700, letterSpacing: 0.3, flexShrink: 0,
+              }}
             >
-              {THEME_META[themeMode].icon}
-            </GlassButton>
-            <GlassButton
-              aria-label="学习工具"
-              title="学习工具（专注计时等）"
-              onClick={onToggleMiniApps}
-              circle
-              variant={miniAppsOpen ? "primary" : "default"}
-              style={{ width: 36, height: 36 }}
+              <Crown size={12} /> {t(getPlanDef(plan).nameKey)}
+            </span>
+          ) : (
+            <button
+              onClick={onUpgrade}
+              title={t("topbar.upgradeCta")}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                height: 32, padding: "0 13px", borderRadius: 999, border: "none",
+                background: "linear-gradient(150deg, var(--color-primary-hover), var(--color-primary))",
+                color: "#fff", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                fontFamily: "inherit", flexShrink: 0,
+                boxShadow: "0 2px 8px color-mix(in srgb, var(--color-primary) 40%, transparent)",
+              }}
             >
-              <LayoutGrid size={16} />
-            </GlassButton>
-            <GlassButton
-              aria-label="Notifications"
-              circle
-              style={{ width: 36, height: 36, color: "var(--color-text-muted)" }}
-            >
-              <Bell size={16} />
-            </GlassButton>
-          </>
+              <Crown size={13} /> {t("topbar.upgradeCta")}
+            </button>
+          )
         )}
 
         {/* 用户区 */}
@@ -329,23 +308,54 @@ export default function TopBar({
                 }}
               >
                 <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--color-border-soft)" }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>Feng</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>Feng</p>
+                    <span
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 3,
+                        padding: "1px 7px", borderRadius: 999, fontSize: 10, fontWeight: 700,
+                        background: isPaid ? (plan === "max" ? "var(--butler-gold)" : "var(--color-primary)") : "var(--color-surface)",
+                        color: isPaid ? (plan === "max" ? "#1c1c1e" : "#fff") : "var(--color-text-muted)",
+                        border: isPaid ? "none" : "1px solid var(--color-border)",
+                      }}
+                    >
+                      {isPaid && <Crown size={9} />}{t(getPlanDef(plan).nameKey)}
+                    </span>
+                  </div>
                   <p style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 2 }}>
                     feng@example.com
                   </p>
                 </div>
+                {/* 升级 CTA（免费用户）*/}
+                {!isPaid && (
+                  <MenuBtn
+                    icon={<Crown size={14} />}
+                    label={t("topbar.upgradeCta")}
+                    accent
+                    onClick={() => { setShowUserMenu(false); onUpgrade?.(); }}
+                  />
+                )}
+                {/* 学习工具（主题切换已去掉，固定深炭蓝；复古在偏好设置里选）*/}
+                <MenuBtn
+                  icon={<LayoutGrid size={14} />}
+                  label={miniAppsOpen ? t("topbar.toolsClose") : t("topbar.toolsOpen")}
+                  onClick={() => { setShowUserMenu(false); onToggleMiniApps?.(); }}
+                />
                 <MenuBtn
                   icon={<Settings size={14} />}
-                  label="偏好设置"
+                  label={t("topbar.preferences")}
                   onClick={() => { setShowUserMenu(false); onOpenPreferences?.(); }}
                 />
                 <MenuBtn
                   icon={<Trophy size={14} />}
-                  label="成就收藏室"
+                  label={t("topbar.achievements")}
                   onClick={() => { setShowUserMenu(false); onOpenAchievements?.(); }}
                 />
-                <MenuBtn icon={<CreditCard size={14} />} label="账单管理" />
-                <MenuBtn icon={<LogOut size={14} />} label="退出登录" danger />
+                <MenuBtn
+                  icon={<CreditCard size={14} />}
+                  label={t("topbar.billing")}
+                  onClick={() => { setShowUserMenu(false); onOpenBilling?.(); }}
+                />
               </div>
             </>
           )}
@@ -359,14 +369,22 @@ function MenuBtn({
   icon,
   label,
   danger,
+  accent,
   onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   danger?: boolean;
+  /** 升级 CTA：主色高亮 */
+  accent?: boolean;
   onClick?: () => void;
 }) {
   const [hov, setHov] = useState(false);
+  const color = danger
+    ? hov ? "#b91c1c" : "var(--color-danger)"
+    : accent
+    ? "var(--color-primary)"
+    : hov ? "var(--color-text)" : "var(--color-text-muted)";
   return (
     <button
       onClick={onClick}
@@ -382,14 +400,12 @@ function MenuBtn({
         cursor: "pointer",
         textAlign: "left",
         fontSize: 13,
-        color: danger
-          ? hov
-            ? "#b91c1c"
-            : "var(--color-danger)"
-          : hov
-          ? "var(--color-text)"
-          : "var(--color-text-muted)",
-        background: hov ? "var(--color-surface)" : "transparent",
+        fontWeight: accent ? 600 : 400,
+        fontFamily: "inherit",
+        color,
+        background: accent
+          ? (hov ? "var(--color-primary-soft)" : "color-mix(in srgb, var(--color-primary) 7%, transparent)")
+          : hov ? "var(--color-surface)" : "transparent",
         transition: "all 0.15s",
       }}
     >

@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   icons: { icon: "/assets/logo.png", apple: "/assets/logo.png" },
 };
 
-export const viewport = { themeColor: "#F2F2F7" };
+export const viewport = { themeColor: "#D9DFE8" };
 
 export default function RootLayout({
   children,

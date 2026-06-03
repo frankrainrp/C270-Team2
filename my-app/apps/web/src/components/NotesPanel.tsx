@@ -91,6 +91,8 @@ export default function NotesPanel({
 
   const [activeId, setActiveId] = useState<string | null>(sorted[0]?.id ?? null);
   const [mode, setMode] = useState<"edit" | "preview">("edit");
+  // 手机：列表 / 编辑 二选一全屏，避免 40vh 列表把编辑挤成豆腐块
+  const [mobileShowList, setMobileShowList] = useState(true);
 
   // 当列表变化（新建/删除），自动调整 active
   useEffect(() => {
@@ -108,6 +110,7 @@ export default function NotesPanel({
     if (selectActiveId && sorted.find((n) => n.id === selectActiveId)) {
       setActiveId(selectActiveId);
       setMode("edit");
+      setMobileShowList(false); // 手机：跳转后直接进编辑全屏
     }
   }, [selectActiveId, sorted]);
 
@@ -138,6 +141,7 @@ export default function NotesPanel({
     const fresh = onCreate();
     setActiveId(fresh.id);
     setMode("edit");
+    setMobileShowList(false);
   };
 
   // [053] 处理 wikilink 点击：跳转 id，或缺失时新建该 title
@@ -150,9 +154,11 @@ export default function NotesPanel({
       onUpdate(fresh.id, { title, updatedAt: Date.now() });
       setActiveId(fresh.id);
       setMode("edit");
+      setMobileShowList(false);
     } else {
       setActiveId(target);
       setMode("preview");
+      setMobileShowList(false);
     }
   };
 
@@ -166,17 +172,17 @@ export default function NotesPanel({
         overflow: "hidden",
       }}
     >
-      {/* 左：笔记列表 */}
+      {/* 左：笔记列表（手机：列表 / 编辑 二选一全屏） */}
       <aside
         style={{
           width: isMobile ? "100%" : 280,
-          maxHeight: isMobile ? "40vh" : undefined,
+          flex: isMobile ? 1 : undefined,
           flexShrink: 0,
           borderRight: isMobile ? "none" : "1px solid var(--color-border)",
-          borderBottom: isMobile ? "1px solid var(--color-border)" : "none",
-          display: "flex",
+          display: isMobile && !mobileShowList ? "none" : "flex",
           flexDirection: "column",
           background: "var(--color-surface)",
+          minHeight: 0,
         }}
       >
         <header
@@ -274,7 +280,7 @@ export default function NotesPanel({
                 key={n.id}
                 note={n}
                 active={n.id === activeId}
-                onClick={() => setActiveId(n.id)}
+                onClick={() => { setActiveId(n.id); setMobileShowList(false); }}
               />
             ))
           )}
@@ -296,8 +302,39 @@ export default function NotesPanel({
         </footer>
       </aside>
 
-      {/* 右：编辑区 */}
-      <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+      {/* 右：编辑区（手机：列表态隐藏，编辑态全屏并加返回） */}
+      <main
+        style={{
+          flex: 1,
+          display: isMobile && mobileShowList ? "none" : "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          minWidth: 0,
+        }}
+      >
+        {isMobile && active && (
+          <button
+            onClick={() => setMobileShowList(true)}
+            aria-label="返回笔记列表"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "10px 14px",
+              border: "none",
+              borderBottom: "1px solid var(--color-border)",
+              background: "var(--color-surface)",
+              color: "var(--color-primary)",
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              flexShrink: 0,
+            }}
+          >
+            ← 笔记列表
+          </button>
+        )}
         {active ? (
           <NoteEditor
             key={active.id}
@@ -314,7 +351,7 @@ export default function NotesPanel({
             titleToId={titleToId}
             backlinks={backlinks}
             onWikilinkClick={handleWikilinkClick}
-            onSelectBacklink={(id) => { setActiveId(id); setMode("preview"); }}
+            onSelectBacklink={(id) => { setActiveId(id); setMode("preview"); setMobileShowList(false); }}
           />
         ) : (
           <EmptyHero onCreate={handleCreate} />

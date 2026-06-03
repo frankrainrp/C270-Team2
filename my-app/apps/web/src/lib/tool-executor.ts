@@ -9,7 +9,7 @@
 // 回执文案使用"建议..."而非"已..."，让 AI 明确告诉用户「需要核实」。
 // ============================================================
 
-import type { DdlItem, Note, CustomPanel } from "./types";
+import type { DdlItem, Note, CustomPanel, RecurringTask } from "./types";
 import type { ApiToolCall } from "./chat-client";
 import {
   compactItem,
@@ -22,8 +22,10 @@ import {
   type ListItemsArgs,
   type CreateNoteArgs,
   type CreateCustomPanelArgs,
+  type CreateRecurringTaskArgs,
 } from "./ai-tools";
 import { makeChangeId, type PendingChange } from "./pending";
+import { makeRecurring, CADENCE_LABEL } from "./recurring";
 
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 
@@ -32,6 +34,8 @@ export interface ToolExecutorDeps {
   setDdls: React.Dispatch<React.SetStateAction<DdlItem[]>>;
   /** 把一个"待核实"改动追加到当前批次（page.tsx 注入） */
   addPending: (change: PendingChange) => void;
+  /** [079] 创建周期任务（page.tsx 注入：落库 + 立即生成当期实例）*/
+  addRecurring?: (routine: RecurringTask) => void;
 }
 
 export function createToolExecutor(deps: ToolExecutorDeps) {
@@ -58,6 +62,8 @@ export function createToolExecutor(deps: ToolExecutorDeps) {
         return execCreateNote(args as CreateNoteArgs, deps);
       case "create_custom_panel":
         return execCreateCustomPanel(args as CreateCustomPanelArgs, deps);
+      case "create_recurring_task":
+        return execCreateRecurring(args as CreateRecurringTaskArgs, deps);
       default:
         return { ok: false, message: `未知工具：${call.function.name}` };
     }
@@ -295,6 +301,38 @@ function execCreateCustomPanel(args: CreateCustomPanelArgs, { addPending }: Tool
     ok: true,
     message: `已生成自定义面板草稿:「${panelDraft.label}」(${kind})。已加入待核实队列。`,
     data: { id: panelDraft.id, label: panelDraft.label, kind },
+  };
+}
+
+// ============================================================
+// 8. create_recurring_task → 直接建模板 + 立即生成当期（[079]）
+// ============================================================
+function execCreateRecurring(args: CreateRecurringTaskArgs, { addRecurring }: ToolExecutorDeps): ToolResult {
+  if (!args.taskName || !args.taskName.trim()) {
+    return { ok: false, message: "create_recurring_task 需要 taskName" };
+  }
+  if (args.cadence !== "daily" && args.cadence !== "weekly" && args.cadence !== "monthly") {
+    return { ok: false, message: "cadence 必须是 daily / weekly / monthly" };
+  }
+  if (!addRecurring) {
+    return { ok: false, message: "周期任务功能未就绪" };
+  }
+  const times = Math.max(1, Math.min(args.timesPerPeriod || 1, 31));
+  const routine = makeRecurring({
+    taskName: args.taskName,
+    cadence: args.cadence,
+    timesPerPeriod: times,
+    dueTime: args.dueTime,
+    description: args.description,
+    tags: args.tags,
+    emoji: args.emoji,
+  });
+  addRecurring(routine);
+  const freq = `${CADENCE_LABEL[args.cadence]}${times > 1 ? ` ${times} 次` : ""}`;
+  return {
+    ok: true,
+    message: `已创建周期任务「${routine.taskName}」（${freq}），并已生成当前周期的实例到任务清单。之后每到新周期会自动续期。`,
+    data: { id: routine.id, taskName: routine.taskName, cadence: routine.cadence, timesPerPeriod: times },
   };
 }
 

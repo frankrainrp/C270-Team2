@@ -10,17 +10,19 @@
 // ============================================================
 
 import React, { useEffect, useRef, useState } from "react";
-import { Trash2, Eye, Edit3, FileText, Globe, AlertTriangle, LayoutGrid, Plus, BarChart3, PieChart as PieIcon, Hash, Timer, ListChecks, Grid3x3 } from "lucide-react";
+import { Trash2, Eye, Edit3, FileText, Globe, AlertTriangle, LayoutGrid, Plus, BarChart3, PieChart as PieIcon, Hash, Timer, ListChecks, Grid3x3, Boxes } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { CustomPanel, CustomPanelKind, PanelModule, PanelModuleType } from "@/lib/types";
 import { EmptyPanel } from "./EmptyIllustrations";
 import ModuleRenderer from "./panel-modules/ModuleRenderer";
 import type { PanelDataCtx } from "@/lib/panel-data";
+import GeneratedPanelView from "./GeneratedPanelView";
+import { SAMPLE_SPEC, type GeneratedPanelSpec } from "@/lib/panel-schema";
 
 interface Props {
   panel: CustomPanel;
-  onUpdate: (id: string, patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url" | "modules">>) => void;
+  onUpdate: (id: string, patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url" | "modules" | "spec">>) => void;
   onDelete: (id: string) => void;
   /** [064] 模组数据绑定上下文（真实 ddls/notes/streak）*/
   dataCtx: PanelDataCtx;
@@ -65,7 +67,7 @@ function KindBtn({ active, onClick, icon, label }: { active: boolean; onClick: (
   );
 }
 
-type PanelPatch = Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url" | "modules">>;
+type PanelPatch = Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url" | "modules" | "spec">>;
 
 export default function CustomPanelView({ panel, onUpdate, onDelete, dataCtx }: Props) {
   const kind: CustomPanelKind = panel.kind ?? "markdown";
@@ -252,6 +254,12 @@ export default function CustomPanelView({ panel, onUpdate, onDelete, dataCtx }: 
             icon={<LayoutGrid size={12} />}
             label="模组"
           />
+          <KindBtn
+            active={kind === "generated"}
+            onClick={() => onUpdate(panel.id, { kind: "generated", ...(panel.spec ? {} : { spec: SAMPLE_SPEC }) })}
+            icon={<Boxes size={12} />}
+            label="应用"
+          />
         </div>
 
         {/* edit/preview 切换（仅 markdown 模式有意义）*/}
@@ -339,8 +347,20 @@ export default function CustomPanelView({ panel, onUpdate, onDelete, dataCtx }: 
       )}
 
       {/* Body */}
-      <div style={{ flex: 1, overflow: "auto", padding: kind === "iframe" ? 0 : "16px 20px", minHeight: 0 }}>
-        {kind === "modules" ? (
+      <div style={{ flex: 1, overflow: kind === "generated" ? "hidden" : "auto", padding: (kind === "iframe" || kind === "generated") ? 0 : "16px 20px", minHeight: 0 }}>
+        {kind === "generated" ? (
+          <GeneratedPanelView
+            spec={panel.spec ?? SAMPLE_SPEC}
+            onChange={(spec: GeneratedPanelSpec) =>
+              // 同步 spec.title/emoji 到面板 Tab，让 AI 生成的标题立刻反映到导航
+              onUpdate(panel.id, {
+                spec,
+                ...(spec.title ? { label: spec.title } : {}),
+                ...(spec.emoji ? { emoji: spec.emoji } : {}),
+              })
+            }
+          />
+        ) : kind === "modules" ? (
           <div style={{ maxWidth: 760, margin: "0 auto" }}>
             {/* 加模组工具条 */}
             <div style={{ position: "relative", marginBottom: 14 }}>

@@ -9,7 +9,7 @@ import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   Check, FileText, Users, Inbox, Plus, Pencil, Trash2,
   CalendarPlus, Download, Upload, Link2, FolderOpen,
-  Image as ImageIcon, File as FileIcon, Paperclip,
+  Image as ImageIcon, File as FileIcon, Paperclip, Repeat,
 } from "lucide-react";
 import type { DdlItem, DdlAttachment, TaskPriority, TaskStatus } from "@/lib/types";
 import type { TaskViewId } from "./layout/TasksRail";
@@ -32,6 +32,8 @@ interface Props {
   onImportJson: () => void;
   /** G1.4 .ics 课表导入 */
   onImportIcs?: () => void;
+  /** [079] 打开周期任务管理 */
+  onOpenRecurring?: () => void;
   view: TaskViewId;
   /** B3 全局搜索跳转后高亮指定 task,触发 CSS 闪烁动画 + scrollIntoView */
   highlightTaskId?: string | null;
@@ -118,7 +120,7 @@ function classifyGroup(ddl: DdlItem): GroupKey {
 
 export default function TasksPanel({
   ddls, onToggleComplete, onRequestCreate, onQuickAdd, onRequestEdit, onRequestDelete,
-  onRequestPreview, onRequestNotesPreview, onExportIcs, onExportJson, onImportJson, onImportIcs, view,
+  onRequestPreview, onRequestNotesPreview, onExportIcs, onExportJson, onImportJson, onImportIcs, onOpenRecurring, view,
   highlightTaskId,
 }: Props) {
   const isMobile = useIsMobile();
@@ -207,14 +209,17 @@ export default function TasksPanel({
                 : "当前视图无任务 — 切换左侧 View 或上传课件 / 对 Butler 说话创建"}
             </p>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <ToolbarBtn onClick={onExportIcs} icon={<CalendarPlus size={13} />} label="订阅日历" tooltip="下载 .ics → 导入手机/电脑系统日历自动提醒" />
-            <ToolbarBtn onClick={onExportJson} icon={<Download size={13} />} label="导出" tooltip="导出全部任务为 JSON 文件备份" />
-            <ToolbarBtn onClick={onImportJson} icon={<Upload size={13} />} label="导入 JSON" tooltip="从 JSON 文件合并任务（按 ID 去重）" />
-            {onImportIcs && (
-              <ToolbarBtn onClick={onImportIcs} icon={<CalendarPlus size={13} />} label="导入 ICS" tooltip="从 .ics 课表文件批量导入事件" />
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {onOpenRecurring && (
+              <ToolbarBtn onClick={onOpenRecurring} icon={<Repeat size={13} />} label="周期任务" tooltip="管理重复任务（如每周健身 4 次），每到新周期自动生成" compact={isMobile} />
             )}
-            <PrimaryBtn onClick={onRequestCreate} icon={<Plus size={14} />} label="New Task" />
+            <ToolbarBtn onClick={onExportIcs} icon={<CalendarPlus size={13} />} label="订阅日历" tooltip="下载 .ics → 导入手机/电脑系统日历自动提醒" compact={isMobile} />
+            <ToolbarBtn onClick={onExportJson} icon={<Download size={13} />} label="导出" tooltip="导出全部任务为 JSON 文件备份" compact={isMobile} />
+            <ToolbarBtn onClick={onImportJson} icon={<Upload size={13} />} label="导入 JSON" tooltip="从 JSON 文件合并任务（按 ID 去重）" compact={isMobile} />
+            {onImportIcs && (
+              <ToolbarBtn onClick={onImportIcs} icon={<CalendarPlus size={13} />} label="导入 ICS" tooltip="从 .ics 课表文件批量导入事件" compact={isMobile} />
+            )}
+            <PrimaryBtn onClick={onRequestCreate} icon={<Plus size={14} />} label={isMobile ? "新建" : "New Task"} />
           </div>
         </header>
 
@@ -359,10 +364,12 @@ function TaskGroup({
       </div>
       <div
         style={{
+          // [085] 卡片用更深的底，配边框 + 阴影，和较亮的面板拉开层次（立体）
           background: "var(--color-bg)",
           border: "1px solid var(--color-border)",
-          borderRadius: 10,
+          borderRadius: 12,
           overflow: "hidden",
+          boxShadow: "0 4px 14px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.02)",
         }}
       >
         {items.map((item, idx) => (
@@ -737,12 +744,14 @@ function Checkbox({ checked, onClick }: { checked: boolean; onClick: () => void 
 // 工具栏按钮
 // ============================================================
 function ToolbarBtn({
-  icon, label, tooltip, onClick,
+  icon, label, tooltip, onClick, compact,
 }: {
   icon: React.ReactNode;
   label: string;
   tooltip: string;
   onClick: () => void;
+  /** 手机：仅图标方块，节省顶部空间 */
+  compact?: boolean;
 }) {
   const [h, setH] = useState(false);
   return (
@@ -751,11 +760,15 @@ function ToolbarBtn({
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       title={tooltip}
+      aria-label={label}
       style={{
-        display: "flex",
+        display: "inline-flex",
         alignItems: "center",
+        justifyContent: "center",
         gap: 5,
-        padding: "7px 10px",
+        padding: compact ? 0 : "7px 10px",
+        width: compact ? 36 : undefined,
+        height: compact ? 36 : undefined,
         borderRadius: 8,
         border: "1px solid var(--color-border)",
         background: h ? "var(--color-primary-soft)" : "var(--color-bg)",
@@ -768,7 +781,7 @@ function ToolbarBtn({
       }}
     >
       {icon}
-      {label}
+      {!compact && label}
     </button>
   );
 }

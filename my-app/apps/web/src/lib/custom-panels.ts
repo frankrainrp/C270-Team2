@@ -49,7 +49,7 @@ export async function createCustomPanel(label: string, emoji: string = "📋"): 
 
 export async function updateCustomPanel(
   id: string,
-  patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url" | "modules">>,
+  patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url" | "modules" | "spec">>,
 ): Promise<void> {
   const next: Partial<CustomPanel> = { ...patch, updatedAt: Date.now() };
   if (patch.label !== undefined) next.label = patch.label.slice(0, 12).trim() || "新面板";

@@ -63,6 +63,31 @@ export interface DdlItem {
   priority?: TaskPriority;              // low / med / high
   // v5+ 跨面板联动（B1）
   noteId?: string;                      // 关联笔记 id（一对一,反向 Note.taskIds 通过 ddls 反查）
+  // [079] 周期任务：标记此实例由哪个 RecurringTask 模板自动生成
+  recurringId?: string;
+}
+
+// ============================================================
+// [079] 周期任务（重复任务模板）
+// 每到新周期自动生成实例到 ddls，如「每周去健身房 4 次」。
+// ============================================================
+export type RecurringCadence = "daily" | "weekly" | "monthly";
+
+export interface RecurringTask {
+  id: string;
+  taskName: string;
+  cadence: RecurringCadence;
+  /** 每周期生成几个实例（如每周 4 次健身）*/
+  timesPerPeriod: number;
+  dueTime: string;            // HH:MM
+  weight?: number | null;
+  description?: string;
+  tags?: string[];
+  emoji?: string;            // 列表展示用
+  active: boolean;
+  createdAt: number;
+  /** 上次已生成到的周期 key（防重复）；首次为空，立即生成当期 */
+  lastGeneratedPeriod?: string;
 }
 
 // Dexie blobs 表记录形态
@@ -139,7 +164,7 @@ export interface Wallpaper {
 // 用户自定义面板（[052] Phase E，Dexie v7 起；[054] D.2 加 kind/url 支持 iframe）
 // 出现在 Tab Bar 内置 4 Tab 后
 // [064] 模组系统：kind=modules → 面板由一摞 PanelModule 组合（AI 可调用拼装 / 用户手动加）
-export type CustomPanelKind = "markdown" | "iframe" | "modules";
+export type CustomPanelKind = "markdown" | "iframe" | "modules" | "generated";
 export interface CustomPanel {
   id: string;          // "custom-{nanoid}"
   label: string;       // Tab 显示名（≤12 字符）
@@ -153,6 +178,8 @@ export interface CustomPanel {
   url?: string;
   /** [064] kind=modules 时的模组列表（按顺序竖排渲染）*/
   modules?: PanelModule[];
+  /** [073] kind=generated 时的声明式面板 schema（数据源 + 组件块）*/
+  spec?: import("./panel-schema").GeneratedPanelSpec;
 }
 
 // ============================================================

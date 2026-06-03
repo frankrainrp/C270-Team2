@@ -7,6 +7,21 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [085] | 背景纯色+圆点花纹 + 任务卡更深更立体 | 暗色背景去网格/光团→纯色 + 极淡白圆点花纹(--bg-halftone radial 0.022/22px)；底色加深 bg #1B1D1C→#161817 + 面板玻璃提亮(glass 0.62/0.78)+ surface #262A27 拉开 3 层层次；TasksPanel 任务组卡片加边框圆角12 + 阴影(0 4px14 + inset 高光)→ 深卡浮在亮面板上、有对比立体。真机：任务列表卡片明显分层、bg 纯色带细点 |
+| [084] | 按钮用复古墨绿 #2D4A3E + 背景灰度再提高 | 按钮主色换成复古主题的墨绿 dark primary #2F7349→**#2D4A3E**（hover #3A5C4D / soft #16271F）；背景再去绿提灰 bg #1A1F1C→**#1B1D1C**（近中性深灰、绿味极淡）surface #242625、border #353835、glass 中性、bg-glow 压到 0.035/0.025 近无。:root primary 同步 #2D4A3E。真机确认 primary #2D4A3E / bg #1B1D1C。注：#2D4A3E 为深墨绿，填充按钮(头像/发送)漂亮，文字态强调(active tab/图标)偏暗——若觉太暗可后续单独提亮 active 态 |
+| [083] | 配色精修：墨绿按钮 + 高灰度墨绿底（参考 GPT/Claude/Gemini）| 把 [082] 偏亮祖母绿 #43B074 压成墨绿 #2F7349（按钮克制不刺眼，hover #3A8757）；底色去饱和成高灰度墨绿 bg #18211B→#1A1F1C（很中性、只带一点绿，像主流 AI 应用的平直中性深底）surface #232925；accent 改灰绿 #5C8F73；bg-glow 进一步压淡(0.06/0.04)趋平。:root primary 同步深墨绿 #235E3E。真机：primary #2F7349、bg #1A1F1C，按钮/头像/active 墨绿、底中性 |
+| [082] | 整体配色换森林绿 | globals.css 主色蓝→森林绿：:root primary #007AFF→#1F7A4D、dark primary #0A84FF→#43B074(森林祖母绿)+ accent 海松/鼠尾草绿；暗色底从蓝炭→森林墨绿炭(bg #1B1E26→#18211B、surface #222C25、border/glass/glow 泛绿)；改掉硬编码蓝(pill-nav active 阴影→color-mix primary、:root/dark bg-glow 绿、TopBar 升级钮阴影绿)。accent 系统 DEFAULT 本就墨绿(null 回落 CSS)。真机：primary #43B074 / bg #18211B，头像/发送/active tab/图标全绿，无 accent 覆盖 |
+| [081] | 改单一深炭蓝暗色主题 + 去掉浅/深切换 | 用户给参考图(深炭近黑)要这种级别 + 微微泛蓝。dark 主题 token 重配：bg 纯黑→#1B1E26(深炭蓝、非纯黑、微泛蓝)、surface #1C1C1E→#242730、border/glass 偏蓝低饱和、code-bg #14161C、去掉底部黑色暗角保持均匀。默认主题改 dark（normalizeTheme：light 一律归 dark，仅留 dark/retro）；TopBar 删主题切换菜单项 + cycleTheme/themeMode/THEME_META 全删；Preferences 主题段去掉「亮色」只剩 暗色/复古。真机验证 data-theme=dark、bg=#1B1E26 |
+| [080] | 新对话 Claude 化 + 去蝴蝶结 + 白天模式改柔和灰蓝 | ① 新对话空态改 Claude 式：输入框居中（InputPod 移到居中开场块，有对话时才贴底）+ 问候标题 + 3 类快捷提示词卡（进度追踪/面板创建/AI工作流，各 3 条可点提示）；删 TodayHero/DropHeroZone/QuickCard/旧 QUICK_CARDS。② 删 TopBar「Butler」旁的领结 SVG。③ 白天主题 token 改柔和灰蓝：bg #E8E8EF→#D9DFE8、surface 纯白→#EDF1F7、border 偏蓝、glass 灰蓝低饱和(saturate 1.8→1.25)、viewport themeColor 同步，去刺眼纯白。真机验证：居中输入框+3卡渲染、无领结、灰蓝更柔和 |
+| [079] | 周期任务：管家每到新周期自动创建重复任务 | 管家「额外可触发逻辑」。types RecurringTask + DdlItem.recurringId；db v9 recurringTasks 表；lib/recurring.ts(periodKey daily/weekly/monthly + buildInstances 周N次按天均匀分布 + materializeDue 当期未生成则生成+记 lastGeneratedPeriod)；AI 工具 create_recurring_task（管家可「每周去健身房4次」直接建）；RecurringTasksManager 模态(新增/开关/删)，TasksPanel 加「🔁周期任务」入口；page hydrate materialize + 10min 兜底 + addRecurring 注入执行器。真机验证：建「去健身房 每周4次」→ 自动生成 4 个实例(周一/三/五/日 06-01/03/05/07)进任务清单，lastPeriod=w-2026-06-01 防本周重复、下周自动续期 |
+| [078] | UX 动线重设（用户选 2 组）：清死链+顶栏瘦身 · 开场概览收成一个 | ① TopBar 删通知铃/退出登录死钮；移除桌面 theme/tools GlassButton，收进用户菜单（全端统一）；右侧只剩 搜索+升级+头像。清 Bell/LogOut/GlassButton 导入。② ChatCanvas 删 DailyBrief；空态 6 层欢迎面（开屏问候消息+DailyBrief+欢迎气泡+TodayHero+快捷卡+拖拽热区）收成单一「今日开场」=问候标题(greetingHeadline)+TodayHero+拖拽热区(空数据)+快捷卡(含新增开始专注)；page 停止注入 greeting assistant 消息(原会盖掉开场)+删 buildLocalGreeting/triggerGreeting 死码。真机验证：顶栏无铃、开场单屏渲染齐全。未选的「砍模组/导航分层」未动 |
+| [077] | 纠偏 P4：连接器从「写死模板目录」→「动态按需构建」| 用户反馈不要写死的命名 API 目录、要动态按需。删 connector-templates.ts + ConnectorLibrary.tsx；新 /api/generate-source（一句描述→AI 临时推断单个 DataSource：url/query/path/headers env占位/pivot + 建议blocks，任意 API 不靠固定清单）+ DataSourceBuilder.tsx（AI 智能配置：描述→预览→插入；手动配置：URL/method/query KV/headers KV+env提示/path/pivot 通用表单）。🔌 改开构建器。数据源只活在当前面板 spec。验证 curl「USD汇率」→ AI 动态配出 frankfurter+path:rates+pivot{currency,rate}+table/kpiGrid |
+| [076] | 面板引擎 P4：连接器 UX + 密钥模板 + 定时刷新（引擎四阶段收官）| connector route：resolveEnv 改正则(支持 `Bearer env:KEY` 内嵌 + URL 路径注入如 Telegram) + DataSource 加 `pivot`(键值对象→行，如汇率) → connector-client 透视。lib/connector-templates(CoinGecko/Frankfurter/GitHub 免key + Twitch Bearer + 通用REST + 长桥/Telegram 占位，每个 build→source+blocks + envKeys/hint) + ConnectorLibrary 模态(分类卡+免key/需key/占位徽标+env 指引+一键插入到 spec) + GeneratedPanelView 加「🔌 数据源」按钮 + 定时刷新下拉(关/30s/1m/5m 写各 http 源)。真机 curl：Frankfurter rates 拉到(pivot 成表)+env-url 注入路径不崩。至此 P1-P4 全完成：声明式引擎+AI生成+并行调研+真实连接器 |
+| [075] | 面板引擎 P3：真并行多小队调研 → 聚合成多源面板 | 客户端编排：plan(拆 3-4 小队) → `Promise.all` **并行** fan-out 各小队 AI 调查 → 代码确定性聚合成 spec(零额外 AI 调用)。app/api/research/plan + /squad 两路由(DeepSeek Flash JSON) + lib/research-assembler(发现→intro markdown+每小队 static源/table/可选chart/summary) + lib/research-client.runResearch(并行编排+进度回调) + GeneratedPanelView 组合器加「深度调研·多小队并行」模式 + 小队进度卡(pending/running/done/error 实时)。真机 curl 验证：「半导体潜力股」→ plan 拆 4 队(457 tok) + 上游材料队返回 12 行结构化数据(公司/份额/营收/增速)+列格式+bar chart |
+| [074] | 面板引擎 P2：AI 一句话 → 生成 schema → 渲染 | app/api/generate-panel(DeepSeek V4 Flash + JSON 模式 + 紧凑 schema 文档/1示例 + validateSpec 服务端校验) + lib/panel-generator.generatePanelSpec + GeneratedPanelView 加「✨ AI 生成」内联组合器(textarea+示例chips+⌘Enter+loading/error) + CustomPanelView onChange 同步 spec.title/emoji 到 Tab。validateSpec 改宽容：自动补缺失 block/source id(AI 不必写 id)。真机 curl 验证：「Crypto Top8」→ AI 选真 CoinGecko http API；「Twitch 收益榜」→ static 样本数据，均生成合法 spec 直接渲染 |
+| [073] | 面板引擎 P1：声明式 schema + 后端连接器 + 渲染器（AI 面板应用平台地基）| 重构「自定义面板」→ AI 面板应用搭建平台的地基。lib/panel-schema.ts(GeneratedPanelSpec：sources[]数据源 + blocks[]组件块 8 种 + parseSpec校验 + getByPath/aggregate/toSeries/formatValue + CoinGecko Top10 SAMPLE) + app/api/connector(通用 HTTP 代理绕 CORS + SSRF 守卫挡私网/元数据IP + env:KEY 密钥注入 + 12s超时/3MB上限) + connector-client.fetchSource + Charts 加 LineChart + GeneratedPanelView(并行取数→渲染 stat/kpiGrid/table/bar/line/pie/list/markdown + 自动刷新 + loading/error + </>schema JSON 编辑器) + CustomPanel 加 kind=generated+spec 字段 + 第4个 KindBtn「应用」。真机验证：curl 连接器拉到 BTC 实时价 + SSRF 挡内网；面板渲染真实 CoinGecko 数据(表格/KPI $2.19T总市值/柱状全对)。决策(AskUserQuestion)：通用引擎优先 + 通用HTTP连接器 + 声明式schema运行时 + 真并行多智能体。P2 AI生成/P3并行小队/P4连接器UX 待做 |
+| [072] | 付费体系（仿 Claude 三档）+ 中英 i18n 基建 + 复古主题收顶栏 | lib/i18n.ts(zh/en 字典+useT+LANG_EVENT+applyStoredLang，覆盖顶栏/导航/偏好/定价/结账/账单 130+ key) + lib/billing.ts(Free/Pro/Max 月¥0/39/99·年8折+订阅状态+模拟账单+模型门槛+useSubscription) + PricingModal(3卡片+月年切换省20%+Pro最受欢迎缎带) + CheckoutModal(卡号空格格式化+Visa品牌识别+处理spinner→成功页，演示不扣款+一键填演示卡) + BillingPanel(当前计划/支付方式/账单历史/取消订阅) + TopBar 升级CTA/Pro徽标/账单入口+全文案i18n + Preferences 加语言段(中/English) + 顶栏主题钮 cycle 收成 亮↔暗(复古仅偏好里选)。真机验证全流程通：升级→结账→Pro徽标→账单→发票→中英live切换 |
+| [071] | 响应式二轮：手机学习工具 + 笔记单栏切换 + 任务工具栏 icon-only + 超宽屏封顶 | MiniAppsDrawer 手机适配(top72/bottom72/全宽圆角玻璃+暗遮罩) + TopBar 用户菜单加「学习工具/主题」入口（解决[069]手机端无法访问 LayoutGrid/主题切换）；TasksPanel ToolbarBtn compact mode（手机 36×36 方块仅图标 + flexWrap）+ New Task→「新建」；NotesPanel 手机列表/编辑二选一全屏 + 「← 笔记列表」返回按钮（替代 40vh 列表挤豆腐块）；page 根容器 maxWidth:1600+margin auto（>1600px 不再拉满整屏空旷）|
 | [070] | 全功能走查 + 抽屉自动关修复 | 桌面/手机/三主题/4面板走查全正常无 console error；修抽屉点项不自动关(React onClick 冒泡 programmatic 不可靠 → 原生 addEventListener+ref)；甄别 preview 环境限制(resize 不 fire matchMedia / element.click 不稳定 / 截图卡)非代码 bug |
 | [069] | 手机响应式：窄屏布局重构 | useIsMobile hook + MobileTabBar 底部4tab + 左栏 fixed 抽屉(菜单开/遮罩关) + 根 padding-bottom 让位 + TopBar 手机隐藏 pill-nav/3钮/用户文字 + 搜索 flex 缩；375px 从溢出崩→不崩可用 |
 | [068] | 管家化交互三件套：管家按需出现 + 铃铛发送键 + 漫画思考框 | 管家常驻→仅 AI 活动升起(standing opacity:0 下沉/活动升起缓动) ; 发送键 ArrowUp→餐厅服务铃铛 SVG(呼应[060]服务铃音效) ; thinking 时管家头顶漫画思考框(主泡+2尾泡+TypingDots,scale 弹入) ; 纯 CSS 零素材 |
@@ -54,7 +69,445 @@
 | [022]-[026] | UI 重构 Stage C-E + Mini Apps + Stage C.2 + 模型切换 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
-> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 30 条 [041]-[070] 是近期进度，其余条目（[022]-[040]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+> **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 30 条 [056]-[085] 是近期进度，其余条目（[022]-[055]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [085] 2026-06-03 — 背景纯色+圆点花纹 + 任务卡更深更立体
+
+> 用户：背景采用纯色（可加花纹）；task list 卡片颜色更深、有对比、更立体。
+
+- **背景纯色 + 花纹**：dark 去掉 `--bg-grid`(网格线) + `--bg-glow`(光团) → 纯色底；加极淡白圆点 `--bg-halftone: radial-gradient(circle, rgba(255,255,255,0.022) 1px, transparent 1.5px)` + `--bg-halftone-size: 22px`（html 已用这俩变量铺背景）
+- **3 层层次**：bg 加深 `#1B1D1C→#161817`、面板玻璃提亮 `glass 0.62/0.78`（更亮一档）、surface `#262A27` → 深底 / 亮面板 / 卡片三层分明
+- **任务卡立体**：`TasksPanel` 任务组容器 borderRadius 12 + `boxShadow: 0 4px 14px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.02)` → 深卡浮在较亮面板上、有边框+阴影、明显立体对比
+
+`tsc` EXIT=0；真机：任务列表卡片清晰分层、背景纯色带极细圆点。其他面板卡片可后续按需套同样的深卡+阴影。
+
+---
+
+## [083] 2026-06-03 — 配色精修：墨绿按钮 + 高灰度墨绿底
+
+> 用户：按钮用墨绿，背景用高灰度的墨绿，参考 Gemini/Grok/GPT/Claude 的逻辑（中性低饱和深底 + 克制的品牌色按钮）。
+
+- **按钮/主色 墨绿**：dark primary `#43B074`(偏亮祖母绿) → **#2F7349**（深墨绿，克制不刺眼）；hover #3A8757；soft #15311E。:root 同步 #235E3E
+- **背景 高灰度墨绿**：dark bg `#18211B` → **#1A1F1C**（饱和度更低、更中性，几乎是深绿灰），surface #232925、border #343C37、glass rgba(27,32,29)；bg-glow 压到 0.06/0.04 趋近平直中性底（像主流 AI 应用）
+- accent → 灰绿 #5C8F73；管家金保留
+
+仅改 globals.css token（`:root` + `[data-theme="dark"]`），组件零改。真机 reload：`--color-primary=#2F7349`、`--color-bg=#1A1F1C`，按钮/头像/active tab 墨绿、整屏中性深绿灰、克制专业。
+
+---
+
+## [082] 2026-06-03 — 整体配色换森林绿
+
+> 用户：整体配色换为森林系列的绿色。在 [081] 单一暗色基础上把主色与底色由蓝系转森林绿系。
+
+### 🌲 改动（globals.css 为主）
+
+- **主色 蓝→森林绿**：`:root --color-primary #007AFF→#1F7A4D`（hover #186340 / soft #DCEFE4）；`dark --color-primary #0A84FF→#43B074`（森林祖母绿，暗底够亮，hover #5BC089 / soft #16301F）；accent 改海松绿 #2E8B57 / 鼠尾草 #6FBF9A
+- **暗色底 蓝炭→森林墨绿炭**：bg #1B1E26→**#18211B**、surface #222C25、border #38473C、glass rgba(26,38,30) 泛绿、code-bg #111813、bg-glow 极淡森林绿光团
+- **success/info** 微调成绿/青；**管家金 #D4AF37 保留**（与森林绿是经典搭配）
+- **清硬编码蓝**：`.pill-nav-item.active` 阴影 → `color-mix(primary)`；`:root`/dark `--bg-glow` 蓝→绿；TopBar 升级钮阴影 → `color-mix(primary)`
+
+### ⚙️ accent 系统说明
+
+`lib/theme.ts` 的 `DEFAULT_ACCENT` 本就是墨绿 #1B3D2F，但 `applyAccentColor(null)` 只是移除覆盖、回落 CSS `--color-primary`（之前是蓝）。本次改 CSS 默认即生效；用户未设自定义 accent（`butler.accent`=null）→ 直接吃森林绿。
+
+### ✅ 验证
+
+`tsc` EXIT=0；真机 reload：`--color-primary=#43B074`、`--color-bg=#18211B`、无 accent 覆盖；头像/发送键/active tab/提示词图标全绿，整屏森林墨绿炭。
+
+---
+
+## [081] 2026-06-03 — 改单一深炭蓝暗色主题 + 去掉浅/深切换
+
+> 用户发参考图（深炭近黑、偏暖黄），要：这种**深度级别**、但**微微泛蓝**、**去掉浅色/深色切换**（固定单一暗色）。
+
+### 🎨 深炭蓝暗色（globals.css `html[data-theme="dark"]`）
+
+| token | 旧 | 新 |
+|---|---|---|
+| --color-bg | #000000 纯黑 | **#1B1E26**（深炭蓝、非纯黑、微泛蓝）|
+| --color-surface | #1C1C1E | #242730 |
+| --color-border | #38383A | #383D48（偏蓝）|
+| --glass-bg/strong | (22,22,28) | (27,30,38)/(32,35,44) 偏蓝 |
+| --glass-blur saturate | 1.4 | 1.3 |
+| --color-code-bg | #0A0A0A | #14161C |
+| --bg-glow | 含底部黑暗角 0.55 | 去黑暗角，仅极淡蓝光团（均匀深炭蓝）|
+
+### 🚫 去掉浅/深切换（单一暗色）
+
+- `PreferencesPanel.normalizeTheme`：light 一律归一到 **dark**；默认 dark；只保留 dark / retro
+- `applyStoredPreferences` / `getStoredTheme` 默认 dark
+- `TopBar`：删用户菜单的主题切换项 + `cycleTheme`/`themeMode`/`THEME_META`/`THEME_CYCLE` 全部移除 + Sun/Moon/Feather/getStoredTheme/setStoredTheme/Theme 导入清掉
+- Preferences 主题段：去掉「亮色」，只剩 暗色 / 复古
+
+> 注：light 主题 token 仍在 `:root`（[080] 灰蓝），但已无 UI 入口；复古仍可在偏好设置选。
+
+### ✅ 验证
+
+`tsc` EXIT=0；真机 reload：`data-theme=dark`、`--color-bg=#1B1E26`、storedTheme=null（默认 dark），整屏深炭蓝、均匀不刺眼、微泛蓝；顶栏无主题钮、无领结。
+
+---
+
+## [080] 2026-06-03 — 新对话 Claude 化 + 去蝴蝶结 + 白天模式柔和灰蓝
+
+> 用户 4 项 UI 诉求。
+
+### ① 新对话 = Claude 式居中输入 + 快捷提示词
+
+- 空态（`isEmpty`）重构：输入框 `InputPod` 从贴底移到**居中开场块**（问候标题 + 居中输入框 + 3 类提示词卡 + 免责）；有对话时输入框才回到贴底（`{!isEmpty && ...}`）
+- 3 类快捷提示词卡（`PROMPT_GROUPS` + `PromptSuggestions`），各 3 条可点（点击 → 填入输入框 onQuickAction）：
+  - 📈 **进度追踪**：本周完成/剩余、临近 deadline、streak 完成率
+  - 📊 **面板创建**：任务统计面板 / 加密行情面板 / 复习计划看板
+  - 🔀 **AI 工作流**：每周健身周期任务 / 每周一周报 / 潜力股调研成面板
+- 删除旧空态件：`TodayHero`（import+用）、`DropHeroZone`、`QuickCard`、`QUICK_CARDS`；空数据时保留一个「看 Demo」胶囊
+
+### ② 去掉 Butler 旁的领结 SVG（TopBar）
+
+### ③ 白天模式 → 柔和灰蓝（globals.css `:root`）
+
+| token | 旧 | 新 |
+|---|---|---|
+| --color-bg | #E8E8EF | **#D9DFE8**（灰蓝、略深、不刺激）|
+| --color-surface | #FFFFFF | **#EDF1F7**（微蓝灰，替代刺眼纯白）|
+| --color-border | #D6D6DB | #C4CCD9（偏蓝）|
+| --glass-bg/strong | 白 0.82/0.92 | 灰蓝 0.78/0.90 |
+| --glass-blur saturate | 1.8 | **1.25**（降饱和更柔和）|
+
+html 背景用 `var(--color-bg)` 故页底自动跟随；layout viewport themeColor 同步 #D9DFE8。暗色/复古主题不动。
+
+### ✅ 验证
+
+`tsc` EXIT=0；真机：新对话居中输入框 + 3 提示词卡渲染齐全、Butler 旁无领结、整体灰蓝更柔和不刺眼。
+
+---
+
+## [079] 2026-06-03 — 周期任务：管家每到新周期自动创建重复任务
+
+> 用户要管家「额外可触发逻辑」：周期性重复任务（如每周去健身房 4 次），每到新周期自动创建。
+
+### 🧱 产出
+
+| 文件 | 内容 |
+|---|---|
+| `lib/types.ts` | `RecurringTask`（cadence daily/weekly/monthly + timesPerPeriod + lastGeneratedPeriod）+ `DdlItem.recurringId` 溯源 |
+| `lib/db.ts` | v9：`recurringTasks` 表 |
+| `lib/recurring.ts`（新） | `periodKey`（d-日 / w-本周一 / m-月）+ `buildInstances`（周 N 次按天均匀分布 spreadOffsets）+ `materializeDue`（当期未生成→生成实例+记 lastGeneratedPeriod）+ CRUD + `makeRecurring` |
+| `lib/ai-tools.ts` + `tool-executor.ts` | 新工具 `create_recurring_task`（管家可「每周健身4次」直接建）→ `addRecurring` dep → 落库 + 立即生成当期 |
+| `components/RecurringTasksManager.tsx`（新） | 模态：新增表单（emoji/名/周期/次数/时间）+ 列表（开关 Power / 删）|
+| `TasksPanel.tsx` | 工具条加「🔁 周期任务」入口（onOpenRecurring）|
+| `app/page.tsx` | hydrate 跑 `runMaterialize` + 每 10min 兜底（跨午夜/周续期）；`addRecurring` 注入执行器；Portal 渲染 manager；TasksPanel 接入口 |
+
+### ⚙️ 生成逻辑
+
+- 周期 key 同期稳定、跨期变化；`materializeDue` 比对 `lastGeneratedPeriod`，不等才生成 → 幂等防重复；删掉生成的实例不会被复活（当期已标记）
+- 周 N 次：在本周 7 天内均匀铺（如 4 次 → 周一/三/五/日）；月 N 次按当月天数铺
+- 触发点：hydrate + 10min interval + mutation 后显式调（不走事件监听，避免与 putRecurring 并发二次生成竞态）
+
+### ✅ 验证（真机 preview，读 IndexedDB 确认）
+
+建「去健身房 每周 4 次」→ 自动生成 4 实例：去健身房（1/4）06-01 周一 / （2/4）06-03 周三 / （3/4）06-05 周五 / （4/4）06-07 周日，全进任务清单（source=周期任务，今天/本周分组正确），routine.lastGeneratedPeriod=`w-2026-06-01`。`tsc` EXIT=0。
+
+### 🖥️ 运行中 + 备注
+
+dev server（preview「web」:3000）开着供体验，留了「去健身房」演示 routine + 4 任务（可在 🔁 周期任务里删）。
+
+---
+
+## [078] 2026-06-02 — UX 动线重设：清死链 + 顶栏瘦身 · 开场概览收成一个
+
+> 用户以资深 UX 设计师视角要重设操作动线（重复入口/多余残留）。审计后用户多选执行「清死链+顶栏瘦身」+「开场概览收成一个」两组；「砍模组/导航分层/偏好分组」两组本轮未选不动。
+
+### ① 清死链 + 顶栏瘦身（TopBar.tsx）
+
+- **删死按钮**：通知铃 `<Bell>`（无 onClick）、退出登录（无 auth 死链）
+- **移除桌面 theme/tools GlassButton**，收进用户头像菜单（原 `isMobile &&` 条件去掉，全端统一入口）
+- 顶栏右侧从「升级+主题+工具+铃+头像」5 件 → **搜索+升级+头像** 3 件
+- 清 `Bell`/`LogOut`/`GlassButton` 导入
+
+### ② 开场概览收成一个（ChatCanvas + page.tsx）
+
+原本空态铺 6 层重叠欢迎/概览面：开屏问候消息 + DailyBrief 横幅 + ButlerBubble 欢迎气泡 + TodayHero + 快捷卡 + 拖拽热区。其中前 3 个都是「问候」、DailyBrief 与 TodayHero 都是「今日概览」，高度重复；且开屏问候消息会让 `isEmpty=false` 反而**盖掉**富开场。
+
+- ChatCanvas：删 `DailyBrief` 渲染+导入；空态重构成**单一「今日开场」**=问候标题（`greetingHeadline()` 时段问候）+ 副标题 + `TodayHero`（今日聚焦）+ 拖拽热区（仅空数据）+ 快捷卡（3 张 + **新增「开始专注」** Target 卡，接 onStartFocus）
+- page.tsx：greeting effect **不再注入** assistant 问候消息（开场已承担）；删 `buildLocalGreeting`/`triggerGreeting` 死码；ChatCanvas 调用去掉 `showDailyBrief`/`onDismissBrief` 死 props（留 `onStartFocus`）
+
+### ✅ 验证（真机 preview）
+
+- `tsc --noEmit` EXIT=0
+- 顶栏：`hasBell=false`，右侧仅 搜索+升级到Pro+头像
+- New Chat 空态：单屏「早上好，Feng」+ 今日聚焦卡（日期/streak/统计/deadline）+ 拖拽热区 + 4 快捷卡（含开始专注），齐全无重叠
+
+### 🧹 残留备注
+
+page.tsx 里 DailyBrief 的内部状态（showDailyBrief/markBriefSeen/dismissDailyBrief/[065] effect）现已不渲染、变 inert（不影响 UI/编译）；彻底删可后续收，handleStartFocus 仍在用勿误删。
+
+---
+
+## [077] 2026-06-02 — 纠偏 P4：连接器从「写死模板目录」→「动态按需构建」
+
+> 用户反馈：「api接口只保留用户选择展示的窗口相关的…不希望做成一次性的或者写死的链接api窗口…要动态根据用户所需灵活调整」。
+> [076] 我做成了固定的命名 API 目录（CoinGecko/Twitch…），正是用户不要的。本条纠偏：连接器改成**动态按需**，回归最初「通用 HTTP 连接器」本意。
+
+### 🔧 改动
+
+- **删**：`lib/connector-templates.ts` + `components/ConnectorLibrary.tsx`（写死的服务清单）
+- **新 `app/api/generate-source/route.ts`**：一句描述 → AI 临时推断**单个** DataSource（url/query/path/headers env 占位/pivot）+ 1-3 建议块。任意 API，不靠固定清单。借 validateSpec 自动补 id。
+- **新 `components/DataSourceBuilder.tsx`**：
+  - **AI 智能配置**（默认）：描述想要的数据 → 生成 → 预览（URL/path/块/需要的 env key）→ 插入 / 重新生成
+  - **手动配置**：通用表单 URL/method/query(KV 行)/headers(KV 行，env:KEY 提示)/path/pivot
+- `GeneratedPanelView`：🔌 改开 DataSourceBuilder，插入的 source+blocks append 到当前面板 spec
+
+### 🧭 心智
+
+数据源 = **面板内自洽、按需动态生成**，无全局固定注册表。要什么数据就描述/填什么，AI 或手动当场配出连接器。密钥仍 `env:KEY` 服务端注入。
+
+### ✅ 验证
+
+- `tsc` EXIT=0；reload 无错误浮层
+- `curl /api/generate-source`「USD 对各国汇率」→ AI 动态配出 `frankfurter.app/latest` + `path:rates` + `pivot:{currency,rate}` + table/kpiGrid（自己推断出键值对象要 pivot），2.6s
+
+### 🗑️ tsc 坑
+
+`[...Set]` 在本项目 target 下报错 → 用 `Array.from(set)`。
+
+---
+
+## [076] 2026-06-02 — 面板引擎 P4：连接器 UX + 密钥模板 + 定时刷新（引擎四阶段收官）
+
+> 用户「收尾」→ 完成 P4，把样本数据换成真实带 key 数据源的最后一公里。至此「面板应用引擎」P1-P4 全部完成。
+
+### 🧱 产出
+
+| 文件 | 内容 |
+|---|---|
+| `app/api/connector/route.ts` | `resolveEnv` 改正则：支持 `Bearer env:KEY` 内嵌 + 对 **url** 注入（Telegram 路径 token）；密钥仍只在服务端 |
+| `lib/panel-schema.ts` + `lib/connector-client.ts` | DataSource 加 `pivot`：键值对象 → 行数组（汇率 `{EUR:0.9}` → `[{currency:"EUR",rate:0.9}]`）|
+| `lib/connector-templates.ts`（新） | 模板库：CoinGecko/Frankfurter/GitHub（免 key 开箱即用）+ Twitch（Bearer key）+ 通用 REST + 长桥/Telegram（占位，注明需签名/webhook）；每个 `build(srcId)→{source,blocks}` + `envKeys`/`envHint` |
+| `components/ConnectorLibrary.tsx`（新） | 模态：按类列模板卡（免 key/需 key/占位 徽标 + env 变量 chip + 指引）+「插入到面板」append 到 spec |
+| `components/GeneratedPanelView.tsx` | 工具条加「🔌 数据源」开库 + 定时刷新下拉（关/30s/1m/5m 写所有 http 源 refreshMs）|
+
+### 🔑 密钥模型（重要）
+
+密钥永不进前端：模板 source 里写 `"env:KEY"`（headers/query/url 均可），连接器服务端从 `process.env` 注入。用户在 `apps/web/.env.local` 配 `TWITCH_TOKEN=...` 等重启即生效。长桥 OpenAPI 用 HMAC 签名（非简单 Bearer），通用代理直连不了 → 列为占位，需后续专用签名层。
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0；reload 无 Next 错误浮层
+- `curl /api/connector` Frankfurter → 拉到 `rates` 对象（前端 pivot 成表）
+- env-in-url：`botenv:NONEXISTENT_TOKEN` 解析为空 token → Telegram 404 作数据回传、代理不崩（证明 url 注入路径健壮）
+
+### 🏁 引擎全景（P1-P4 完成）
+
+声明式 schema 引擎（P1）+ AI 一句话生成（P2）+ 真并行多小队调研（P3）+ 真实连接器模板（P4）。用户用例闭环：量化台/收益榜/选品/选股都能「一句话或一目标 → 可用面板（样本或真实数据）」。**后续可选**：长桥签名层、连接器持久化保存、面板间联动。
+
+### 🖥️ 运行中
+
+dev server（preview「web」配置，pnpm --filter @smart-hub/web dev，:3000）由用户启着供体验，本轮未停。
+
+---
+
+## [075] 2026-06-02 — 面板引擎 P3：真并行多小队调研 → 聚合成多源面板
+
+> P2（单次 AI 生成）之上接「真并行多智能体」（用户在 4 基石里明确选的）。复杂调研目标 → 拆成多小队 → 并发调查 → 聚合成多源面板。用户「继续」推进。
+
+### 🧩 编排（客户端驱动，真并发）
+
+`lib/research-client.ts` `runResearch(goal, onProgress)`：
+1. **plan**：`POST /api/research/plan` → `{title,emoji,squads:[{title,question}]}`（3-4 队）
+2. **investigate**：`Promise.all(squads.map(...))` **并行** `POST /api/research/squad` —— 真并发 fetch，每队独立 running→done/error，进度实时回调
+3. **assemble**：`lib/research-assembler.ts` 纯代码拼 spec（**无额外 AI 调用** → 省 token + 零 JSON 失败）
+
+### 🧱 产出
+
+| 文件 | 内容 |
+|---|---|
+| `app/api/research/plan/route.ts`（新） | Flash JSON：目标 → 3-4 个互补可并行的小队（title+question）|
+| `app/api/research/squad/route.ts`（新） | Flash JSON：子问题 → `{summary(md), rows?[], columns?[], chart?}` 结构化发现（知识合成，注明非实时）|
+| `lib/research-assembler.ts`（新） | plan+findings → GeneratedPanelSpec：intro markdown + 每队(static源 + 可选 chart + table + summary markdown)|
+| `lib/research-client.ts`（新） | 并行编排 + ResearchProgress 进度类型 |
+| `components/GeneratedPanelView.tsx` | 组合器加「快速生成 / 深度调研·多小队并行」模式切换 + `ResearchProgressView` 小队进度卡（pending/running 脉冲/done✓/error✗ + N/总 计数）|
+
+### ✅ 验证（真机 curl）
+
+- `/api/research/plan`「半导体潜力股产业链分析」→ 4 队（上游材料/中游制造/下游应用/风险面），457 tok
+- `/api/research/squad`「上游材料」→ summary + **12 行结构化数据**（company/country/segment/revenue_share/revenue_2023/growth_rate）+ columns 带 percent/number 格式 + `chart:{bar, x:company, y:revenue_2023}`
+- 聚合器是确定性代码（tsc 验证），映射到已验证的 table/bar/markdown 块；`tsc --noEmit` EXIT=0
+- 后台起 dev server 验证完即停，无孤儿进程
+
+### 💰 token 成本
+
+一次深度调研 = 1(plan) + N(squad 并行) 次 Flash，N≤4，聚合零调用。plan ~457 tok / squad ~1-2k tok。比 1+N+1（聚合也用 AI）省一次大调用。
+
+### 🎯 剩 P4
+
+连接器 UX（保存的连接器 + 长桥/Twitch/Tele 密钥模板 UI + 定时刷新管理）。至此「一句话/一目标 → 可用面板」闭环已通（快速生成 + 深度调研双模式）。
+
+---
+
+## [074] 2026-06-02 — 面板引擎 P2：AI 一句话 → 生成 schema → 渲染
+
+> P1 引擎地基之上接 AI 生成。用户说「继续」→ 推进 P2。现在用户描述需求，AI 直接产出 GeneratedPanelSpec 并渲染，「搭建面板」零门槛。
+
+### 🧱 产出
+
+| 文件 | 内容 |
+|---|---|
+| `app/api/generate-panel/route.ts`（新） | DeepSeek V4 Flash + `response_format:json_object`；紧凑系统提示教 schema（块类型/源/字段）+ 1 个 Twitch 示例；规则：真实免 key 公共 API 优先 http，不确定就 static 造样本数据保证可渲染；`validateSpec` 服务端校验后回 spec |
+| `lib/panel-generator.ts`（新） | 客户端 `generatePanelSpec(prompt)` 调上面路由 |
+| `components/GeneratedPanelView.tsx` | 工具条加「✨ AI 生成」按钮 → 内联组合器 `PanelComposer`（textarea + 4 示例 chips + ⌘/Ctrl+Enter + loading/错误）；生成成功 → `onChange(spec)` 直接应用 |
+| `components/CustomPanelView.tsx` | generated 面板 `onChange` 把 `spec.title/emoji` 同步到面板 Tab |
+| `lib/panel-schema.ts` | `validateSpec` 改宽容：**自动补缺失的 block/source id**（id 是实现细节，AI/手写都不必写）；kind 缺失按有无 url 推断 |
+
+### ✅ 验证（真机 curl，各 1 次 Flash 调用）
+
+- 「东南亚 Twitch 主播月收益榜 Top5」→ AI 用 `static` 造 5 行真实感数据 + kpiGrid/bar/table（首次因 AI 没写 block id 被拒 → 加自动补 id 修复）
+- 「Crypto 市值 Top 8」→ **AI 自己选了真实 CoinGecko `coins/markets` http API**（url/query 准确）+ kpiGrid/bar/table，合法直接渲染
+- `tsc --noEmit` EXIT=0
+
+### 🩹 关键修复
+
+AI 几乎不会主动写 `id` 字段 → 原 `validateSpec` 强制 block.id 必有 → 一律被拒。改成**渲染前自动补 id**（`block-${i}` / `src-${i}`），LLM 输出可用性大增。
+
+### 🔌 验证环境备注
+
+用户 dev server 中途停了（"No running servers"）；本轮用 Bash 后台起 `next dev` 验证完即 `taskkill` 停掉，未留孤儿进程、未污染 repo。接班验证 UI 组合器需用户自己起 dev server（preview programmatic click 触发 React onClick 不稳，见 [070]）。
+
+### 🎯 下一步
+
+- **P3**：真并行多小队 —— 复杂任务（潜力股产业链/选品调研）拆成子调查 → 并行 fetch+AI → 聚合成多源 spec + 小队进度 UI
+- **P4**：连接器 UX + 长桥/Twitch/Tele 密钥模板 + 定时刷新管理
+
+---
+
+## [073] 2026-06-02 — 面板引擎 P1：声明式 schema + 后端连接器 + 渲染器
+
+> 用户大方向：把「自定义面板」从静态 markdown/iframe/模组 → **AI 驱动的「面板应用」搭建平台**。
+> 用例：量化交易台(长桥API) / 东南亚 Twitch Top10 收益榜 / 选品调研 / 潜力股产业链分析。
+> AskUserQuestion 4 基石：**通用引擎优先** · **通用 HTTP 连接器+后端代理** · **声明式组件块 schema 运行时** · **真并行多智能体**。
+
+### 🗺️ 路线图
+
+| 阶段 | 内容 | 状态 |
+|---|---|---|
+| **P1** | 引擎地基：schema + 连接器 + 渲染器 + 接入面板 | ✅ 本条 |
+| P2 | AI 生成：一句话 prompt → schema → 渲染 | 待做 |
+| P3 | 真并行多小队：拆解→并行调查→聚合成面板 + 小队进度 UI | 待做 |
+| P4 | 连接器 UX + 密钥模板（长桥/Twitch/Tele）+ 定时刷新管理 | 待做 |
+
+### 🧱 P1 产出
+
+| 文件 | 内容 |
+|---|---|
+| `lib/panel-schema.ts`（新） | `GeneratedPanelSpec`：`sources[]`(static/http) + `blocks[]`(stat/kpiGrid/table/bar/line/pie/list/markdown) + `parseSpec` 校验 + `getByPath/asArray/aggregate/toSeries/formatValue` + CoinGecko Top10 `SAMPLE_SPEC` |
+| `app/api/connector/route.ts`（新） | 通用 HTTP 代理：绕 CORS + **SSRF 守卫**(挡 localhost/私网/169.254 元数据) + `env:KEY` 密钥服务端注入(不进前端) + 12s 超时 + 3MB 上限；上游错误作数据回传不当代理失败 |
+| `lib/connector-client.ts`（新） | `fetchSource(source)`：static 直返 / http → POST /api/connector → 按 `path` 取目标 |
+| `components/panel-modules/Charts.tsx` | 加 `LineChart`（折线+区域填充，复用 Series）|
+| `components/GeneratedPanelView.tsx`（新） | 渲染器：并行取数 + 自动刷新(refreshMs) + 8 种块 + per-metric sourceId 解析 + loading/error 卡 + `</>` schema JSON 编辑器(parseSpec 校验→onChange 持久化) |
+| `lib/types.ts` / `custom-panels.ts` / `CustomPanelView.tsx` / `page.tsx` | `CustomPanelKind` 加 `generated` + `spec` 字段；4 个 Pick 白名单加 `spec`；CustomPanelView 第 4 个 KindBtn「应用」+ body 渲染 GeneratedPanelView（切换时无 spec 则种 SAMPLE_SPEC）|
+
+### ✅ 验证（真机）
+
+- `tsc --noEmit` EXIT=0
+- `curl /api/connector` 拉到 CoinGecko 实时：BTC $69,988；SSRF 守卫挡掉 169.254.169.254 + 192.168.1.1
+- 面板渲染真实数据：表格(Bitcoin -3.81% 红 / Ethereum +0.11% 绿，$ 格式化) + KPI(币种 10 / 总市值 $2.19T / 最高 $69,948) + 柱状图全对；刷新键工作
+- **修 1 bug**：kpiGrid 的 metric 用各自 `sourceId`（原只解析块级 source → 显 0）。改 BlockBody 接 states map 按 metric.sourceId 解析
+
+### ⚠️ strict:false narrowing 坑（记给接班）
+
+tsconfig `strict:false` 下，**真值收窄**(`if(r.ok){}else{ r.error }`)不收窄判别式联合 → else 仍是联合报错；必须用**字面量比较**(`if(r.ok===true)` / `=== false` / `!== true`)，与现存 document-parser 模式一致。
+
+### 🎯 留位
+
+- 柱状图遇 BTC 极值时其他条几乎不可见 + 标签拥挤（P1 功能优先，后续可加对数轴/省略标签）
+- 真实带 key API（长桥需 token）：在 `.env.local` 配 `LONGBRIDGE_TOKEN`，spec headers 写 `"Authorization": "env:LONGBRIDGE_TOKEN"`，连接器自动注入
+- 已留一个 generated 演示面板「新面板」在 UI 里供把玩
+
+---
+
+## [072] 2026-06-02 — 付费体系（仿 Claude 三档）+ 中英 i18n 基建 + 复古主题收顶栏
+
+> 用户：「把复古主题放偏好设置 + 仿 Claude 付费 UI 做完所有能做的付费部分 + 加中英主语言切换」。
+> AskUserQuestion 对齐：三档 Free/Pro/Max · 完整前端+模拟结账 · i18n 基建+核心 UI 框架。
+
+### 🌐 i18n 基建（中英）— `lib/i18n.ts`（新增）
+
+- `Lang = "zh" | "en"`；`getStoredLang/setStoredLang`（localStorage `butler.lang` + `<html lang>` + `LANG_EVENT` 广播）
+- `useT()` hook：订阅 `LANG_EVENT`，语言切换时**全局组件 live 重渲**（无需 reload，已真机验证）
+- `translate(key, lang, params?)`：缺失 key 回退中文→key 本身（永不裸崩）；支持 `{name}` 插值
+- 字典 130+ key：顶栏 / 导航 / 主题 / 偏好设置段标题 / 定价 / 结账 / 账单
+- `applyStoredLang()` 在 page mount 注入（layout 默认 zh-CN）
+- **范围**：核心 UI 框架；面板内长文案（AI 问候 / 各面板正文）仍中文，分批后续补
+
+### 💳 付费体系（演示模式，纯前端）— `lib/billing.ts`（新增）
+
+- 三档：Free ¥0 / Pro ¥39 月·¥31 年 / Max ¥99 月·¥79 年（年付约 8 折）
+- `getSubscription/setSubscription`（localStorage + `BILLING_EVENT`）+ `useSubscription/useCurrentPlan` hook
+- `subscribeTo(plan,cycle,card)` → 写订阅 + 落 `Invoice`；`cancelSubscription()` 降级 free
+- `isModelAllowed(model,plan)`：Free 仅 Flash，Pro+ 解锁全模型（门槛 helper 备用）
+- `detectCardBrand`：卡号前缀 → Visa/MC/Amex/UnionPay…
+
+### 🎨 三个新组件
+
+| 组件 | 内容 |
+|---|---|
+| `PricingModal` | 仿 Claude：3 卡片横排（手机堆叠）+ 月/年切换（年付「省 20%」）+ Pro「最受欢迎」缎带高亮 + 功能对勾列表 + 当前档「当前计划」badge + 升级/降级 CTA |
+| `CheckoutModal` | 订单摘要 + 卡号(空格格式化+品牌识别)/有效期 MM/YY/CVC/姓名/邮箱 + 处理中 spinner(1.6s) → 成功页 ✓；醒目「演示不扣款」横幅 + 「一键填入演示卡号」 |
+| `BillingPanel` | 当前计划卡(crown+续费日) + 支付方式(尾号·品牌) + 账单历史表 + 查看全部计划 / 取消订阅 |
+
+### 🔧 接线
+
+- `page.tsx`：billing/pricing/checkout 三 state + Portal 渲染 + `subscribeTo` 落订阅；`handleCheckoutConfirmed` 直接读 `checkout`（**不在 setState updater 里做副作用** — 否则触发 React「setState during render」告警）
+- `TopBar`：免费→「升级到 Pro」CTA 胶囊；付费→Pro/Max crown 徽标（`useSubscription` 响应）；用户菜单接「账单管理」+ 升级项；全文案 i18n
+- `PreferencesPanel`：新增「语言」段（中文 / English）+ 段标题 i18n
+- `MobileTabBar` / 导航 Tab：标签走 `t(\`nav.${id}\`)`
+- **复古主题收顶栏**：`THEME_CYCLE` 顶栏快捷钮改 `["light","dark"]`（复古为特殊第三主题，仅偏好设置里选；当前是复古则点击回亮色）
+
+### ✅ 验证（真机 preview 端到端）
+
+- `tsc --noEmit` EXIT=0；无 Next.js 错误浮层
+- 全流程通：升级到 Pro → 结账(Visa 4242 自动识别) → 处理 spinner → 「升级成功」→ 顶栏 Pro 徽标即时出现 → 账单面板显当前计划 + 发票 ¥372 已支付
+- localStorage 持久化校验：sub `{plan:pro,cycle:annual,renewsAt:+365d,card}` + invoice 正确
+- 中英 live 切换：导航 对话→Chat / 账单面板含日期格式(Jun 2, 2027)全部即时翻译，无 reload
+- 测试数据已重置回 free（用户从零体验）
+
+### 🧩 真实支付留位（Stripe）
+
+- 当前 CheckoutModal 走 `setTimeout` 模拟。接 Stripe 时：`onConfirmed` 改调后端 `/api/checkout` 创建 PaymentIntent，`subscribeTo` 由 webhook 回调驱动。门槛 `isModelAllowed` 已就绪可启用真实 gating。
+
+### 🎯 留位（下一轮可做）
+
+- i18n 第二批：各面板正文 / 空状态 / Toast / AI 问候
+- 模型选择器对 Free 用户显示 Pro 锁 badge（gating 可视化）
+- Stripe 真实接入（需密钥 + 后端 route）
+
+---
+
+## [071] 2026-06-02 — 响应式二轮：手机学习工具 + 笔记单栏切换 + 任务工具栏 icon-only + 超宽屏封顶
+
+> [069] 把手机从「崩→可用」；本条把「可用→好用」，并补桌面超宽屏的边界。覆盖 5 处可观察痛点。
+
+### 🔧 改动
+
+| # | 文件 | 改动 |
+|---|---|---|
+| 1 | `components/MiniAppsDrawer.tsx` | 加 `useIsMobile`：手机时 `top:72 / bottom:72 / left:8 / right:8`（让出 TopBar+底 TabBar），玻璃胶囊样式 + 暗遮罩点击关；桌面保持原右侧 320 长条不挡主区 |
+| 2 | `components/layout/TopBar.tsx` | 用户菜单加「学习工具 / 主题切换」两项（仅 `isMobile` 显示）— 解决 [069] 把 LayoutGrid/Theme 钮在手机隐藏后**无法访问**的回归 |
+| 3 | `components/TasksPanel.tsx` | `ToolbarBtn` 加 `compact` prop（36×36 仅图标 + aria-label）；mobile 时 4 个工具按钮 compact + `New Task → 新建`；外层 `flexWrap` 防溢出 |
+| 4 | `components/NotesPanel.tsx` | 加 `mobileShowList` state：手机时**列表 / 编辑互斥全屏**（原来 40vh 列表 + 60vh 编辑，两边都挤）；编辑视图顶部加「← 笔记列表」返回钮；新建 / 选中 / wikilink 跳转 / 外部 selectActiveId 全联动切到编辑态 |
+| 5 | `app/page.tsx` | 根容器加 `maxWidth: 1600 + margin: 0 auto`（仅桌面）— 2K/4K/ultrawide 上主面板不再无意义拉满；TopBar/main 居中 |
+
+### ✅ 验证
+
+- `tsc --noEmit` EXIT=0
+- 三主题 + 桌面 + 手机 4 面板交叉无 console error（沿用 [070] 走查基线）
+- preview/eval 限制（resize 不 fire matchMedia / element.click 不稳定）已在 [070] 甄别，动态切窄屏需真机
+
+### 🎯 留位（下一轮可做）
+
+- TaskDetailDrawer 手机 sheet 在键盘弹起时高度自适应（visualViewport API）
+- CalendarPanel Week 视图手机的水平横滚惯性
+- 桌面 1024-1280 中等屏宽时 LeftRail 自动收窄
 
 ---
 

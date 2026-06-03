@@ -9,12 +9,13 @@
 import React from "react";
 import { MessageSquare, ListTodo, Calendar as CalendarIcon, FileText, PanelLeft } from "lucide-react";
 import type { NavId } from "@/lib/types";
+import { useT } from "@/lib/i18n";
 
-const TABS: { id: NavId; label: string; icon: React.ReactNode }[] = [
-  { id: "chat", label: "对话", icon: <MessageSquare size={20} /> },
-  { id: "tasks", label: "任务", icon: <ListTodo size={20} /> },
-  { id: "calendar", label: "日历", icon: <CalendarIcon size={20} /> },
-  { id: "notes", label: "笔记", icon: <FileText size={20} /> },
+const TABS: { id: NavId; icon: React.ReactNode }[] = [
+  { id: "chat", icon: <MessageSquare size={20} /> },
+  { id: "tasks", icon: <ListTodo size={20} /> },
+  { id: "calendar", icon: <CalendarIcon size={20} /> },
+  { id: "notes", icon: <FileText size={20} /> },
 ];
 
 interface Props {
@@ -27,6 +28,7 @@ interface Props {
 }
 
 export default function MobileTabBar({ activeNav, inCustomPanel, onNavChange, onOpenNav }: Props) {
+  const { t } = useT();
   return (
     <nav
       style={{
@@ -51,7 +53,7 @@ export default function MobileTabBar({ activeNav, inCustomPanel, onNavChange, on
       {/* 菜单：开左栏二级抽屉 */}
       <button
         onClick={onOpenNav}
-        aria-label="打开侧栏"
+        aria-label={t("topbar.openNav")}
         style={{
           width: 52,
           border: "none",
@@ -67,13 +69,14 @@ export default function MobileTabBar({ activeNav, inCustomPanel, onNavChange, on
         <PanelLeft size={20} />
       </button>
 
-      {TABS.map((t) => {
-        const active = !inCustomPanel && activeNav === t.id;
+      {TABS.map((tab) => {
+        const active = !inCustomPanel && activeNav === tab.id;
+        const label = t(`nav.${tab.id}`);
         return (
           <button
-            key={t.id}
-            onClick={() => onNavChange(t.id)}
-            aria-label={t.label}
+            key={tab.id}
+            onClick={() => onNavChange(tab.id)}
+            aria-label={label}
             style={{
               flex: 1,
               border: "none",
@@ -91,8 +94,8 @@ export default function MobileTabBar({ activeNav, inCustomPanel, onNavChange, on
               transition: "color 0.15s",
             }}
           >
-            {t.icon}
-            <span>{t.label}</span>
+            {tab.icon}
+            <span>{label}</span>
           </button>
         );
       })}

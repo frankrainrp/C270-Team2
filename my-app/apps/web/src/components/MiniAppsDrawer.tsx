@@ -18,6 +18,7 @@ import type { DdlItem } from "@/lib/types";
 import FocusTimer from "./mini-apps/FocusTimer";
 import StatsApp from "./mini-apps/StatsApp";
 import ShareCard from "./mini-apps/ShareCard";
+import { useIsMobile } from "@/lib/use-is-mobile";
 
 interface MiniAppCommonProps {
   ddls?: DdlItem[];
@@ -51,27 +52,62 @@ export default function MiniAppsDrawer({ open, onClose, ddls = [], onAppendTaskN
   const [activeId, setActiveId] = useState<string>("focus");
   const active = APPS.find((a) => a.id === activeId) ?? APPS[0];
   const ActiveComponent = active.Component;
+  const isMobile = useIsMobile();
 
   return (
     <>
+      {/* 手机：开启时全屏暗色遮罩，点击关（桌面不挡主区，用户可继续操作）*/}
+      {isMobile && open && (
+        <div
+          onClick={onClose}
+          aria-hidden
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "var(--color-overlay)",
+            zIndex: 59,
+            animation: "drawer-fade 0.2s ease-out",
+          }}
+        />
+      )}
       {/* 抽屉本体 */}
       <aside
         aria-label="Mini Apps Drawer"
         aria-hidden={!open}
         style={{
           position: "fixed",
-          top: 56,            // TopBar 高度
-          right: 0,
-          bottom: 0,
-          width: 320,
-          background: "var(--color-bg)",
-          borderLeft: "1px solid var(--color-border)",
-          boxShadow: open ? "-8px 0 24px rgba(0,0,0,0.06)" : "none",
-          transform: open ? "translateX(0)" : "translateX(100%)",
+          // 手机：贴着 TopBar(顶 8 + 56) 下方，且不压到底部 MobileTabBar(底 8 + 56)；近全宽
+          // 桌面：右侧固定 320 长条
+          ...(isMobile
+            ? {
+                top: 72,
+                right: 8,
+                left: 8,
+                bottom: 72,
+                width: "auto",
+                borderRadius: "var(--radius-card)",
+                border: "1px solid var(--color-border)",
+                background: "var(--glass-bg-strong)",
+                backdropFilter: "var(--glass-blur)",
+                WebkitBackdropFilter: "var(--glass-blur)",
+                boxShadow: open ? "0 16px 40px rgba(0,0,0,0.18)" : "none",
+                transform: open ? "translateY(0)" : "translateY(110%)",
+              }
+            : {
+                top: 56,
+                right: 0,
+                bottom: 0,
+                width: 320,
+                background: "var(--color-bg)",
+                borderLeft: "1px solid var(--color-border)",
+                boxShadow: open ? "-8px 0 24px rgba(0,0,0,0.06)" : "none",
+                transform: open ? "translateX(0)" : "translateX(100%)",
+              }),
           transition: "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
           zIndex: 60,
           display: "flex",
           flexDirection: "column",
+          overflow: "hidden",
         }}
       >
         {/* 标题栏 */}

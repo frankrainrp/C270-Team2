@@ -7,7 +7,7 @@
 // ============================================================
 
 import Dexie, { type Table } from "dexie";
-import type { DdlItem, ChatMessage, StoredBlob, ChatSession, Note, ButlerAsset, CustomPanel, Wallpaper } from "./types";
+import type { DdlItem, ChatMessage, StoredBlob, ChatSession, Note, ButlerAsset, CustomPanel, Wallpaper, RecurringTask } from "./types";
 
 export class ButlerDB extends Dexie {
   ddls!: Table<DdlItem, string>;          // 主键 id
@@ -18,6 +18,7 @@ export class ButlerDB extends Dexie {
   butlerAssets!: Table<ButlerAsset, string>; // 主键 poseName（v6 起，Phase C 人物自定义）
   customPanels!: Table<CustomPanel, string>; // 主键 id（v7 起，Phase E 自定义面板）
   wallpapers!: Table<Wallpaper, string>;  // 主键 id（v8 起，[066] 壁纸系统）
+  recurringTasks!: Table<RecurringTask, string>; // 主键 id（v9 起，[079] 周期任务）
 
   constructor() {
     super("butler-db");
@@ -103,6 +104,18 @@ export class ButlerDB extends Dexie {
       butlerAssets: "&poseName, updatedAt",
       customPanels: "&id, updatedAt",
       wallpapers: "&id, updatedAt",
+    });
+    // v9: 新增 recurringTasks 表（[079] 周期任务模板）
+    this.version(9).stores({
+      ddls: "&id, dueDate, completed, status, source",
+      messages: "&id, sessionId, timestamp, role",
+      blobs: "&id, createdAt",
+      sessions: "&id, updatedAt",
+      notes: "&id, updatedAt, pinned",
+      butlerAssets: "&poseName, updatedAt",
+      customPanels: "&id, updatedAt",
+      wallpapers: "&id, updatedAt",
+      recurringTasks: "&id, createdAt, active",
     });
   }
 }

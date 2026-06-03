@@ -110,6 +110,41 @@ export function BarChart({ data }: { data: Series[] }) {
   );
 }
 
+// ---------- 折线图 ----------
+export function LineChart({ data }: { data: Series[] }) {
+  if (data.length === 0) return <EmptyHint />;
+  const W = 320, H = 140, pad = 24;
+  const max = Math.max(...data.map((d) => d.value));
+  const min = Math.min(...data.map((d) => d.value));
+  const range = max - min || 1;
+  const n = data.length;
+  const xAt = (i: number) => pad + (n === 1 ? (W - pad * 2) / 2 : (i / (n - 1)) * (W - pad * 2));
+  const yAt = (v: number) => H - pad - ((v - min) / range) * (H - pad * 2);
+  const pts = data.map((d, i) => `${xAt(i)},${yAt(d.value)}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ maxWidth: W, display: "block" }}>
+      <line x1={pad} y1={H - pad} x2={W - pad} y2={H - pad} stroke="var(--color-border)" strokeWidth={1} />
+      {/* 区域填充 */}
+      <polygon
+        points={`${pad},${H - pad} ${pts} ${W - pad},${H - pad}`}
+        fill="var(--color-primary)"
+        fillOpacity={0.08}
+      />
+      <polyline points={pts} fill="none" stroke="var(--color-primary)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      {data.map((d, i) => (
+        <circle key={i} cx={xAt(i)} cy={yAt(d.value)} r={2.6} fill="var(--color-primary)">
+          <title>{`${d.label}: ${d.value}`}</title>
+        </circle>
+      ))}
+      {/* 首尾标签 */}
+      <text x={pad} y={H - 6} fontSize={9} fill="var(--color-text-faint)" textAnchor="start">{data[0].label}</text>
+      {n > 1 && (
+        <text x={W - pad} y={H - 6} fontSize={9} fill="var(--color-text-faint)" textAnchor="end">{data[n - 1].label}</text>
+      )}
+    </svg>
+  );
+}
+
 // ---------- 热力图（7 行 weekday × N 列 week，GitHub 式）----------
 export function Heatmap({ days }: { days: { date: string; count: number; weekday: number }[] }) {
   if (days.length === 0) return <EmptyHint />;

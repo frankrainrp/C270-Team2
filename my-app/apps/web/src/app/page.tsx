@@ -27,7 +27,20 @@ import Portal from "@/components/ui/Portal";
 import WallpaperLayer from "@/components/WallpaperLayer";
 import AchievementsRoom from "@/components/AchievementsRoom";
 import MobileTabBar from "@/components/layout/MobileTabBar";
+import PricingModal from "@/components/PricingModal";
+import CheckoutModal from "@/components/CheckoutModal";
+import BillingPanel from "@/components/BillingPanel";
 import { useIsMobile } from "@/lib/use-is-mobile";
+import { applyStoredLang, useT } from "@/lib/i18n";
+import {
+  subscribeTo,
+  cancelSubscription,
+  getPlanDef,
+  useSubscription,
+  type PlanId,
+  type BillingCycle,
+  type CardInfo,
+} from "@/lib/billing";
 import type { ChatMessage, ChatSession, ProcessingPipeline, DdlItem, NavId, UploadedFile, DdlAttachment, Note, CustomPanel } from "@/lib/types";
 import { INITIAL_STEPS } from "@/lib/mock-pipeline";
 import { streamChat, type ApiMessage } from "@/lib/chat-client";
@@ -54,11 +67,20 @@ import {
   updateCustomPanel,
 } from "@/lib/custom-panels";
 import { playSound } from "@/lib/sound";
+import RecurringTasksManager from "@/components/RecurringTasksManager";
+import {
+  getAllRecurring,
+  putRecurring,
+  bulkPutRecurring,
+  materializeDue,
+} from "@/lib/recurring";
+import type { RecurringTask } from "@/lib/types";
 
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 
 export default function HomePage() {
   const toast = useToast();
+  const { t } = useT();
   const [activeNav, setActiveNav] = useState<NavId>("chat");
   // 手机响应式：窄屏布局 + 左栏抽屉开关
   const isMobile = useIsMobile();
@@ -613,14 +635,42 @@ export default function HomePage() {
     return "standing";
   }, [pointoutHold, pendingBatches, isLoading, aiActivity]);
 
+  // ---------- [079] 周期任务 ----------
+  const [recurringOpen, setRecurringOpen] = useState(false);
+  // 扫描所有模板：当期未生成的 → 生成实例 append 到 ddls + 回写 lastGeneratedPeriod
+  const runMaterialize = useCallback(async () => {
+    try {
+      const routines = await getAllRecurring();
+      if (routines.length === 0) return;
+      const { newTasks, updatedRoutines, changed } = materializeDue(routines);
+      if (newTasks.length > 0) {
+        setDdls((prev) => [...prev, ...newTasks]);
+        toast.info(`🔁 已自动生成 ${newTasks.length} 个周期任务`);
+      }
+      if (changed) await bulkPutRecurring(updatedRoutines);
+    } catch (e) {
+      console.warn("[recurring] materialize failed", e);
+    }
+  }, [toast]);
+  // AI 工具 / 管理器创建模板 → 落库 + 立即生成当期
+  const addRecurring = useCallback((routine: RecurringTask) => {
+    (async () => {
+      try {
+        await putRecurring(routine);
+        await runMaterialize();
+      } catch (e) { console.warn("[recurring] add failed", e); }
+    })();
+  }, [runMaterialize]);
+
   // ---------- Tool 执行器（稳定 ref） ----------
   const executeToolCall = useMemo(
     () => createToolExecutor({
       getDdls: () => ddlsRef.current,
       setDdls,
       addPending: addPendingChange,
+      addRecurring,
     }),
-    [addPendingChange],
+    [addPendingChange, addRecurring],
   );
 
   // ---------- 构建 contextSummary 给 AI ----------
@@ -783,6 +833,7 @@ export default function HomePage() {
               list_items: "正在查询任务列表",
               create_note: "正在生成笔记草稿",
               create_custom_panel: "正在生成自定义面板草稿",
+              create_recurring_task: "正在创建周期任务",
             };
             const label = labels[call.function.name] ?? `正在调用 ${call.function.name}`;
             toast.info(`⚙ Butler ${label}…`, { id: "ai-tool-call", duration: 1500 });
@@ -891,53 +942,8 @@ export default function HomePage() {
     }, 50);
   }, [isLoading, messages]);
 
-  // ---------- 开屏问候：纯本地代码生成（零 token / 零 API 调用 / 瞬间显示） ----------
-  // 用户原话:「确保一上来的那句问候不消耗 token 只靠代码实现」
-  const buildLocalGreeting = useCallback((items: DdlItem[]): string => {
-    const hour = new Date().getHours();
-    const timeOfDay =
-      hour < 6 ? "深夜好" :
-      hour < 11 ? "早上好" :
-      hour < 14 ? "中午好" :
-      hour < 18 ? "下午好" : "晚上好";
-    const emoji =
-      hour < 6 ? "🌙" :
-      hour < 11 ? "☀️" :
-      hour < 14 ? "🌤️" :
-      hour < 18 ? "🌥️" : "🌃";
-
-    const todo = items.filter((d) => !d.completed && (d.status ?? "todo") !== "done");
-    if (todo.length === 0) {
-      return `${timeOfDay}，Feng！你目前的任务清单是空的,没有待办事项或日历事件。祝你今天轻松自在 ${emoji}`;
-    }
-
-    // 找最近未过期的 deadline（按日期升序,只看今天及之后）
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const withDate = todo
-      .filter((d) => d.dueDate)
-      .map((d) => ({ ...d, ts: new Date(d.dueDate).getTime() }))
-      .sort((a, b) => a.ts - b.ts);
-    const upcoming = withDate.find((d) => d.ts >= today.getTime());
-
-    if (upcoming) {
-      return `${timeOfDay}，Feng！你目前有 **${todo.length}** 个未完成任务，最近的是「${upcoming.taskName}」（${upcoming.dueDate}）。加油 ${emoji}`;
-    }
-    return `${timeOfDay}，Feng！你有 **${todo.length}** 个未完成任务。继续加油 ${emoji}`;
-  }, []);
-
-  const triggerGreeting = useCallback((sid: string) => {
-    // 直接 setMessages,不走 API、不设 isLoading、不动状态机
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: uid(),
-        sessionId: sid,
-        role: "assistant",
-        content: buildLocalGreeting(ddlsRef.current),
-        timestamp: new Date(),
-      },
-    ]);
-  }, [buildLocalGreeting]);
+  // [078] 开屏问候已收进 ChatCanvas 空态「今日开场」（greetingHeadline + TodayHero），
+  // 不再注入 assistant 消息，避免与开场重复。下面的 effect 仅标记 session 已处理。
 
   // 监听条件触发问候：hydrated 完成 + 当前在 chat tab + 当前 session 完全空（无 user/assistant 历史）+ 未触发过
   useEffect(() => {
@@ -957,10 +963,9 @@ export default function HomePage() {
       return;
     }
 
-    // 触发问候
+    // [078] 不再自动推送问候消息——空态「今日开场」已承担问候+概览，避免重复
     greetedSessionsRef.current.add(sid);
-    triggerGreeting(sid);
-  }, [hydrated, isLoading, activeNav, activeSessionId, messages, triggerGreeting]);
+  }, [hydrated, isLoading, activeNav, activeSessionId, messages]);
 
   // ---------- Epic 5.4 临近 deadline 浏览器通知（本地代码,零 token）----------
   // hydrate 完成后,每 60s 扫描一次未完成且 24h 内截止的任务
@@ -1147,11 +1152,36 @@ export default function HomePage() {
   const [prefsOpen, setPrefsOpen] = useState(false);
   // #3 成就收藏室 modal
   const [achievementsOpen, setAchievementsOpen] = useState(false);
+  // [072] 付费体系：账单面板 / 定价页 / 结账（演示模式）
+  const subscription = useSubscription();
+  const [billingOpen, setBillingOpen] = useState(false);
+  const [pricingOpen, setPricingOpen] = useState(false);
+  const [checkout, setCheckout] = useState<{ plan: PlanId; cycle: BillingCycle } | null>(null);
+  // 升级 CTA：先开定价页比价
+  const openPricing = useCallback(() => { setBillingOpen(false); setPricingOpen(true); }, []);
+  // 定价页选档 → 开结账
+  const handleCheckout = useCallback((plan: PlanId, cycle: BillingCycle) => {
+    setPricingOpen(false);
+    setCheckout({ plan, cycle });
+  }, []);
+  // 结账成功 → 落订阅 + 账单 + toast（直接读 checkout，勿在 setState updater 里做副作用）
+  const handleCheckoutConfirmed = useCallback((card: CardInfo) => {
+    if (!checkout) return;
+    subscribeTo(checkout.plan, checkout.cycle, card);
+    playSound("achievement");
+    toast.success(`🎉 ${t("checkout.successDesc", { plan: t(getPlanDef(checkout.plan).nameKey) })}`);
+  }, [checkout, toast, t]);
+  // 定价页「继续免费」/ 账单「取消订阅」→ 降级
+  const handleDowngradeFree = useCallback(() => {
+    cancelSubscription();
+    setPricingOpen(false);
+    toast.info(t("billing.cancelled"));
+  }, [toast, t]);
   // C1 CalendarRail 迷你月历跳转目标
   const [calendarJumpDay, setCalendarJumpDay] = useState<string | null>(null);
 
-  // Epic 3 mount 时立即 apply localStorage 偏好(主题/字号/Phase B accent)
-  useEffect(() => { applyStoredPreferences(); }, []);
+  // Epic 3 mount 时立即 apply localStorage 偏好(主题/字号/Phase B accent) + [072] 语言
+  useEffect(() => { applyStoredPreferences(); applyStoredLang(); }, []);
 
   // Phase D 布局偏好：mount + 监听 LAYOUT_PREFS_EVENT 同步
   useEffect(() => {
@@ -1194,7 +1224,7 @@ export default function HomePage() {
   }, [toast]);
 
   // Phase E 更新（防抖在 CustomPanelView 内）
-  const handleUpdateCustomPanel = useCallback(async (id: string, patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url" | "modules">>) => {
+  const handleUpdateCustomPanel = useCallback(async (id: string, patch: Partial<Pick<CustomPanel, "label" | "emoji" | "content" | "kind" | "url" | "modules" | "spec">>) => {
     try { await updateCustomPanel(id, patch); } catch { /* silent */ }
   }, []);
 
@@ -1268,6 +1298,16 @@ export default function HomePage() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
+
+  // [079] 周期任务：hydrate 后跑一次 materialize（生成当期实例）+ 每 10 分钟兜底
+  //（跨午夜/跨周长开着的会话也能续期）。增删/启用由各 mutation 显式调 runMaterialize，
+  //  不走事件监听，避免与 putRecurring 的并发二次生成竞态。
+  useEffect(() => {
+    if (!hydrated) return;
+    runMaterialize();
+    const interval = setInterval(runMaterialize, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [hydrated, runMaterialize]);
 
   // [065] 每日仪式：hydrate 后，若今天还没看过简报则显示一次
   useEffect(() => {
@@ -1607,6 +1647,8 @@ export default function HomePage() {
       style={{
         height: "100vh",
         width: "100vw",
+        maxWidth: isMobile ? undefined : 1600,
+        margin: isMobile ? undefined : "0 auto",
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
@@ -1631,6 +1673,8 @@ export default function HomePage() {
         onSearchJump={handleSearchJump}
         onOpenPreferences={() => setPrefsOpen(true)}
         onOpenAchievements={() => setAchievementsOpen(true)}
+        onOpenBilling={() => setBillingOpen(true)}
+        onUpgrade={openPricing}
         tabsOrder={tabsOrder}
         hiddenTabs={hiddenTabs}
         onTabsReorder={(newOrder) => setTabsOrder(newOrder)}
@@ -1730,9 +1774,7 @@ export default function HomePage() {
               streakDays={streakDays}
               bestHourLabel={bestHourLabel}
               butlerPosition={butlerPosition}
-              showDailyBrief={showDailyBrief}
               onStartFocus={handleStartFocus}
-              onDismissBrief={dismissDailyBrief}
             />
           )}
           {!activeCustomPanelId && activeNav === "tasks" && (
@@ -1750,6 +1792,7 @@ export default function HomePage() {
               onExportJson={handleExportJson}
               onImportJson={handleImportJson}
               onImportIcs={handleImportIcs}
+              onOpenRecurring={() => setRecurringOpen(true)}
               highlightTaskId={highlightTaskId}
             />
           )}
@@ -1855,6 +1898,35 @@ export default function HomePage() {
             longestStreak: streakDays,
           }}
         />
+        {/* [072] 付费体系：账单管理 / 定价页 / 模拟结账（演示模式） */}
+        <BillingPanel
+          open={billingOpen}
+          onClose={() => setBillingOpen(false)}
+          onViewPlans={openPricing}
+          onCancelled={() => toast.info(t("billing.cancelled"))}
+        />
+        <PricingModal
+          open={pricingOpen}
+          onClose={() => setPricingOpen(false)}
+          subscription={subscription}
+          onCheckout={handleCheckout}
+          onDowngradeFree={handleDowngradeFree}
+        />
+        <CheckoutModal
+          open={checkout !== null}
+          plan={checkout?.plan ?? "pro"}
+          cycle={checkout?.cycle ?? "annual"}
+          onClose={() => setCheckout(null)}
+          onConfirmed={handleCheckoutConfirmed}
+        />
+
+        {/* [079] 周期任务管理 */}
+        <RecurringTasksManager
+          open={recurringOpen}
+          onClose={() => setRecurringOpen(false)}
+          onChanged={runMaterialize}
+        />
+
         {/* G1.3 首次使用 Tour(自动检测 localStorage) */}
         <OnboardingTour />
       </Portal>

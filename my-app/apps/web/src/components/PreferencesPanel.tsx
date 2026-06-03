@@ -11,7 +11,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useIsMobile } from "@/lib/use-is-mobile";
-import { X, Sun, Moon, Feather, Type, Heart, MessageSquare, Flame, Palette, RotateCcw, Upload, User, AlignLeft, AlignCenter, AlignRight, EyeOff, Volume2, VolumeX } from "lucide-react";
+import { useT, type Lang } from "@/lib/i18n";
+import { X, Moon, Feather, Type, Heart, MessageSquare, Flame, Palette, RotateCcw, Upload, User, AlignLeft, AlignCenter, AlignRight, EyeOff, Volume2, VolumeX, Languages } from "lucide-react";
 import {
   ACCENT_PRESETS,
   DEFAULT_ACCENT,
@@ -47,25 +48,30 @@ const THEME_KEY = "butler.theme";
 const FONT_KEY = "butler.fontSize";
 const PERSONALITY_KEY = "butler.personality";
 
+// [081] 去掉浅色/深色切换：默认深炭蓝暗色。light 一律归一到 dark；仅保留 dark / retro。
+function normalizeTheme(raw: string | null): Theme {
+  return raw === "retro" ? "retro" : "dark";
+}
+
 export function applyStoredPreferences() {
   if (typeof document === "undefined") return;
   try {
-    const theme = (localStorage.getItem(THEME_KEY) as Theme | null) ?? "light";
+    const theme = normalizeTheme(localStorage.getItem(THEME_KEY));
     document.documentElement.dataset.theme = theme;
     const font = (localStorage.getItem(FONT_KEY) as FontSize | null) ?? "md";
     document.documentElement.dataset.fontSize = font;
   } catch { /* silent */ }
-  // Phase B: 应用用户自定义 primary 色（无则跳过，保留 globals.css 默认墨绿）
+  // Phase B: 应用用户自定义 primary 色（无则跳过，保留 globals.css 默认）
   applyStoredAccent();
 }
 
-/** 读当前主题（供顶栏昼夜开关等复用）*/
+/** 读当前主题（dark 默认；light 归一到 dark）*/
 export function getStoredTheme(): Theme {
-  if (typeof window === "undefined") return "light";
+  if (typeof window === "undefined") return "dark";
   try {
-    return (localStorage.getItem(THEME_KEY) as Theme | null) ?? "light";
+    return normalizeTheme(localStorage.getItem(THEME_KEY));
   } catch {
-    return "light";
+    return "dark";
   }
 }
 
@@ -95,7 +101,8 @@ interface Props {
 
 export default function PreferencesPanel({ open, onClose }: Props) {
   const isMobile = useIsMobile();
-  const [theme, setTheme] = useState<Theme>("light");
+  const { t, lang, setLang } = useT();
+  const [theme, setTheme] = useState<Theme>("dark");
   const [font, setFont] = useState<FontSize>("md");
   const [personality, setPersonality] = useState<Personality>("standard");
   const [accent, setAccent] = useState<string>(DEFAULT_ACCENT);
@@ -125,10 +132,10 @@ export default function PreferencesPanel({ open, onClose }: Props) {
   useEffect(() => {
     if (!open) return;
     try {
-      const t = (localStorage.getItem(THEME_KEY) as Theme | null) ?? "light";
+      const storedTheme = normalizeTheme(localStorage.getItem(THEME_KEY));
       const f = (localStorage.getItem(FONT_KEY) as FontSize | null) ?? "md";
       const p = (localStorage.getItem(PERSONALITY_KEY) as Personality | null) ?? "standard";
-      setTheme(t);
+      setTheme(storedTheme);
       setFont(f);
       setPersonality(p);
       setAccent(getStoredAccent());
@@ -347,7 +354,7 @@ export default function PreferencesPanel({ open, onClose }: Props) {
           }}
         >
           <h2 style={{ flex: 1, fontSize: 14, fontWeight: 700, color: "var(--color-text)", margin: 0 }}>
-            偏好设置
+            {t("prefs.title")}
           </h2>
           <button
             onClick={onClose}
@@ -366,17 +373,27 @@ export default function PreferencesPanel({ open, onClose }: Props) {
         </header>
 
         <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 18, overflowY: "auto", flex: 1, minHeight: 0 }}>
-          {/* 主题 */}
-          <Section title="主题">
+          {/* [072] 语言（中英主语言切换）*/}
+          <Section title={t("prefs.section.language")}>
             <SegRow>
-              <SegBtn active={theme === "light"} onClick={() => applyTheme("light")} icon={<Sun size={14} />} label="亮色" />
-              <SegBtn active={theme === "dark"} onClick={() => applyTheme("dark")} icon={<Moon size={14} />} label="暗色" />
-              <SegBtn active={theme === "retro"} onClick={() => applyTheme("retro")} icon={<Feather size={14} />} label="复古" />
+              <SegBtn active={lang === "zh"} onClick={() => setLang("zh")} icon={<Languages size={14} />} label={t("prefs.language.zh")} />
+              <SegBtn active={lang === "en"} onClick={() => setLang("en")} icon={<Languages size={14} />} label={t("prefs.language.en")} />
+            </SegRow>
+            <p style={{ fontSize: 11, color: "var(--color-text-faint)", marginTop: 6, lineHeight: 1.5 }}>
+              {t("prefs.language.hint")}
+            </p>
+          </Section>
+
+          {/* 主题（已去掉浅色，仅 暗色 / 复古）*/}
+          <Section title={t("prefs.section.theme")}>
+            <SegRow>
+              <SegBtn active={theme === "dark"} onClick={() => applyTheme("dark")} icon={<Moon size={14} />} label={t("theme.dark")} />
+              <SegBtn active={theme === "retro"} onClick={() => applyTheme("retro")} icon={<Feather size={14} />} label={t("theme.retro")} />
             </SegRow>
           </Section>
 
           {/* Phase B 主题色 */}
-          <Section title="主题色">
+          <Section title={t("prefs.section.accent")}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
               {ACCENT_PRESETS.map((p) => (
                 <SwatchBtn
@@ -438,16 +455,16 @@ export default function PreferencesPanel({ open, onClose }: Props) {
           </Section>
 
           {/* 字体大小 */}
-          <Section title="字体大小">
+          <Section title={t("prefs.section.font")}>
             <SegRow>
-              <SegBtn active={font === "sm"} onClick={() => applyFont("sm")} icon={<Type size={12} />} label="小" />
-              <SegBtn active={font === "md"} onClick={() => applyFont("md")} icon={<Type size={14} />} label="标准" />
-              <SegBtn active={font === "lg"} onClick={() => applyFont("lg")} icon={<Type size={16} />} label="大" />
+              <SegBtn active={font === "sm"} onClick={() => applyFont("sm")} icon={<Type size={12} />} label={t("prefs.font.sm")} />
+              <SegBtn active={font === "md"} onClick={() => applyFont("md")} icon={<Type size={14} />} label={t("prefs.font.md")} />
+              <SegBtn active={font === "lg"} onClick={() => applyFont("lg")} icon={<Type size={16} />} label={t("prefs.font.lg")} />
             </SegRow>
           </Section>
 
           {/* Phase D 布局：Tab 显示/隐藏 + 管家位置 */}
-          <Section title="布局">
+          <Section title={t("prefs.section.layout")}>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {/* 管家位置 4 档 */}
               <div>
@@ -493,7 +510,7 @@ export default function PreferencesPanel({ open, onClose }: Props) {
           </Section>
 
           {/* [056] 音效 — opt-in（默认关，防扰民） */}
-          <Section title="音效">
+          <Section title={t("prefs.section.sound")}>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {/* 主开关 */}
               <button
@@ -601,7 +618,7 @@ export default function PreferencesPanel({ open, onClose }: Props) {
           </Section>
 
           {/* Phase C 管家形象 */}
-          <Section title="管家形象">
+          <Section title={t("prefs.section.butler")}>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
               {/* 预览框 */}
               <div style={{
@@ -685,7 +702,7 @@ export default function PreferencesPanel({ open, onClose }: Props) {
           </Section>
 
           {/* [066] 壁纸 */}
-          <Section title="壁纸">
+          <Section title={t("prefs.section.wallpaper")}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button
                 onClick={() => wpInputRef.current?.click()}
@@ -752,11 +769,11 @@ export default function PreferencesPanel({ open, onClose }: Props) {
           </Section>
 
           {/* G5.1 管家性格 */}
-          <Section title="管家性格">
+          <Section title={t("prefs.section.personality")}>
             <SegRow>
-              <SegBtn active={personality === "gentle"}   onClick={() => applyPersonality("gentle")}   icon={<Heart size={12} />} label="温柔" />
-              <SegBtn active={personality === "standard"} onClick={() => applyPersonality("standard")} icon={<MessageSquare size={12} />} label="标准" />
-              <SegBtn active={personality === "sassy"}    onClick={() => applyPersonality("sassy")}    icon={<Flame size={12} />} label="损友" />
+              <SegBtn active={personality === "gentle"}   onClick={() => applyPersonality("gentle")}   icon={<Heart size={12} />} label={t("personality.gentle")} />
+              <SegBtn active={personality === "standard"} onClick={() => applyPersonality("standard")} icon={<MessageSquare size={12} />} label={t("personality.standard")} />
+              <SegBtn active={personality === "sassy"}    onClick={() => applyPersonality("sassy")}    icon={<Flame size={12} />} label={t("personality.sassy")} />
             </SegRow>
             <p style={{ fontSize: 11, color: "var(--color-text-faint)", marginTop: 6, lineHeight: 1.5 }}>
               影响 AI 对话语气;切换后立刻生效(下一条消息开始)
@@ -774,7 +791,7 @@ export default function PreferencesPanel({ open, onClose }: Props) {
             textAlign: "center",
           }}
         >
-          所有设置仅保存在你的浏览器
+          {t("prefs.footer")}
         </footer>
       </div>
       <style>{`

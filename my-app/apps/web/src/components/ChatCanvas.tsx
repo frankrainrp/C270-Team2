@@ -10,7 +10,7 @@
 // ============================================================
 
 import React, { useRef, useEffect, useMemo, useState } from "react";
-import { FileUp, CalendarPlus, ListChecks, FileText, Image as ImageIcon, File as FileIcon, Brain, ChevronDown, Copy, RefreshCw, Check as CheckIcon } from "lucide-react";
+import { FileText, Image as ImageIcon, File as FileIcon, Brain, ChevronDown, Copy, RefreshCw, Check as CheckIcon, TrendingUp, LayoutDashboard, Workflow } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatMessage, ProcessingPipeline as Pipeline, UploadedFile, DdlItem } from "@/lib/types";
@@ -21,19 +21,55 @@ import ButlerCharacter, { type ButlerPose } from "./ButlerCharacter";
 import { useIsMobile } from "@/lib/use-is-mobile";
 import ConfirmCard from "./ConfirmCard";
 import InputPod from "./InputPod";
-import TodayHero from "./TodayHero";
-import DailyBrief from "./DailyBrief";
 
 export type Message = ChatMessage;
 
-const QUICK_CARDS = [
-  { id: "card-upload",   icon: <FileUp size={18} color="var(--color-primary)" />,      title: "上传课件",  prompt: "我想上传一份课程大纲，自动整理 DDL" },
-  { id: "card-calendar", icon: <CalendarPlus size={18} color="var(--color-primary)" />, title: "添加日程",  prompt: "明天下午 3 点和导师开会，讨论论文进度" },
-  { id: "card-task",     icon: <ListChecks size={18} color="var(--color-primary)" />,   title: "拆解任务",  prompt: "帮我把「写完毕业论文」拆解成本周可执行的任务" },
+// 新对话快捷提示词：3 类（进度追踪 / 面板创建 / AI 工作流）
+const PROMPT_GROUPS: { id: string; title: string; icon: React.ReactNode; prompts: string[] }[] = [
+  {
+    id: "progress",
+    title: "进度追踪",
+    icon: <TrendingUp size={15} color="var(--color-primary)" />,
+    prompts: [
+      "我这周完成了多少任务？还剩哪些？",
+      "最近有哪些临近的 deadline？",
+      "我的连续学习天数和完成率如何？",
+    ],
+  },
+  {
+    id: "panel",
+    title: "面板创建",
+    icon: <LayoutDashboard size={15} color="var(--color-primary)" />,
+    prompts: [
+      "做一个我的任务进度统计面板",
+      "建一个加密货币实时行情面板",
+      "给我做一个本周复习计划看板",
+    ],
+  },
+  {
+    id: "workflow",
+    title: "AI 工作流",
+    icon: <Workflow size={15} color="var(--color-primary)" />,
+    prompts: [
+      "帮我建每周健身 3 次的周期任务",
+      "每周一自动生成「写周报」任务",
+      "调研半导体潜力股，做成面板",
+    ],
+  },
 ];
 
 // 对话栏 / 历史流的最大宽度（居中布局）
 const CONTENT_MAX = 800;
+
+// 时段问候（本地，零 token）
+function greetingHeadline(): string {
+  const h = new Date().getHours();
+  if (h < 6) return "夜深了";
+  if (h < 11) return "早上好";
+  if (h < 14) return "中午好";
+  if (h < 18) return "下午好";
+  return "晚上好";
+}
 
 interface ChatCanvasProps {
   messages: ChatMessage[];
@@ -600,17 +636,6 @@ export default function ChatCanvas(props: ChatCanvasProps) {
         </div>
       )}
 
-      {/* [065] 每日仪式 · 今日简报（每天首次打开顶部出现一次）*/}
-      {showDailyBrief && onStartFocus && onDismissBrief && (
-        <DailyBrief
-          ddls={ddls}
-          streakDays={streakDays}
-          onStartFocus={onStartFocus}
-          onJumpToTask={onJumpToTask}
-          onDismiss={onDismissBrief}
-        />
-      )}
-
       {/* 历史区 */}
       <div
         ref={historyRef}
@@ -626,40 +651,52 @@ export default function ChatCanvas(props: ChatCanvasProps) {
         }}
       >
         {isEmpty ? (
-          /* 欢迎屏：管家直接"说话" + 3 张快捷卡片，水平居中 */
+          /* Claude 式新对话：问候 + 居中输入框 + 3 类快捷提示词 */
           <div
             style={{
-              height: "100%",
+              minHeight: "100%",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              gap: 18,
-              maxWidth: CONTENT_MAX,
+              gap: 22,
+              maxWidth: 720,
+              width: "100%",
               margin: "0 auto",
+              padding: "12px 0",
             }}
           >
-            <ButlerBubble
-              content={
-                hasAnyData
-                  ? "你好,Feng。\n\n告诉我你的安排,或者拖一份课件给我整理。"
-                  : "你好,Feng。我是 Butler 👋\n\n第一次见面,要不要让我帮你**拖一份课件试试**?或者点下方按钮先看个 Demo。"
-              }
-            />
-            {/* Epic 4.1 今日聚焦概览(纯本地数据,零 token) */}
-            <TodayHero ddls={ddls} onJumpToTask={onJumpToTask} streakDays={streakDays} bestHourLabel={bestHourLabel} />
-            {/* G1.2 大拖拽热区(仅空数据时强引导) */}
-            {!hasAnyData && (
-              <DropHeroZone
-                onAttach={onAttach}
-                onLoadDemo={onLoadDemo}
-              />
-            )}
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
-              {QUICK_CARDS.map((card) => (
-                <QuickCard key={card.id} card={card} onClick={() => onQuickAction(card.prompt)} />
-              ))}
+            <div style={{ textAlign: "center" }}>
+              <h2 className="font-display" style={{ fontSize: 27, fontWeight: 700, color: "var(--color-text)", margin: 0, letterSpacing: "-0.4px" }}>
+                {greetingHeadline()}，Feng
+              </h2>
+              <p style={{ fontSize: 14, color: "var(--color-text-muted)", margin: "8px 0 0", lineHeight: 1.5 }}>
+                有什么可以帮你？告诉我安排、让我搭个面板，或拖一份课件给我整理。
+              </p>
             </div>
+
+            {/* 居中输入框（新对话焦点）*/}
+            <div style={{ width: "100%", display: "flex", justifyContent: "center" }}>
+              <InputPod
+                value={inputValue}
+                onChange={onInputChange}
+                onSend={onSend}
+                onStop={onStop}
+                isLoading={isLoading}
+                attachedFiles={attachedFiles}
+                onAttach={onAttach}
+                onRemoveAttachment={onRemoveAttachment}
+                selectedModel={selectedModel}
+                onSelectModel={onSelectModel}
+              />
+            </div>
+
+            {/* 3 类快捷提示词 */}
+            <PromptSuggestions onPick={onQuickAction} onLoadDemo={!hasAnyData ? onLoadDemo : undefined} />
+
+            <p style={{ fontSize: 11, color: "var(--color-text-faint)", margin: 0 }}>
+              Butler 可能犯错，重要信息请自行核实。
+            </p>
           </div>
         ) : (
           /* 历史消息流：去 max-width 居中容器,让 AI 气泡彻底贴 main 左 padding */
@@ -721,43 +758,45 @@ export default function ChatCanvas(props: ChatCanvasProps) {
         )}
       </div>
 
-      {/* 输入区 — 透明背景 + 无边框，让管家完整露出 */}
-      <div
-        style={{
-          padding: isMobile ? "8px 10px 10px" : "12px 32px 14px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 6,
-          position: "relative",
-          zIndex: 2,
-        }}
-      >
-        <div style={{ width: "100%", maxWidth: CONTENT_MAX, display: "flex", justifyContent: "center" }}>
-          <InputPod
-            value={inputValue}
-            onChange={onInputChange}
-            onSend={onSend}
-            onStop={onStop}
-            isLoading={isLoading}
-            attachedFiles={attachedFiles}
-            onAttach={onAttach}
-            onRemoveAttachment={onRemoveAttachment}
-            selectedModel={selectedModel}
-            onSelectModel={onSelectModel}
-          />
-        </div>
-        <p
+      {/* 输入区（仅有对话时贴底；新对话时输入框居中在上方）*/}
+      {!isEmpty && (
+        <div
           style={{
-            textAlign: "center",
-            fontSize: 11,
-            color: "var(--color-text-faint)",
-            margin: 0,
+            padding: isMobile ? "8px 10px 10px" : "12px 32px 14px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 6,
+            position: "relative",
+            zIndex: 2,
           }}
         >
-          Butler 可能犯错，重要信息请自行核实。
-        </p>
-      </div>
+          <div style={{ width: "100%", maxWidth: CONTENT_MAX, display: "flex", justifyContent: "center" }}>
+            <InputPod
+              value={inputValue}
+              onChange={onInputChange}
+              onSend={onSend}
+              onStop={onStop}
+              isLoading={isLoading}
+              attachedFiles={attachedFiles}
+              onAttach={onAttach}
+              onRemoveAttachment={onRemoveAttachment}
+              selectedModel={selectedModel}
+              onSelectModel={onSelectModel}
+            />
+          </div>
+          <p
+            style={{
+              textAlign: "center",
+              fontSize: 11,
+              color: "var(--color-text-faint)",
+              margin: 0,
+            }}
+          >
+            Butler 可能犯错，重要信息请自行核实。
+          </p>
+        </div>
+      )}
 
       <style>{`
         @keyframes bubble-pop {
@@ -791,130 +830,90 @@ export default function ChatCanvas(props: ChatCanvasProps) {
 }
 
 // ============================================================
-// 欢迎屏快捷卡片
+// 新对话快捷提示词（Claude 式 3 类卡片）
 // ============================================================
-function QuickCard({
-  card,
-  onClick,
-}: {
-  card: typeof QUICK_CARDS[0];
-  onClick: () => void;
-}) {
-  const [hov, setHov] = useState(false);
+function PromptSuggestions({ onPick, onLoadDemo }: { onPick: (prompt: string) => void; onLoadDemo?: () => void }) {
+  const isMobile = useIsMobile();
   return (
-    <button
-      id={card.id}
-      onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        width: 180,
-        background: "var(--color-bg)",
-        border: `1px solid ${hov ? "var(--color-primary)" : "var(--color-border)"}`,
-        borderRadius: 10,
-        padding: "14px 16px",
-        cursor: "pointer",
-        textAlign: "left",
-        fontFamily: "inherit",
-        boxShadow: hov ? "var(--shadow-card-hover)" : "var(--shadow-card)",
-        transition: "all 0.15s",
-      }}
-    >
-      <div style={{ marginBottom: 8 }}>{card.icon}</div>
-      <p style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)", margin: 0 }}>
-        {card.title}
-      </p>
-    </button>
-  );
-}
-
-// ============================================================
-// G1.2 欢迎屏大拖拽热区(仅首次用户/空数据时显示)
-// ============================================================
-function DropHeroZone({
-  onAttach, onLoadDemo,
-}: {
-  onAttach: (files: FileList) => void;
-  onLoadDemo?: () => void;
-}) {
-  const [dragActive, setDragActive] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  return (
-    <div style={{ width: "100%", maxWidth: 560, display: "flex", flexDirection: "column", gap: 10 }}>
+    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 12 }}>
       <div
-        onDragOver={(e) => {
-          if (e.dataTransfer.types.includes("Files")) {
-            e.preventDefault();
-            setDragActive(true);
-          }
-        }}
-        onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragActive(false);
-          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) onAttach(e.dataTransfer.files);
-        }}
-        onClick={() => inputRef.current?.click()}
         style={{
-          padding: "26px 24px",
-          borderRadius: 14,
-          border: `2px dashed ${dragActive ? "var(--color-primary)" : "color-mix(in srgb, var(--color-primary) 40%, transparent)"}`,
-          background: dragActive
-            ? "var(--color-primary-soft)"
-            : "color-mix(in srgb, var(--color-primary) 4%, transparent)",
-          cursor: "pointer",
-          transition: "all 0.18s",
-          textAlign: "center",
-          fontFamily: "inherit",
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
+          gap: 12,
         }}
       >
-        <FileUp size={28} color="var(--color-primary)" style={{ marginBottom: 8 }} />
-        <p style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text)", margin: "0 0 4px" }}>
-          {dragActive ? "释放即可上传" : "拖一份 PDF 课件到这里"}
-        </p>
-        <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: 0 }}>
-          管家会自动提取所有 DDL → 加入任务清单 + 日历
-        </p>
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".pdf,.docx,.doc,.txt,.md,image/*"
-          multiple
-          style={{ display: "none" }}
-          onChange={(e) => {
-            if (e.target.files && e.target.files.length > 0) onAttach(e.target.files);
-            e.target.value = "";
-          }}
-        />
+        {PROMPT_GROUPS.map((g) => (
+          <div
+            key={g.id}
+            style={{
+              border: "1px solid var(--color-border)",
+              borderRadius: 14,
+              background: "var(--color-surface)",
+              padding: "12px 12px 8px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, padding: "0 4px" }}>
+              {g.icon}
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--color-text)" }}>{g.title}</span>
+            </div>
+            {g.prompts.map((p) => (
+              <PromptLine key={p} text={p} onClick={() => onPick(p)} />
+            ))}
+          </div>
+        ))}
       </div>
       {onLoadDemo && (
         <button
           onClick={onLoadDemo}
           style={{
-            padding: "8px 14px",
+            alignSelf: "center",
+            padding: "7px 16px",
             border: "1px solid var(--color-border)",
-            borderRadius: 8,
-            background: "var(--color-bg)",
+            borderRadius: 999,
+            background: "var(--color-surface)",
             color: "var(--color-text-muted)",
             fontSize: 12,
             cursor: "pointer",
             fontFamily: "inherit",
-            alignSelf: "center",
           }}
-          onMouseEnter={(e) => {
-            const el = e.currentTarget as HTMLButtonElement;
-            el.style.borderColor = "var(--color-primary)";
-            el.style.color = "var(--color-primary)";
-          }}
-          onMouseLeave={(e) => {
-            const el = e.currentTarget as HTMLButtonElement;
-            el.style.borderColor = "var(--color-border)";
-            el.style.color = "var(--color-text-muted)";
-          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--color-primary)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--color-primary)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text-muted)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--color-border)"; }}
         >
-          没课件？点这里先看个 Demo →
+          还没有数据？点这里先看个 Demo →
         </button>
       )}
     </div>
+  );
+}
+
+function PromptLine({ text, onClick }: { text: string; onClick: () => void }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: "block",
+        width: "100%",
+        textAlign: "left",
+        padding: "7px 8px",
+        borderRadius: 8,
+        border: "none",
+        background: hov ? "var(--color-bg)" : "transparent",
+        color: hov ? "var(--color-text)" : "var(--color-text-muted)",
+        fontSize: 12.5,
+        lineHeight: 1.4,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        transition: "background 0.12s, color 0.12s",
+      }}
+    >
+      {text}
+    </button>
   );
 }

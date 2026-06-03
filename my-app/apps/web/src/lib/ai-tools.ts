@@ -4,7 +4,7 @@
 // AI 通过 5 个工具完成对全局 ddls 列表的 CRUD + 查询
 // ============================================================
 
-import type { DdlItem, TaskStatus, TaskPriority, PanelModuleType, PanelModuleConfig } from "./types";
+import type { DdlItem, TaskStatus, TaskPriority, PanelModuleType, PanelModuleConfig, RecurringCadence } from "./types";
 
 // OpenAI / DeepSeek tool 定义格式
 export interface ToolDefinition {
@@ -302,6 +302,39 @@ export const TOOLS: ToolDefinition[] = [
       },
     },
   },
+
+  // ---- 8. 创建周期任务（[079] 重复任务模板）----
+  {
+    type: "function",
+    function: {
+      name: "create_recurring_task",
+      description:
+        "创建一个会自动重复的周期任务/习惯。每到新周期，管家自动把它生成成具体任务加入清单。" +
+        "适用场景：「每周去健身房 4 次」「每天背单词」「每月 1 号交房租」「每周写周报」。" +
+        "和 create_item 的区别：create_item 是一次性的；这个是周期性、自动续期的。" +
+        "创建后会立即生成「当前周期」的实例。",
+      parameters: {
+        type: "object",
+        properties: {
+          taskName: { type: "string", description: "任务名，例如「去健身房」「背单词」「交房租」" },
+          cadence: {
+            type: "string",
+            enum: ["daily", "weekly", "monthly"],
+            description: "周期：daily=每天 / weekly=每周 / monthly=每月",
+          },
+          timesPerPeriod: {
+            type: "number",
+            description: "每个周期生成几次（如每周去健身房 4 次 → 4）。默认 1",
+          },
+          dueTime: { type: "string", description: "HH:MM，默认 23:59" },
+          description: { type: "string", description: "可选补充说明" },
+          tags: { type: "array", items: { type: "string" }, description: "可选标签" },
+          emoji: { type: "string", description: "可选单字符 emoji，如 🏋️ / 📖 / 💰" },
+        },
+        required: ["taskName", "cadence"],
+      },
+    },
+  },
 ];
 
 // ============================================================
@@ -373,15 +406,26 @@ export interface CreateCustomPanelArgs {
   modules?: { type: PanelModuleType; title?: string; config?: PanelModuleConfig }[];
 }
 
+export interface CreateRecurringTaskArgs {
+  taskName: string;
+  cadence: RecurringCadence;
+  timesPerPeriod?: number;
+  dueTime?: string;
+  description?: string;
+  tags?: string[];
+  emoji?: string;
+}
+
 // 工具名 → 参数类型 的联合（供执行器使用）
 export type ToolCall =
-  | { name: "create_item";         args: CreateItemArgs }
-  | { name: "update_item";         args: UpdateItemArgs }
-  | { name: "delete_item";         args: DeleteItemArgs }
-  | { name: "toggle_complete";     args: ToggleCompleteArgs }
-  | { name: "list_items";          args: ListItemsArgs }
-  | { name: "create_note";         args: CreateNoteArgs }
-  | { name: "create_custom_panel"; args: CreateCustomPanelArgs };
+  | { name: "create_item";           args: CreateItemArgs }
+  | { name: "update_item";           args: UpdateItemArgs }
+  | { name: "delete_item";           args: DeleteItemArgs }
+  | { name: "toggle_complete";       args: ToggleCompleteArgs }
+  | { name: "list_items";            args: ListItemsArgs }
+  | { name: "create_note";           args: CreateNoteArgs }
+  | { name: "create_custom_panel";   args: CreateCustomPanelArgs }
+  | { name: "create_recurring_task"; args: CreateRecurringTaskArgs };
 
 // ============================================================
 // Helper：精简的 DdlItem（用于回传给 AI 看上下文，不要给完整 source）
