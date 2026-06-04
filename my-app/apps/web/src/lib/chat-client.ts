@@ -4,6 +4,8 @@
 // ============================================================
 
 import type { ToolResult } from "./ai-tools";
+import { recordUsage } from "./usage";
+import { DEFAULT_MODEL_ID, isValidModelId, type AiModelId } from "./ai-models";
 
 // OpenAI Chat Completion message 格式（含 tool calls）
 export interface ApiMessage {
@@ -75,6 +77,12 @@ interface SseChunk {
     };
     finish_reason?: string | null;
   }>;
+  /** [087] include_usage 流尾 chunk：choices 为空，仅带 token 用量 */
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
   error?: string;
 }
 
@@ -223,6 +231,14 @@ async function streamOneRound(opts: {
         } else {
           opts.callbacks.onError?.(new Error(chunk.error));
         }
+        continue;
+      }
+
+      // [087] 真实成本计量：流尾 usage chunk → 按所选模型单价折 ¥ 记入当前 5h 窗口
+      if (chunk.usage) {
+        const model: AiModelId =
+          opts.model && isValidModelId(opts.model) ? opts.model : DEFAULT_MODEL_ID;
+        recordUsage(model, chunk.usage.prompt_tokens ?? 0, chunk.usage.completion_tokens ?? 0);
         continue;
       }
 

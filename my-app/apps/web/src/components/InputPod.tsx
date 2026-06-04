@@ -10,6 +10,7 @@ import type { UploadedFile } from "@/lib/types";
 import { AI_MODELS, type AiModelId, type AiModelMeta, getModelMeta } from "@/lib/ai-models";
 import { GlassButton } from "@/components/ui/Glass";
 import Portal from "@/components/ui/Portal";
+import { useUsage, formatCountdown } from "@/lib/usage";
 
 interface InputPodProps {
   value: string;
@@ -268,33 +269,97 @@ export default function InputPod({
             />
           </div>
 
-          {/* 发送 / 停止按钮 — 生成中切换为方形 stop（液态玻璃圆钮）*/}
-          {isLoading && onStop ? (
-            <GlassButton
-              id="stop-btn"
-              aria-label="停止生成"
-              onClick={onStop}
-              variant="primary"
-              circle
-              style={{ width: 36, height: 36 }}
-            >
-              <Square size={12} fill="currentColor" strokeWidth={0} />
-            </GlassButton>
-          ) : (
-            <GlassButton
-              id="send-btn"
-              aria-label="发送消息"
-              onClick={onSend}
-              disabled={!canSend}
-              variant="primary"
-              circle
-              style={{ width: 36, height: 36 }}
-            >
-              <ServiceBell size={18} />
-            </GlassButton>
-          )}
+          {/* 右侧：用量圆环 + 发送/停止 */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* [088] 用量圆环：本时段免费额度消耗百分比，放发送钮旁 */}
+            <UsageRing />
+
+            {/* 发送 / 停止按钮 — 生成中切换为方形 stop（液态玻璃圆钮）*/}
+            {isLoading && onStop ? (
+              <GlassButton
+                id="stop-btn"
+                aria-label="停止生成"
+                onClick={onStop}
+                variant="primary"
+                circle
+                style={{ width: 36, height: 36 }}
+              >
+                <Square size={12} fill="currentColor" strokeWidth={0} />
+              </GlassButton>
+            ) : (
+              <GlassButton
+                id="send-btn"
+                aria-label="发送消息"
+                onClick={onSend}
+                disabled={!canSend}
+                variant="primary"
+                circle
+                style={{ width: 36, height: 36 }}
+              >
+                <ServiceBell size={18} />
+              </GlassButton>
+            )}
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ---- [088] 用量圆环 ----
+// 本时段（5h 窗口）免费额度消耗百分比，环形进度 + 中心 % + 悬浮明细。
+// 耗尽转危险色、≥80% 转琥珀。点击/悬浮 title 提示余量与回满倒计时。
+function UsageRing() {
+  const u = useUsage().window;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const iv = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const pct = u.budget > 0 ? Math.min(100, Math.round((u.spend / u.budget) * 100)) : 0;
+  const size = 30;
+  const stroke = 3;
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - pct / 100);
+  const color = u.exhausted
+    ? "var(--color-danger)"
+    : pct >= 80
+    ? "#f59e0b"
+    : "var(--color-primary)";
+  const reset = formatCountdown(u.resetAt, now);
+
+  return (
+    <div
+      title={`本时段免费额度 ¥${u.spend.toFixed(2)} / ¥${u.budget.toFixed(2)}（已用 ${pct}%）· ${reset} 后回满`}
+      aria-label={`免费额度已用 ${pct}%`}
+      style={{ width: size, height: size, position: "relative", flexShrink: 0 }}
+    >
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)", display: "block" }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--color-border)" strokeWidth={stroke} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          style={{ transition: "stroke-dashoffset 0.4s ease, stroke 0.3s" }}
+        />
+      </svg>
+      <span
+        style={{
+          position: "absolute", inset: 0,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 8.5, fontWeight: 700, color, letterSpacing: -0.3,
+        }}
+      >
+        {pct}%
+      </span>
     </div>
   );
 }

@@ -841,29 +841,11 @@ function PromptSuggestions({ onPick, onLoadDemo }: { onPick: (prompt: string) =>
           display: "grid",
           gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
           gap: 12,
+          alignItems: "start", // 折叠卡各自自然高度，展开某张不撑高同行其它卡
         }}
       >
         {PROMPT_GROUPS.map((g) => (
-          <div
-            key={g.id}
-            style={{
-              border: "1px solid var(--color-border)",
-              borderRadius: 14,
-              background: "var(--color-surface)",
-              padding: "12px 12px 8px",
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, padding: "0 4px" }}>
-              {g.icon}
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--color-text)" }}>{g.title}</span>
-            </div>
-            {g.prompts.map((p) => (
-              <PromptLine key={p} text={p} onClick={() => onPick(p)} />
-            ))}
-          </div>
+          <PromptGroupCard key={g.id} group={g} onPick={onPick} />
         ))}
       </div>
       {onLoadDemo && (
@@ -886,6 +868,61 @@ function PromptSuggestions({ onPick, onLoadDemo }: { onPick: (prompt: string) =>
           还没有数据？点这里先看个 Demo →
         </button>
       )}
+    </div>
+  );
+}
+
+// 提示词卡：默认只显标题（点开才展开具体提示词）
+function PromptGroupCard({
+  group, onPick,
+}: {
+  group: { id: string; title: string; icon: React.ReactNode; prompts: string[] };
+  onPick: (prompt: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [hov, setHov] = useState(false);
+  return (
+    <div
+      style={{
+        border: `1px solid ${open ? "var(--color-primary)" : "var(--color-border)"}`,
+        borderRadius: 14,
+        background: "var(--color-surface)",
+        padding: open ? "12px 12px 8px" : "12px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+        transition: "border-color 0.15s",
+      }}
+    >
+      {/* 标题行（默认态：可点开）*/}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        onMouseEnter={() => setHov(true)}
+        onMouseLeave={() => setHov(false)}
+        aria-expanded={open}
+        style={{
+          display: "flex", alignItems: "center", gap: 6,
+          width: "100%", padding: "2px 4px", border: "none", background: "transparent",
+          cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+        }}
+      >
+        {group.icon}
+        <span style={{
+          flex: 1, fontSize: 12.5, fontWeight: 700,
+          color: open || hov ? "var(--color-text)" : "var(--color-text-muted)",
+          transition: "color 0.12s",
+        }}>{group.title}</span>
+        <ChevronDown
+          size={14}
+          color="var(--color-text-faint)"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.18s", flexShrink: 0 }}
+        />
+      </button>
+
+      {/* 展开态：具体提示词 */}
+      {open && group.prompts.map((p) => (
+        <PromptLine key={p} text={p} onClick={() => onPick(p)} />
+      ))}
     </div>
   );
 }

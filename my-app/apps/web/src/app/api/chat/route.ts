@@ -132,6 +132,9 @@ export async function POST(req: Request) {
       tools: useTools ? TOOLS : undefined,
       tool_choice: useTools ? "auto" : undefined,
       stream: true,
+      // [087] 开 include_usage → 流尾多一个 usage chunk（choices 空、带 prompt/completion_tokens），
+      // 原样转发给客户端用于真实成本计量（lib/usage.recordUsage）
+      stream_options: { include_usage: true },
       temperature: 0.4,
       max_tokens: 2048,
       ...thinkingExtras,

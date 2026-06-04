@@ -29,6 +29,7 @@ import AchievementsRoom from "@/components/AchievementsRoom";
 import MobileTabBar from "@/components/layout/MobileTabBar";
 import PricingModal from "@/components/PricingModal";
 import CheckoutModal from "@/components/CheckoutModal";
+import QuotaWallModal from "@/components/QuotaWallModal";
 import BillingPanel from "@/components/BillingPanel";
 import { useIsMobile } from "@/lib/use-is-mobile";
 import { applyStoredLang, useT } from "@/lib/i18n";
@@ -48,6 +49,7 @@ import { createToolExecutor } from "@/lib/tool-executor";
 import { type PendingBatch, type PendingChange, makeBatch, makeChangeId, applyBatch, extractNoteDrafts, extractCustomPanelDrafts } from "@/lib/pending";
 import type { ButlerPose } from "@/components/ButlerCharacter";
 import { type AiModelId, DEFAULT_MODEL_ID, MODEL_STORAGE_KEY, isValidModelId } from "@/lib/ai-models";
+import { canSpend, getNextResetAt } from "@/lib/usage";
 import type { TaskViewId } from "@/components/layout/TasksRail";
 import { useToast } from "@/components/Toast";
 import {
@@ -702,6 +704,12 @@ export default function HomePage() {
     const sid = activeSessionIdRef.current;
     if (!sid) return;
 
+    // [087] 免费墙：当前 5h 窗口额度用尽 → 弹 softwall，不发送（也不入栈用户消息）
+    if (!canSpend()) {
+      setQuotaWallOpen(true);
+      return;
+    }
+
     const filesSnapshot = attachedFiles;
 
     // 1. 用户消息入栈
@@ -1157,6 +1165,8 @@ export default function HomePage() {
   const [billingOpen, setBillingOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
   const [checkout, setCheckout] = useState<{ plan: PlanId; cycle: BillingCycle } | null>(null);
+  // [087] 免费额度耗尽 softwall
+  const [quotaWallOpen, setQuotaWallOpen] = useState(false);
   // 升级 CTA：先开定价页比价
   const openPricing = useCallback(() => { setBillingOpen(false); setPricingOpen(true); }, []);
   // 定价页选档 → 开结账
@@ -1918,6 +1928,16 @@ export default function HomePage() {
           cycle={checkout?.cycle ?? "annual"}
           onClose={() => setCheckout(null)}
           onConfirmed={handleCheckoutConfirmed}
+        />
+        {/* [087] 免费额度耗尽 softwall（切回 Flash / 充值 / 开会员 三出口）*/}
+        <QuotaWallModal
+          open={quotaWallOpen}
+          resetAt={getNextResetAt()}
+          canFallbackFlash={selectedModel !== "deepseek-v4-flash"}
+          onSwitchFlash={() => { handleSelectModel("deepseek-v4-flash"); setQuotaWallOpen(false); }}
+          onTopUp={() => { setQuotaWallOpen(false); openPricing(); }}
+          onUpgrade={() => { setQuotaWallOpen(false); openPricing(); }}
+          onClose={() => setQuotaWallOpen(false)}
         />
 
         {/* [079] 周期任务管理 */}

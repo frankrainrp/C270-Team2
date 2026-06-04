@@ -212,38 +212,10 @@ export default function TopBar({
           }}
         />
 
-        {/* [072] 升级 CTA：免费用户显示「升级到 Pro」胶囊；付费用户显示档位徽标 */}
-        {!isMobile && (
-          isPaid ? (
-            <span
-              title={`Butler ${t(getPlanDef(plan).nameKey)}`}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 4,
-                height: 30, padding: "0 11px", borderRadius: 999,
-                background: plan === "max" ? "var(--butler-gold)" : "var(--color-primary)",
-                color: plan === "max" ? "#1c1c1e" : "#fff",
-                fontSize: 12, fontWeight: 700, letterSpacing: 0.3, flexShrink: 0,
-              }}
-            >
-              <Crown size={12} /> {t(getPlanDef(plan).nameKey)}
-            </span>
-          ) : (
-            <button
-              onClick={onUpgrade}
-              title={t("topbar.upgradeCta")}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 5,
-                height: 32, padding: "0 13px", borderRadius: 999, border: "none",
-                background: "linear-gradient(150deg, var(--color-primary-hover), var(--color-primary))",
-                color: "#fff", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
-                fontFamily: "inherit", flexShrink: 0,
-                boxShadow: "0 2px 8px color-mix(in srgb, var(--color-primary) 40%, transparent)",
-              }}
-            >
-              <Crown size={13} /> {t("topbar.upgradeCta")}
-            </button>
-          )
-        )}
+        {/* [086] 升级 CTA / 档位徽标从顶栏移除 —— 改为只在用户菜单（个人资料）里出现。
+            付费状态徽标见下方用户菜单 header；免费升级入口见菜单内「升级」项。 */}
+
+        {/* [088] 用量指示已移到输入舱发送钮旁的圆环（UsageRing），顶栏不再放额度条 */}
 
         {/* 用户区 */}
         <div style={{ position: "relative" }}>

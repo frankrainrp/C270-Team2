@@ -7,6 +7,9 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [088] | 用量圆环移到发送钮旁 + 提示词卡默认折叠 | ① 顶栏额度条(UsageMeter)撤掉 → InputPod 发送钮左侧加 `UsageRing`（30px SVG 环形进度 + 中心 `%` + 悬浮明细 title，本时段消耗百分比；≥80% 转琥珀、耗尽转危险色，30s tick 倒计时）；TopBar 清掉 UsageMeter/useEffect/useUsage/formatCountdown 导入。② ChatCanvas 提示词卡 3 张（进度追踪/面板创建/AI工作流）改 `PromptGroupCard`：**默认只显标题 + ▼，点开才展开具体提示词**（各自独立 toggle、aria-expanded、grid alignItems:start 防展开撑高同行）。真机验证：圆环 0%→67% 随用量填充、tooltip 准确；点「进度追踪」展开 3 条且其它卡保持收起。tsc EXIT=0 |
+| [087] | 变现 P1+P2：5h 窗口真实成本计量 + 免费额度 softwall | `lib/usage.ts`（COST_PER_K 各模型 ¥/千token + 5h 滑动窗口按 windowStart 存 localStorage、翻篇清零 + recordUsage/canSpend/getWindowRemaining/useUsage hook/formatCountdown）；chat 路由开 `stream_options.include_usage` → 流尾 usage chunk；chat-client 解析 usage chunk → 按 selectedModel 单价 recordUsage 记入当前窗口；TopBar UsageMeter（本窗已花>0 才显，进度条+`¥x/¥0.6`/耗尽转危险色+`Xh Ym 后回满`倒计时）；QuotaWallModal（耗尽 softwall：切回Flash[已在Flash则隐]/充值/开会员三出口+回满倒计时）+ page handleSend 发送前 canSpend 预检拦截。真机预览验证：种 ¥0.4→额度条显`¥0.40/¥0.60`；¥0.7→转危险`后回满`；触发发送→softwall 弹出且 Flash 态正确隐藏切回项。tsc EXIT=0 |
+| [086] | 顶栏升级 CTA 收进个人资料 + 变现方案文档 v1.1 | 删 TopBar 顶栏「升级到 Pro」渐变胶囊 + 付费档徽标（升级入口/档位状态改为只在用户菜单=个人资料里出现）；getPlanDef/Crown 仍被菜单引用无废 import；tsc EXIT=0。产出 `Doc/变现方案.md`（v1.1）：Flash 免费层获客 + 高端模型付费墙；**5h 滑动窗口分批发额度**(每窗~¥0.6 不累积+回满倒计时)；真实成本计量(lib/usage.ts+chat 回传 usage)；**按量×1.3 / 会员让利25%**；**高端三家充钱→后台开通→平台统一 key 余额计费 session**(用户不碰真实 key)；多供应商网关(lib/providers/*+scripts/sync-models 定价自动同步)；增长/风险/P0-P6 路线图。仅剩待拍板：先接哪家 key、是否 P1+P2 起步 |
 | [085] | 背景纯色+圆点花纹 + 任务卡更深更立体 | 暗色背景去网格/光团→纯色 + 极淡白圆点花纹(--bg-halftone radial 0.022/22px)；底色加深 bg #1B1D1C→#161817 + 面板玻璃提亮(glass 0.62/0.78)+ surface #262A27 拉开 3 层层次；TasksPanel 任务组卡片加边框圆角12 + 阴影(0 4px14 + inset 高光)→ 深卡浮在亮面板上、有对比立体。真机：任务列表卡片明显分层、bg 纯色带细点 |
 | [084] | 按钮用复古墨绿 #2D4A3E + 背景灰度再提高 | 按钮主色换成复古主题的墨绿 dark primary #2F7349→**#2D4A3E**（hover #3A5C4D / soft #16271F）；背景再去绿提灰 bg #1A1F1C→**#1B1D1C**（近中性深灰、绿味极淡）surface #242625、border #353835、glass 中性、bg-glow 压到 0.035/0.025 近无。:root primary 同步 #2D4A3E。真机确认 primary #2D4A3E / bg #1B1D1C。注：#2D4A3E 为深墨绿，填充按钮(头像/发送)漂亮，文字态强调(active tab/图标)偏暗——若觉太暗可后续单独提亮 active 态 |
 | [083] | 配色精修：墨绿按钮 + 高灰度墨绿底（参考 GPT/Claude/Gemini）| 把 [082] 偏亮祖母绿 #43B074 压成墨绿 #2F7349（按钮克制不刺眼，hover #3A8757）；底色去饱和成高灰度墨绿 bg #18211B→#1A1F1C（很中性、只带一点绿，像主流 AI 应用的平直中性深底）surface #232925；accent 改灰绿 #5C8F73；bg-glow 进一步压淡(0.06/0.04)趋平。:root primary 同步深墨绿 #235E3E。真机：primary #2F7349、bg #1A1F1C，按钮/头像/active 墨绿、底中性 |
@@ -70,6 +73,83 @@
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
 > **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 30 条 [056]-[085] 是近期进度，其余条目（[022]-[055]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [088] 2026-06-03 — 用量圆环移到发送钮旁 + 提示词卡默认折叠
+
+> 用户：① 用量标记做成圆环放发送按钮旁、按百分比提示（给了环形参考图）② 快捷提示词卡默认只显标题，点开才显示具体提示词。
+
+### ① 用量圆环（替代顶栏额度条）
+
+- **TopBar**：撤掉 [087] 的 UsageMeter（额度条）+ 清 `useEffect`/`useUsage`/`formatCountdown` 导入（用量指示统一到输入舱）。
+- **InputPod**：发送/停止钮外层包一层 flex，左侧加 `UsageRing` —— 30px SVG 双环（底 track + 前景弧 stroke-dashoffset 按 `spend/budget` 百分比）+ 中心 `%` 文字 + 悬浮 `title`「本时段免费额度 ¥x/¥0.6（已用 N%）· Xh Ym 后回满」；色：`<80%` primary / `≥80%` 琥珀 #f59e0b / 耗尽 danger；30s tick 刷倒计时。`useUsage` 驱动，记账事件即重渲。
+
+### ② 提示词卡默认折叠
+
+- ChatCanvas `PromptSuggestions` 内联 map 改抽 `PromptGroupCard` 组件：默认 `open=false` 只渲标题行（icon+title+ChevronDown），点标题 toggle 展开/收起具体 `PromptLine`；箭头 180° 旋转、active 边框转 primary。
+- grid 加 `alignItems:"start"`，展开某张卡不再把同行其它卡撑到等高留白。各卡独立 toggle（非手风琴）。
+
+### ✅ 真机预览验证
+
+圆环 0% → 种 ¥0.4 显 67% 且绿弧填充、tooltip 含余量/倒计时；点「进度追踪」→ aria-expanded=true、3 条提示词显示，「面板创建」保持收起。tsc EXIT=0，测试数据已清。
+
+---
+
+## [087] 2026-06-03 — 变现 P1+P2：5h 窗口真实成本计量 + 免费额度 softwall
+
+> 用户拍板 key=GPT+Claude、从 P1+P2 起步（零外部依赖，先在 Flash 上跑通计量闭环）。落地 Doc/变现方案.md P1（计量地基）+ P2（softwall）。
+
+### P1 计量地基（5h 滑动窗口）
+
+- **`lib/usage.ts`（新）**：`COST_PER_K` 各模型 ¥/千token（代表值，P4 sync-models 会覆盖）；5h 窗口按 `getWindowStart=floor(now/18000000)*18000000` 对齐，用量存 `localStorage["butler.usage.<windowStart>"]`，翻篇即清零（cleanupOldWindows 删旧键）；`recordUsage(model,pt,ct)` 累加+广播 `USAGE_EVENT`；`canSpend()`/`getWindowRemaining()`/`getNextResetAt()`/`useUsage()` hook（SSR 安全：初始满额、挂载后读真实）/`formatCountdown`。`WINDOW_BUDGET=0.6`。
+- **chat 路由**：createParams 加 `stream_options:{include_usage:true}` → 流尾多一个 usage chunk（choices 空、带 prompt/completion_tokens），原样转发。
+- **chat-client**：SseChunk 加 `usage` 字段；解析到 usage chunk → 按 `opts.model`（白名单回落 DEFAULT）调 `recordUsage` 记入当前窗口，`continue`。
+- **TopBar UsageMeter**：本窗已花>0 才显；进度条 + `¥x.xx/¥0.60`，耗尽转 `--color-danger` 显 `Xh Ym 后回满`（30s tick 倒计时）。
+
+### P2 免费额度 softwall
+
+- **`QuotaWallModal.tsx`（新）**：耗尽弹窗，3 出口 = 切回 Flash（`canFallbackFlash`=当前非 Flash 才显）/ 充值钱包（暂复用 openPricing，P5 接真钱包）/ 开会员；带回满倒计时；永远留"继续免费"出口防撞墙流失。
+- **page.tsx**：`handleSend` 在 `if(!sid)return` 后加 `if(!canSpend()){setQuotaWallOpen(true);return;}`（不入栈用户消息）；模态接 `handleSelectModel("deepseek-v4-flash")` / openPricing。
+
+### ✅ 真机预览验证
+
+种 ¥0.4 → 顶栏额度条显 `¥0.40/¥0.60`；改 ¥0.7 → 转危险态 `后回满`；filltextarea+Enter 触发发送 → softwall 弹出，且因当前=Flash「切回 Flash」正确隐藏、只剩充值/开会员。无 console error，tsc EXIT=0。测试种入数据已清。
+
+### 🚦 后续
+
+P3 网关（GPT+Claude 真实接通，Gemini 灰显）/ P4 sync-models 定价自动同步 / P5 钱包+session+会员重构。注：live 用量路径（DeepSeek 实际回 usage chunk）需真实 key 跑一轮才能端到端确认，include_usage 为 OpenAI 兼容标准特性。
+
+---
+
+## [086] 2026-06-03 — 顶栏升级 CTA 收进个人资料 + 变现方案文档
+
+> 用户：① 顶栏的「upgrade to pro」去掉，只在用户点开个人资料才看到 ② 设计免费策略（每天 ¥3 免费 token，超额开会员 or 按 API 收费，会员让利保黏性）③ 自动化获取所有提到的模型 API ④ 设计赚钱模式。
+> AskUserQuestion 四问全选推荐：真实成本计量 / 会员预付更划算(成本×1.2·让利30%) / 统一多供应商网关 / 先出文档对齐再落地。
+
+### ① 顶栏 CTA 收口（已落代码）
+
+- `TopBar.tsx` 删掉右侧独立的「升级到 Pro」渐变胶囊 + 付费档 Crown 徽标块（原 215-246）。升级入口 / 档位状态**改为只在用户菜单（个人资料下拉）里出现**——菜单内已有「升级」MenuBtn + header 档位徽标。
+- `getPlanDef` / `Crown` 仍被菜单引用 → 无废 import；`tsc --noEmit` EXIT=0。
+
+### ②③④ 变现方案文档（主交付，未写功能代码）
+
+- 产出 `Doc/变现方案.md`（v1）：把 4 个决策落成可执行 spec。
+- **商业模式**：Flash 太便宜（¥3/天约 150 万输出 token，普通用户用不完）→ 免费层=零成本获客/留存；高端模型(Claude/GPT/Gemini，单价 36~270× Flash)=天然付费墙。
+- **免费层 spec**：`lib/usage.ts` 真实成本计量（chat 路由流尾回传 usage → 客户端按模型单价折 ¥ 累计 localStorage 按天清零）+ 顶栏额度条 + 耗尽 softwall（永远留"切回 Flash 继续免费"出口）。
+- **付费层 spec**：按量钱包(成本×1.2) + 会员包月（Pro¥39/Max¥99 含高端额度，折合零售价值便宜 ~30% = 预付让利换黏性）。
+- **多供应商网关 spec**：`lib/providers/{deepseek,anthropic,openai,google}.ts` + registry 路由 + 各家 env key；`scripts/sync-models.ts` 自动拉模型清单+定价 → 生成注册表（定价不写死）。
+- 含增长杠杆 / 风险对策 / P0-P6 路线图（建议先 P1+P2 计量闭环，零外部依赖）。
+
+### 🔁 v1.1 二轮拍板（文档已更新）
+
+- **利润上调**：按量 ×1.2→**×1.3**（毛利 30%）；会员让利 30%→**25%**（Pro¥39 折合零售 ¥52、Max¥99 折合 ¥132）。
+- **额度改 5h 滑动窗口**：不再一次给满 ¥3/天 → 每 5 小时一批 ~¥0.6、用不完不累积（Claude 式），顶栏额度条带"回满"倒计时 = 回访钩子。
+- **高端三家 API 准入闸**（§4.0）：充钱→后台显式开通→服务端用平台统一 key 开「余额计费 session」→ 每次调用 ×1.3 从余额扣、归零自动降级 Flash；用户不碰真实 key，平台赚差价。会员自动具备开通资格、用包月额度替代充值。
+
+### 🚦 仅剩待拍板（文档 §8）
+
+先接哪家 API key（Claude/GPT/Gemini 手上有哪家）、是否从 P1+P2 起步。
 
 ---
 
