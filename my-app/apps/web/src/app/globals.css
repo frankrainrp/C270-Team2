@@ -789,7 +789,14 @@ html[data-theme="paper"] .ap-card {
 html[data-theme="paper"] section:nth-of-type(odd) .ap-card { transform: rotate(-0.5deg); }
 html[data-theme="paper"] section:nth-of-type(even) .ap-card { transform: rotate(0.55deg); }
 html[data-theme="paper"] .ap-row { border-bottom-color: var(--color-border-soft) !important; }
-html[data-theme="paper"] .ap-row:hover { background: var(--color-primary-soft) !important; }
+/* hover = 牛皮纸荧光笔扫过（左浓右淡的不均匀马克笔 wash）+ 左缘墨条 */
+html[data-theme="paper"] .ap-row:hover {
+  background: linear-gradient(95deg,
+    rgba(196,167,125,0.34) 0%,
+    rgba(196,167,125,0.20) 55%,
+    rgba(196,167,125,0.10) 100%) !important;
+  box-shadow: inset 3px 0 0 var(--color-border) !important;
+}
 
 /* —— Chat：消息气泡 = 墨线框 + 硬投影 + 手画不对称圆角 —— */
 html[data-theme="paper"] .ap-bubble {

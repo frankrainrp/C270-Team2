@@ -200,6 +200,23 @@ const ZH: Dict = {
   "billing.invoice.amount": "金额",
   "billing.invoice.status": "状态",
   "billing.status.paid": "已支付",
+
+  // 首次引导（OnboardingTour）
+  "tour.s0.title": "👋 你好，我是 Butler",
+  "tour.s0.body": "你的智能学习管家。30 秒带你看完最核心的 5 件事。",
+  "tour.s1.title": "1️⃣ 4 个面板",
+  "tour.s1.body": "Chat 找我对话 · Tasks 任务清单 · Calendar 日历 · Notes 笔记。\n按 ⌘N 在当前 Tab 快速新建。",
+  "tour.s2.title": "2️⃣ 跟我自然对话",
+  "tour.s2.body": "试着说「明天 9 点开会」，我会自动建任务。\n或者拖一份 PDF 课件给我，我帮你提取所有 DDL。",
+  "tour.s3.title": "3️⃣ 切换 AI 模型",
+  "tour.s3.body": "Flash 模式日常用、速度快；思考模式适合复杂题，可看 CoT 推理。",
+  "tour.s4.title": "4️⃣ 全局搜索 ⌘K",
+  "tour.s4.body": "按 ⌘K 搜任何任务 / 笔记 / 对话，点结果可跳转高亮。\n按 ? 查看全部快捷键。",
+  "tour.skip": "跳过",
+  "tour.skipTitle": "跳过引导",
+  "tour.prev": "上一步",
+  "tour.next": "下一步",
+  "tour.start": "开始使用 ✓",
 };
 
 const EN: Dict = {
@@ -251,7 +268,7 @@ const EN: Dict = {
   "prefs.font.sm": "Small",
   "prefs.font.md": "Default",
   "prefs.font.lg": "Large",
-  "prefs.language.zh": "中文",
+  "prefs.language.zh": "Chinese",
   "prefs.language.en": "English",
   "prefs.language.hint": "Switch the primary interface language. Applies instantly.",
   "prefs.footer": "All settings are stored only in your browser",
@@ -340,6 +357,23 @@ const EN: Dict = {
   "billing.invoice.amount": "Amount",
   "billing.invoice.status": "Status",
   "billing.status.paid": "Paid",
+
+  // Onboarding tour
+  "tour.s0.title": "👋 Hi, I'm Butler",
+  "tour.s0.body": "Your smart study companion. A 30-second tour of the 5 essentials.",
+  "tour.s1.title": "1️⃣ Four panels",
+  "tour.s1.body": "Chat with me · Tasks list · Calendar · Notes.\nPress ⌘N to quickly create in the current tab.",
+  "tour.s2.title": "2️⃣ Talk to me naturally",
+  "tour.s2.body": "Try \"meeting at 9am tomorrow\" — I'll create the task.\nOr drop a PDF and I'll extract every deadline.",
+  "tour.s3.title": "3️⃣ Switch AI models",
+  "tour.s3.body": "Flash is fast for daily use; Thinking mode suits hard problems and shows its reasoning.",
+  "tour.s4.title": "4️⃣ Global search ⌘K",
+  "tour.s4.body": "Press ⌘K to find any task / note / chat and jump to it.\nPress ? for all shortcuts.",
+  "tour.skip": "Skip",
+  "tour.skipTitle": "Skip tour",
+  "tour.prev": "Back",
+  "tour.next": "Next",
+  "tour.start": "Get started ✓",
 };
 
 const DICT: Record<Lang, Dict> = { zh: ZH, en: EN };
