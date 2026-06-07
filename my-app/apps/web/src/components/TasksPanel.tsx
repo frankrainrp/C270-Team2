@@ -166,6 +166,7 @@ export default function TasksPanel({
 
   return (
     <div
+      className="anti-polish ap-tasks"
       style={{
         height: "100%",
         overflow: "auto",
@@ -363,6 +364,7 @@ function TaskGroup({
         </span>
       </div>
       <div
+        className="ap-card"
         style={{
           // [085] 卡片用更深的底，配边框 + 阴影，和较亮的面板拉开层次（立体）
           background: "var(--color-bg)",
@@ -412,7 +414,7 @@ function TaskRow({
   return (
     <div
       ref={rowRef}
-      className={highlight ? "task-row-flash" : ""}
+      className={`ap-row${highlight ? " task-row-flash" : ""}`}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{

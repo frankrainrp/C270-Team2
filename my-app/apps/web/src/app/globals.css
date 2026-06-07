@@ -1,3 +1,6 @@
+/* [TEST] anti-polish 手绘字体（拉丁；中文自动回落到圆体 sans）。@import 必须在最前。 */
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Gaegu:wght@300;400;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -645,4 +648,122 @@
     main, .message-stream, aside { -webkit-overflow-scrolling: touch; }
     button, [role="button"], a { touch-action: manipulation; }
   }
+}
+
+/* ============================================================
+   [测试] Anti-Polish / Raw Aesthetic（反精致 · 原生粗粝美学）
+   ui-ux-pro-max 风格库 #40。仅作用于 .anti-polish 容器内
+   （目前 = Tasks 面板 + AI 聊天主区）；其余 UI 不受影响。
+   做法：在容器作用域内重映射设计 token（纸白底 / 墨线描边 /
+   牛皮纸棕点缀），子组件的 inline CSS 变量自动跟随；再叠加
+   纸纹、手绘抖动边框、硬投影、手写字、去平滑过渡。
+   回退：删掉容器上的 anti-polish class 即恢复玻璃态。
+   放在所有 @layer 之外 → 优先级高于分层规则，配 !important 压过 inline。
+   ============================================================ */
+.anti-polish {
+  /* —— 反精致调色板（覆盖变量，inline style 的 var() 自动吃到）—— */
+  --color-bg: #FAFAF8;            /* 纸白 */
+  --color-surface: #FFFDF6;       /* 微暖纸卡 */
+  --color-border: #1A1A1A;        /* 马克墨黑描边 */
+  --color-border-soft: #C7C0AE;   /* 铅笔淡线 */
+  --color-text: #1A1A1A;          /* 墨黑 */
+  --color-text-muted: #4A4A4A;    /* 铅笔灰 */
+  --color-text-faint: #8C8575;    /* 牛皮纸灰 */
+  --color-primary: #1A1A1A;       /* 主操作 = 墨水黑 */
+  --color-primary-hover: #000000;
+  --color-primary-soft: #EFE6D2;  /* 牛皮纸淡底 */
+  --color-accent: #C4A77D;        /* 牛皮纸棕 */
+  --color-accent-hover: #B5966A;
+  --color-accent-soft: #EFE6D2;
+  /* 圆角 → 轻微有机不规则（手画感）；卡片/气泡再单独加强抖动 */
+  --radius-sm: 8px 5px 9px 6px / 6px 9px 5px 8px;
+  --radius-md: 11px 7px 13px 8px / 8px 13px 7px 11px;
+  --radius-card: 16px 22px 18px 24px / 22px 16px 24px 18px;
+  --radius-pill: 999px;
+  /* 阴影 → 硬墨色偏移（无模糊），inline 用 var() 的会自动变 */
+  --shadow-card: 2px 2px 0 rgba(26,26,26,0.82);
+  --shadow-card-hover: 4px 4px 0 rgba(26,26,26,0.9);
+  --shadow-bubble: 3px 3px 0 rgba(26,26,26,0.85);
+  --glass-border: #1A1A1A;
+
+  font-family: 'Gaegu', 'Caveat', var(--font-body);
+  color: var(--color-text);
+  /* 纸纹：双层细点 grain（墨点 + 牛皮纸点）压在纸白底上 */
+  background-color: var(--color-bg) !important;
+  background-image:
+    radial-gradient(rgba(26,26,26,0.045) 0.6px, transparent 0.7px),
+    radial-gradient(rgba(196,167,125,0.10) 0.6px, transparent 0.7px) !important;
+  background-size: 4px 4px, 9px 9px !important;
+  background-position: 0 0, 2px 3px !important;
+}
+
+/* 反精致 = 无平滑过渡（硬切，手作感）*/
+.anti-polish * { transition: none !important; }
+
+/* 手写标题：拉丁用 Caveat（中文回落圆体）+ 牛皮纸马克笔下划 */
+.anti-polish h1,
+.anti-polish h2,
+.anti-polish .font-display {
+  font-family: 'Caveat', 'Gaegu', cursive, var(--font-display) !important;
+  letter-spacing: 0 !important;
+  font-weight: 700 !important;
+}
+.anti-polish.ap-tasks h1 { position: relative; display: inline-block; }
+.anti-polish.ap-tasks h1::after {
+  content: "";
+  position: absolute; left: -3px; right: -7px; bottom: -2px; height: 7px;
+  background: var(--color-accent);
+  opacity: 0.55;
+  border-radius: 60% 40% 55% 45% / 100% 100% 45% 60%;
+  transform: rotate(-1.2deg);
+  z-index: -1;
+}
+
+/* —— Tasks：任务组卡片 = 纸卡 + 墨线手绘框 + 硬投影 + 轻微歪斜 —— */
+.anti-polish .ap-card {
+  background: var(--color-surface) !important;
+  border: 2px solid var(--color-border) !important;
+  border-radius: 255px 14px 225px 16px / 16px 225px 14px 255px !important;
+  box-shadow: 3px 3px 0 rgba(26,26,26,0.85) !important;
+  overflow: visible !important;
+}
+.anti-polish section:nth-of-type(odd) .ap-card { transform: rotate(-0.5deg); }
+.anti-polish section:nth-of-type(even) .ap-card { transform: rotate(0.55deg); }
+/* 行分隔线改成铅笔淡线；hover 牛皮纸淡底 */
+.anti-polish .ap-row { border-bottom-color: var(--color-border-soft) !important; }
+.anti-polish .ap-row:hover { background: var(--color-primary-soft) !important; }
+
+/* —— Chat：消息气泡 = 墨线框 + 硬投影 + 手画不对称圆角 —— */
+.anti-polish .ap-bubble {
+  border: 2px solid var(--color-border) !important;
+  box-shadow: 3px 3px 0 rgba(26,26,26,0.85) !important;
+}
+.anti-polish .ap-bubble-ai {
+  background: var(--color-surface) !important;
+  border-radius: 20px 20px 20px 4px / 22px 22px 6px 22px !important;
+}
+.anti-polish .ap-bubble-user {
+  background: var(--color-primary-soft) !important;
+  border-radius: 20px 20px 4px 20px / 22px 22px 22px 6px !important;
+}
+
+/* —— 把作用域内的「玻璃」全部拍平成纸面（去模糊/去高光）—— */
+.anti-polish .glass,
+.anti-polish .glass-strong,
+.anti-polish .liquid-glass,
+.anti-polish .glass-btn,
+.anti-polish .pill-nav {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background: var(--color-surface) !important;
+  border: 2px solid var(--color-border) !important;
+  box-shadow: 2px 2px 0 rgba(26,26,26,0.82) !important;
+}
+.anti-polish .glass-btn::after,
+.anti-polish .liquid-glass::after { display: none !important; } /* 去折射高光 */
+.anti-polish .glass-btn-primary,
+.anti-polish .pill-nav-item.active {
+  background: var(--color-primary) !important;
+  color: #FAFAF8 !important;
+  border-color: var(--color-border) !important;
 }

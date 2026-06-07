@@ -119,7 +119,7 @@ function UserBubble({ msg }: { msg: ChatMessage }) {
   return (
     <div style={{ display: "flex", justifyContent: "flex-end" }}>
       <div
-        className="comic-bubble"
+        className="comic-bubble ap-bubble ap-bubble-user"
         style={{
           position: "relative",
           maxWidth: "80%",
@@ -456,7 +456,7 @@ function ButlerBubble({
   return (
     <div style={{ display: "flex", justifyContent: "flex-start" }} className="bubble-wrap">
       <div
-        className="comic-bubble"
+        className="comic-bubble ap-bubble ap-bubble-ai"
         style={{
           position: "relative",
           maxWidth: "90%",
@@ -605,6 +605,7 @@ export default function ChatCanvas(props: ChatCanvasProps) {
 
   return (
     <main
+      className="anti-polish ap-chat"
       style={{
         flex: 1,
         height: "100%",
