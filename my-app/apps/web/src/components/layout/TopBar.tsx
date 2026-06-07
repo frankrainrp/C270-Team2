@@ -155,7 +155,7 @@ export default function TopBar({
                 setDragOverId(null);
                 if (sourceId && sourceId !== id) handleDropTab(sourceId, id);
               }}
-              title="点击切换，拖拽重排"
+              title={t("topbar.tabReorder")}
               className={isActive ? "pill-nav-item active" : "pill-nav-item"}
               style={isDragOver ? { boxShadow: "inset 0 0 0 2px var(--color-primary)" } : undefined}
             >
