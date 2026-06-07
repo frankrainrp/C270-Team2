@@ -166,7 +166,7 @@ export default function TasksPanel({
 
   return (
     <div
-      className="anti-polish ap-tasks"
+      className="ap-tasks"
       style={{
         height: "100%",
         overflow: "auto",

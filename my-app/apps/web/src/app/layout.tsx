@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   icons: { icon: "/assets/logo.png", apple: "/assets/logo.png" },
 };
 
-export const viewport = { themeColor: "#D9DFE8" };
+export const viewport = { themeColor: "#FAFAF8" };
 
 export default function RootLayout({
   children,
@@ -36,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="zh-CN" className={`${inter.variable} ${cinzel.variable}`}>
+    <html lang="zh-CN" data-theme="paper" className={`${inter.variable} ${cinzel.variable}`}>
       <body>
         <ToastProvider>{children}</ToastProvider>
       </body>

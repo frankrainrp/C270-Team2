@@ -605,7 +605,7 @@ export default function ChatCanvas(props: ChatCanvasProps) {
 
   return (
     <main
-      className="anti-polish ap-chat"
+      className="ap-chat"
       style={{
         flex: 1,
         height: "100%",

@@ -85,6 +85,8 @@ const ZH: Dict = {
   "topbar.openNav": "打开侧栏",
 
   // 主题
+  "theme.paper": "纸感",
+  "theme.simple": "简单",
   "theme.light": "亮色",
   "theme.dark": "暗色",
   "theme.retro": "复古",
@@ -229,6 +231,8 @@ const EN: Dict = {
   "topbar.logout": "Log out",
   "topbar.openNav": "Open sidebar",
 
+  "theme.paper": "Paper",
+  "theme.simple": "Simple",
   "theme.light": "Light",
   "theme.dark": "Dark",
   "theme.retro": "Retro",

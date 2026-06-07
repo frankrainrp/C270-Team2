@@ -12,7 +12,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useIsMobile } from "@/lib/use-is-mobile";
 import { useT, type Lang } from "@/lib/i18n";
-import { X, Moon, Feather, Type, Heart, MessageSquare, Flame, Palette, RotateCcw, Upload, User, AlignLeft, AlignCenter, AlignRight, EyeOff, Volume2, VolumeX, Languages } from "lucide-react";
+import { X, Moon, Feather, Pencil, Type, Heart, MessageSquare, Flame, Palette, RotateCcw, Upload, User, AlignLeft, AlignCenter, AlignRight, EyeOff, Volume2, VolumeX, Languages } from "lucide-react";
 import {
   ACCENT_PRESETS,
   DEFAULT_ACCENT,
@@ -40,7 +40,7 @@ import {
   playSound,
 } from "@/lib/sound";
 
-export type Theme = "light" | "dark" | "retro";
+export type Theme = "paper" | "dark" | "retro";
 type FontSize = "sm" | "md" | "lg";
 export type Personality = "gentle" | "standard" | "sassy";
 
@@ -48,9 +48,12 @@ const THEME_KEY = "butler.theme";
 const FONT_KEY = "butler.fontSize";
 const PERSONALITY_KEY = "butler.personality";
 
-// [081] 去掉浅色/深色切换：默认深炭蓝暗色。light 一律归一到 dark；仅保留 dark / retro。
+// 默认 = 纸感（anti-polish）。dark = 原墨绿玻璃「简单」主题；retro = 复古。
+// legacy "light"/null 一律归一到 paper。
 function normalizeTheme(raw: string | null): Theme {
-  return raw === "retro" ? "retro" : "dark";
+  if (raw === "dark") return "dark";
+  if (raw === "retro") return "retro";
+  return "paper";
 }
 
 export function applyStoredPreferences() {
@@ -67,11 +70,11 @@ export function applyStoredPreferences() {
 
 /** 读当前主题（dark 默认；light 归一到 dark）*/
 export function getStoredTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "paper";
   try {
     return normalizeTheme(localStorage.getItem(THEME_KEY));
   } catch {
-    return "dark";
+    return "paper";
   }
 }
 
@@ -102,7 +105,7 @@ interface Props {
 export default function PreferencesPanel({ open, onClose }: Props) {
   const isMobile = useIsMobile();
   const { t, lang, setLang } = useT();
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>("paper");
   const [font, setFont] = useState<FontSize>("md");
   const [personality, setPersonality] = useState<Personality>("standard");
   const [accent, setAccent] = useState<string>(DEFAULT_ACCENT);
@@ -384,10 +387,11 @@ export default function PreferencesPanel({ open, onClose }: Props) {
             </p>
           </Section>
 
-          {/* 主题（已去掉浅色，仅 暗色 / 复古）*/}
+          {/* 主题：纸感(默认) / 简单(原墨绿玻璃) / 复古 */}
           <Section title={t("prefs.section.theme")}>
             <SegRow>
-              <SegBtn active={theme === "dark"} onClick={() => applyTheme("dark")} icon={<Moon size={14} />} label={t("theme.dark")} />
+              <SegBtn active={theme === "paper"} onClick={() => applyTheme("paper")} icon={<Pencil size={14} />} label={t("theme.paper")} />
+              <SegBtn active={theme === "dark"} onClick={() => applyTheme("dark")} icon={<Moon size={14} />} label={t("theme.simple")} />
               <SegBtn active={theme === "retro"} onClick={() => applyTheme("retro")} icon={<Feather size={14} />} label={t("theme.retro")} />
             </SegRow>
           </Section>
