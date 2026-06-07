@@ -175,28 +175,8 @@ function MonthView({
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <NavBtn onClick={goPrev} aria="上一月">
-              <ChevronLeft size={16} />
-            </NavBtn>
-            <button
-              onClick={goToday}
-              style={{
-                padding: "7px 14px",
-                border: "1px solid var(--color-border)",
-                background: "var(--color-bg)",
-                borderRadius: 8,
-                fontSize: 13,
-                fontWeight: 500,
-                color: "var(--color-text-muted)",
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              今天
-            </button>
-            <NavBtn onClick={goNext} aria="下一月">
-              <ChevronRight size={16} />
-            </NavBtn>
+            {/* 上一月 / 今天 / 下一月 合成一组分段控件，"今天"不再是突兀的独立深色块 */}
+            <NavCluster onPrev={goPrev} onToday={goToday} onNext={goNext} />
             {/* C2 Week View 入口 */}
             {onEnterWeek && (
               <button
@@ -856,12 +836,41 @@ function EventPill({ event, onClick }: { event: DdlItem; onClick: (e: React.Mous
   );
 }
 
-function NavBtn({
-  children, onClick, aria,
+// 分段导航控件：‹ 今天 › 合为一体，共用边框 + 细分隔线，内段透明仅 hover 提亮
+function NavCluster({
+  onPrev, onToday, onNext,
+}: {
+  onPrev: () => void;
+  onToday: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "stretch",
+        border: "1px solid var(--color-border)",
+        borderRadius: 8,
+        overflow: "hidden",
+        background: "var(--color-bg)",
+      }}
+    >
+      <SegBtn onClick={onPrev} aria="上一月"><ChevronLeft size={16} /></SegBtn>
+      <span style={{ width: 1, background: "var(--color-border)" }} aria-hidden />
+      <SegBtn onClick={onToday} aria="回到今天" wide>今天</SegBtn>
+      <span style={{ width: 1, background: "var(--color-border)" }} aria-hidden />
+      <SegBtn onClick={onNext} aria="下一月"><ChevronRight size={16} /></SegBtn>
+    </div>
+  );
+}
+
+function SegBtn({
+  children, onClick, aria, wide,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   aria: string;
+  wide?: boolean;
 }) {
   const [hov, setHov] = useState(false);
   return (
@@ -871,17 +880,21 @@ function NavBtn({
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        width: 32,
         height: 32,
-        borderRadius: 8,
-        border: "1px solid var(--color-border)",
-        background: hov ? "var(--color-surface)" : "var(--color-bg)",
+        minWidth: 32,
+        padding: wide ? "0 14px" : 0,
+        border: "none",
+        background: hov ? "var(--color-surface)" : "transparent",
         cursor: "pointer",
-        color: "var(--color-text-muted)",
-        display: "flex",
+        color: hov ? "var(--color-text)" : "var(--color-text-muted)",
+        fontSize: 13,
+        fontWeight: 500,
+        fontFamily: "inherit",
+        whiteSpace: "nowrap",
+        display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        transition: "background 0.15s",
+        transition: "background 0.15s, color 0.15s",
       }}
     >
       {children}

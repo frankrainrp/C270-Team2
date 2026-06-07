@@ -23,6 +23,15 @@
 采用与苹果系统类似的透明面板设计
 20.构思一些独属于这一类软件的设计特点
 21.元素使用，燕尾服，单框眼睛，白手套
+22.【UI 重设计】已下载开源前端风格 Skill 库 ui-ux-pro-max（内置 67 种通用前端风格，含 161 配色 / 57 字体对 / 25 图表）到 .claude/skills/ui-ux-pro-max（自包含：SKILL.md + data/scripts/templates，可在本仓库直接被 Claude 调用）。
+   待办：用该 Skill 包里的 #40「Anti-Polish / Raw Aesthetic（反精致 / 原生粗粝美学）」风格重新设计整个 UI。
+   风格要点（取自 data/styles.csv 第 59 行）：手绘 / 拼贴 / 扫描纹理 / 未完成感 / 真实人味；
+   - 配色：纸白 #FAFAF8、铅笔灰 #4A4A4A、马克黑 #1A1A1A、牛皮纸棕 #C4A77D
+   - 质感：水彩晕染、铅笔阴影、墨水飞溅、胶带纹理、做旧纸张
+   - 动效：无平滑过渡、手绘动画、纸张纹理叠加、抖动 / jitter、素描式揭示
+   - CSS 变量：--paper-bg:#FAFAF8 / --pencil-color:#4A4A4A / --marker-black:#1A1A1A / --kraft-brown:#C4A77D / --sketch-rotation:random(-3deg,3deg) / --texture-opacity:0.3
+   - 检查清单：纹理已加载 ☐ 手绘元素到位 ☐ 瑕疵是有意为之 ☐ 真实感达成 ☐ 带纹理仍保证性能 ☐ 无障碍维持
+   - 适用：创意作品集 / 艺术家站 / 独立品牌 / 手作 / 真实叙事；不适用：企业 / 金融 / 医疗 / 政务 / 精致 SaaS（注意与本应用「管家 + 精致玻璃」现状的取舍）。
 
 
 

@@ -839,13 +839,13 @@ function PromptSuggestions({ onPick, onLoadDemo }: { onPick: (prompt: string) =>
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
-          gap: 12,
+          gridTemplateColumns: "repeat(3, 1fr)", // 手机端也三栏并排，省竖向空间
+          gap: isMobile ? 8 : 12,
           alignItems: "start", // 折叠卡各自自然高度，展开某张不撑高同行其它卡
         }}
       >
         {PROMPT_GROUPS.map((g) => (
-          <PromptGroupCard key={g.id} group={g} onPick={onPick} />
+          <PromptGroupCard key={g.id} group={g} onPick={onPick} isMobile={isMobile} />
         ))}
       </div>
       {onLoadDemo && (
@@ -874,20 +874,23 @@ function PromptSuggestions({ onPick, onLoadDemo }: { onPick: (prompt: string) =>
 
 // 提示词卡：默认只显标题（点开才展开具体提示词）
 function PromptGroupCard({
-  group, onPick,
+  group, onPick, isMobile,
 }: {
   group: { id: string; title: string; icon: React.ReactNode; prompts: string[] };
   onPick: (prompt: string) => void;
+  isMobile?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [hov, setHov] = useState(false);
   return (
     <div
       style={{
+        // 手机端展开时跨满整行，避免提示词被挤进 1/3 窄列；折叠时三栏并排
+        gridColumn: isMobile && open ? "1 / -1" : undefined,
         border: `1px solid ${open ? "var(--color-primary)" : "var(--color-border)"}`,
         borderRadius: 14,
         background: "var(--color-surface)",
-        padding: open ? "12px 12px 8px" : "12px",
+        padding: open ? "12px 12px 8px" : isMobile ? "10px 8px" : "12px",
         display: "flex",
         flexDirection: "column",
         gap: 4,
@@ -901,22 +904,29 @@ function PromptGroupCard({
         onMouseLeave={() => setHov(false)}
         aria-expanded={open}
         style={{
-          display: "flex", alignItems: "center", gap: 6,
-          width: "100%", padding: "2px 4px", border: "none", background: "transparent",
+          display: "flex", alignItems: "center", gap: isMobile && !open ? 4 : 6,
+          justifyContent: isMobile && !open ? "center" : "flex-start",
+          width: "100%", padding: isMobile && !open ? "2px 0" : "2px 4px",
+          border: "none", background: "transparent",
           cursor: "pointer", fontFamily: "inherit", textAlign: "left",
         }}
       >
         {group.icon}
         <span style={{
-          flex: 1, fontSize: 12.5, fontWeight: 700,
+          flex: isMobile && !open ? "0 1 auto" : 1,
+          fontSize: 12.5, fontWeight: 700,
           color: open || hov ? "var(--color-text)" : "var(--color-text-muted)",
           transition: "color 0.12s",
+          whiteSpace: "nowrap",
         }}>{group.title}</span>
-        <ChevronDown
-          size={14}
-          color="var(--color-text-faint)"
-          style={{ transform: open ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.18s", flexShrink: 0 }}
-        />
+        {/* 折叠态手机端隐藏 chevron 省横向空间 */}
+        {!(isMobile && !open) && (
+          <ChevronDown
+            size={14}
+            color="var(--color-text-faint)"
+            style={{ transform: open ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.18s", flexShrink: 0 }}
+          />
+        )}
       </button>
 
       {/* 展开态：具体提示词 */}
