@@ -15,6 +15,7 @@ import remarkGfm from "remark-gfm";
 import type { Note, DdlItem } from "@/lib/types";
 import { EmptyNotes, EmptyFilter } from "./EmptyIllustrations";
 import { useIsMobile } from "@/lib/use-is-mobile";
+import { useT, type TFunc } from "@/lib/i18n";
 
 // ============================================================
 // [053] Notes 100%：wikilink 工具
@@ -61,6 +62,7 @@ export default function NotesPanel({
   ddls = [], selectActiveId, onJumpToTask, onAutoExtractTodos,
 }: Props) {
   const isMobile = useIsMobile();
+  const { t } = useT();
   const sorted = useMemo(() => {
     return [...notes].sort((a, b) => {
       if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
@@ -72,8 +74,8 @@ export default function NotesPanel({
   const titleToId = useMemo(() => {
     const m = new Map<string, string>();
     for (const n of notes) {
-      const t = (n.title || "").trim().toLowerCase();
-      if (t) m.set(t, n.id);
+      const key = (n.title || "").trim().toLowerCase();
+      if (key) m.set(key, n.id);
     }
     return m;
   }, [notes]);
@@ -148,7 +150,7 @@ export default function NotesPanel({
   const handleWikilinkClick = (target: string) => {
     if (target.startsWith("!missing:")) {
       const title = decodeURIComponent(target.slice(9));
-      if (!confirm(`「${title}」 不存在，是否新建？`)) return;
+      if (!confirm(t("notes.linkCreateConfirm", { title }))) return;
       const fresh = onCreate();
       // 新建后立即用该 title 更新
       onUpdate(fresh.id, { title, updatedAt: Date.now() });
@@ -199,7 +201,7 @@ export default function NotesPanel({
           <button
             onClick={handleCreate}
             aria-label="New Note"
-            title="新建笔记"
+            title={t("notes.new")}
             style={{
               width: 28, height: 28, borderRadius: 6, border: "none",
               background: "var(--color-primary)", color: "white",
@@ -223,7 +225,7 @@ export default function NotesPanel({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索笔记…"
+              placeholder={t("notes.searchPh")}
               style={{
                 flex: 1, border: "none", background: "transparent",
                 outline: "none", fontSize: 12, color: "var(--color-text)",
@@ -233,7 +235,7 @@ export default function NotesPanel({
             {query && (
               <button
                 onClick={() => setQuery("")}
-                aria-label="清除"
+                aria-label={t("notes.clear")}
                 style={{
                   width: 16, height: 16, borderRadius: 4, border: "none",
                   background: "transparent", cursor: "pointer", padding: 0,
@@ -253,8 +255,8 @@ export default function NotesPanel({
               textAlign: "center", padding: "40px 12px",
               color: "var(--color-text-faint)", fontSize: 12,
             }}>
-              没有笔记<br />
-              <span style={{ color: "var(--color-text-muted)" }}>点 + 新建</span>
+              {t("notes.emptyList")}<br />
+              <span style={{ color: "var(--color-text-muted)" }}>{t("notes.tapNew")}</span>
             </div>
           ) : filtered.length === 0 ? (
             <div style={{
@@ -262,7 +264,7 @@ export default function NotesPanel({
               color: "var(--color-text-faint)", fontSize: 12,
             }}>
               <div style={{ marginBottom: 6 }}><EmptyFilter size={80} /></div>
-              没有匹配「{query}」<br />
+              {t("notes.noMatch", { query })}<br />
               <button
                 onClick={() => setQuery("")}
                 style={{
@@ -271,7 +273,7 @@ export default function NotesPanel({
                   fontSize: 11, cursor: "pointer", fontFamily: "inherit",
                 }}
               >
-                清除筛选
+                {t("notes.clearFilter")}
               </button>
             </div>
           ) : (
@@ -298,7 +300,7 @@ export default function NotesPanel({
           }}
         >
           <Lock size={11} />
-          浏览器内 · Phase 3 接 Obsidian Vault
+          {t("notes.localHint")}
         </footer>
       </aside>
 
@@ -315,7 +317,7 @@ export default function NotesPanel({
         {isMobile && active && (
           <button
             onClick={() => setMobileShowList(true)}
-            aria-label="返回笔记列表"
+            aria-label={t("notes.backToList")}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -332,7 +334,7 @@ export default function NotesPanel({
               flexShrink: 0,
             }}
           >
-            ← 笔记列表
+            {t("notes.backList")}
           </button>
         )}
         {active ? (
@@ -343,7 +345,7 @@ export default function NotesPanel({
             onModeChange={setMode}
             onUpdate={(patch) => onUpdate(active.id, patch)}
             onDelete={() => {
-              if (confirm(`删除「${active.title || "(无标题)"}」？`)) onDelete(active.id);
+              if (confirm(t("notes.deleteConfirm", { title: active.title || t("td.note.untitled") }))) onDelete(active.id);
             }}
             linkedTasks={linkedTasks}
             onJumpToTask={onJumpToTask}
@@ -371,9 +373,10 @@ function NoteListItem({
   active: boolean;
   onClick: () => void;
 }) {
+  const { t } = useT();
   const [hov, setHov] = useState(false);
   const preview = (note.content || "").replace(/[#*`>\-_\[\]()]/g, "").trim().slice(0, 60);
-  const time = formatRelative(note.updatedAt);
+  const time = formatRelative(note.updatedAt, t);
   return (
     <div
       onClick={onClick}
@@ -397,7 +400,7 @@ function NoteListItem({
             flex: 1,
           }}
         >
-          {note.title || "(无标题)"}
+          {note.title || t("td.note.untitled")}
         </span>
       </div>
       <p
@@ -406,7 +409,7 @@ function NoteListItem({
           margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}
       >
-        {time} · {preview || "(空)"}
+        {time} · {preview || t("notes.empty")}
       </p>
     </div>
   );
@@ -433,6 +436,7 @@ function NoteEditor({
   onWikilinkClick?: (target: string) => void;
   onSelectBacklink?: (id: string) => void;
 }) {
+  const { t } = useT();
   const [title, setTitle] = useState(note.title);
   const [content, setContent] = useState(note.content);
 
@@ -486,7 +490,7 @@ function NoteEditor({
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="无标题..."
+          placeholder={t("notes.titlePh")}
           style={{
             flex: 1, border: "none", background: "transparent",
             fontSize: 18, fontWeight: 700, color: "var(--color-text)",
@@ -495,7 +499,7 @@ function NoteEditor({
         />
         <button
           onClick={() => onUpdate({ pinned: !note.pinned, updatedAt: Date.now() })}
-          title={note.pinned ? "取消置顶" : "置顶"}
+          title={note.pinned ? t("notes.unpin") : t("notes.pin")}
           aria-label="pin"
           style={iconBtnStyle(note.pinned)}
         >
@@ -503,13 +507,13 @@ function NoteEditor({
         </button>
         <button
           onClick={() => onModeChange(mode === "edit" ? "preview" : "edit")}
-          title={mode === "edit" ? "切到预览" : "切到编辑"}
+          title={mode === "edit" ? t("notes.toPreview") : t("notes.toEdit")}
           aria-label="mode"
           style={iconBtnStyle(mode === "preview")}
         >
           {mode === "edit" ? <Eye size={14} /> : <Edit3 size={14} />}
         </button>
-        <button onClick={onDelete} title="删除" aria-label="delete" style={iconBtnStyle(false, true)}>
+        <button onClick={onDelete} title={t("tasks.delete")} aria-label="delete" style={iconBtnStyle(false, true)}>
           <Trash2 size={14} />
         </button>
       </header>
@@ -530,7 +534,7 @@ function NoteEditor({
           }}
         >
           <Network size={12} color="var(--color-info)" />
-          <span style={{ marginRight: 4 }}>被 {backlinks.length} 条笔记引用:</span>
+          <span style={{ marginRight: 4 }}>{t("notes.backlinks", { n: backlinks.length })}</span>
           {backlinks.map((b) => (
             <button
               key={b.id}
@@ -547,7 +551,7 @@ function NoteEditor({
                 fontFamily: "inherit",
               }}
             >
-              {b.title || "(无标题)"}
+              {b.title || t("td.note.untitled")}
             </button>
           ))}
         </div>
@@ -569,7 +573,7 @@ function NoteEditor({
           }}
         >
           <Link2 size={12} color="var(--color-primary)" />
-          <span style={{ marginRight: 4 }}>关联任务:</span>
+          <span style={{ marginRight: 4 }}>{t("notes.linkedTasks")}</span>
           {linkedTasks.map((t) => (
             <button
               key={t.id}
@@ -597,7 +601,7 @@ function NoteEditor({
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="开始写..."
+          placeholder={t("notes.bodyPh")}
           style={{
             flex: 1, width: "100%", padding: "16px 24px",
             border: "none", outline: "none", resize: "none",
@@ -636,7 +640,7 @@ function NoteEditor({
                           padding: missing ? 0 : "0 3px",
                           borderRadius: 3,
                         }}
-                        title={missing ? "笔记不存在，点击新建" : "跳转到该笔记"}
+                        title={missing ? t("notes.linkMissing") : t("notes.linkGo")}
                       >
                         {children}
                       </a>
@@ -649,7 +653,7 @@ function NoteEditor({
               {titleToId ? preprocessWikilinks(content, titleToId) : content}
             </ReactMarkdown>
           ) : (
-            <p style={{ color: "var(--color-text-faint)" }}>（笔记为空）</p>
+            <p style={{ color: "var(--color-text-faint)" }}>{t("notes.bodyEmpty")}</p>
           )}
         </div>
       )}
@@ -741,13 +745,13 @@ function iconBtnStyle(active: boolean, danger?: boolean): React.CSSProperties {
   };
 }
 
-function formatRelative(ts: number): string {
+function formatRelative(ts: number, t: TFunc): string {
   const diff = Date.now() - ts;
   const min = Math.floor(diff / 60000);
-  if (min < 1) return "刚刚";
-  if (min < 60) return `${min} 分钟前`;
+  if (min < 1) return t("time.justNow");
+  if (min < 60) return t("time.minAgo", { n: min });
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} 小时前`;
+  if (hr < 24) return t("time.hrAgo", { n: hr });
   const d = new Date(ts);
   return `${d.getMonth() + 1}-${String(d.getDate()).padStart(2, "0")}`;
 }
