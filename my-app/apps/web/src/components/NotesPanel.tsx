@@ -178,8 +178,10 @@ export default function NotesPanel({
       <aside
         style={{
           width: isMobile ? "100%" : 280,
-          flex: isMobile ? 1 : undefined,
+          // 用 longhand 表达，避免 flex 简写与 flexShrink 混用触发 React 警告
+          flexGrow: isMobile ? 1 : 0,
           flexShrink: 0,
+          flexBasis: isMobile ? 0 : "auto",
           borderRight: isMobile ? "none" : "1px solid var(--color-border)",
           display: isMobile && !mobileShowList ? "none" : "flex",
           flexDirection: "column",

@@ -435,7 +435,9 @@ export default function CustomPanelView({ panel, onUpdate, onDelete, dataCtx }: 
             <iframe
               src={normalizeUrl(url)}
               title={panel.label}
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+              // SEC-06：去掉 allow-popups-to-escape-sandbox（真正危险：放任弹窗脱离沙箱）。
+              // 保留嵌入仪表盘所需的 scripts/same-origin/forms/popups（外部源天然与本应用跨源隔离）。
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
               referrerPolicy="no-referrer"
               style={{
                 width: "100%", height: "100%", border: "none",

@@ -15,9 +15,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { RefreshCw, Code2, Eye, AlertTriangle, Loader2, Check, X, Sparkles, ArrowUp, Users, Zap, Plug } from "lucide-react";
+import { RefreshCw, Code2, Eye, AlertTriangle, Loader2, Check, X, Sparkles, ArrowUp, Users, Zap, Plug, Wand2 } from "lucide-react";
 import { generatePanelSpec } from "@/lib/panel-generator";
 import { runResearch, type ResearchProgress } from "@/lib/research-client";
+import { creditCostOf, canAfford, spendCredits, requestCreditsWall } from "@/lib/credits";
 import DataSourceBuilder from "./DataSourceBuilder";
 import {
   type GeneratedPanelSpec,
@@ -61,6 +62,10 @@ export default function GeneratedPanelView({ spec, onChange }: Props) {
   const [research, setResearch] = useState<ResearchProgress | null>(null);
   // P4 数据源构建器（动态按需）
   const [builderOpen, setBuilderOpen] = useState(false);
+  // A1.3 改进模式：composer 的生成在「现有 spec」上修改而非从零
+  const [refineMode, setRefineMode] = useState(false);
+  // A1.3 自修复：正在修哪个源（按钮 loading）
+  const [repairingId, setRepairingId] = useState<string | null>(null);
 
   // 取单个数据源
   const loadSource = useCallback(async (source: DataSource, signal: AbortSignal) => {
@@ -115,6 +120,12 @@ export default function GeneratedPanelView({ spec, onChange }: Props) {
   const runGenerate = useCallback(async () => {
     const text = promptText.trim();
     if (!text || generating) return;
+    // P5′ 积分预检：生成 2 分 / 深度调研 10 分，不足弹 softwall（page 监听 CREDITS_WALL_EVENT）
+    const cost = creditCostOf(deepMode ? "research" : "generatePanel");
+    if (!canAfford(cost)) {
+      requestCreditsWall(cost);
+      return;
+    }
     setGenerating(true);
     setGenError(null);
     genAbortRef.current?.abort();
@@ -127,6 +138,7 @@ export default function GeneratedPanelView({ spec, onChange }: Props) {
       if (controller.signal.aborted) return;
       setGenerating(false);
       if (r.ok === true) {
+        spendCredits(cost, "research"); // 成功才扣，失败不计费
         setComposerOpen(false);
         setResearch(null);
         setEditing(false);
@@ -137,17 +149,37 @@ export default function GeneratedPanelView({ spec, onChange }: Props) {
       return;
     }
 
-    const r = await generatePanelSpec(text, controller.signal);
+    // A1.3 改进模式：带现有 spec 让 AI 增量修改
+    const r = await generatePanelSpec(text, controller.signal, refineMode ? { currentSpec: spec } : undefined);
     if (controller.signal.aborted) return;
     setGenerating(false);
     if (r.ok === true) {
+      spendCredits(cost, "generatePanel"); // 成功才扣，失败不计费
       setComposerOpen(false);
+      setRefineMode(false);
       setEditing(false);
       onChange?.(r.spec);
     } else {
       setGenError(r.error);
     }
-  }, [promptText, generating, deepMode, onChange]);
+  }, [promptText, generating, deepMode, refineMode, spec, onChange]);
+
+  // A1.3 自修复：把某数据源的报错回喂 AI 修正配置（生成面板计 2 分，成功才扣）
+  const repairSource = useCallback(async (sourceId: string, error: string) => {
+    if (repairingId) return;
+    const cost = creditCostOf("generatePanel");
+    if (!canAfford(cost)) { requestCreditsWall(cost); return; }
+    setRepairingId(sourceId);
+    const controller = new AbortController();
+    const r = await generatePanelSpec("修复数据源", controller.signal, { currentSpec: spec, fixError: error });
+    setRepairingId(null);
+    if (r.ok === true) {
+      spendCredits(cost, "generatePanel");
+      onChange?.(r.spec);
+    } else {
+      setGenError(r.error);
+    }
+  }, [repairingId, spec, onChange]);
 
   // P4：插入动态配置的数据源 + 块到当前 spec
   const handleInsertSource = useCallback((source: GeneratedPanelSpec["sources"][number], blocks: GeneratedPanelSpec["blocks"]) => {
@@ -207,6 +239,15 @@ export default function GeneratedPanelView({ spec, onChange }: Props) {
         >
           <Sparkles size={13} /> {t("gp.aiGenBtn")}
         </button>
+        {/* A1.3 改进当前面板（对话式迭代）*/}
+        <button
+          onClick={() => { setRefineMode(true); setComposerOpen(true); setGenError(null); }}
+          title={t("gp.refineTitle")}
+          aria-label={t("gp.refineTitle")}
+          style={iconBtn}
+        >
+          <Wand2 size={14} />
+        </button>
         <button
           onClick={() => setBuilderOpen(true)}
           title={t("gp.addSource")}
@@ -264,8 +305,9 @@ export default function GeneratedPanelView({ spec, onChange }: Props) {
           deepMode={deepMode}
           onToggleDeep={() => setDeepMode((v) => !v)}
           research={research}
+          refineMode={refineMode}
           onGenerate={runGenerate}
-          onClose={() => { setComposerOpen(false); setResearch(null); }}
+          onClose={() => { setComposerOpen(false); setRefineMode(false); setResearch(null); }}
         />
       )}
 
@@ -275,7 +317,7 @@ export default function GeneratedPanelView({ spec, onChange }: Props) {
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px", minHeight: 0 }}>
           <div style={{ maxWidth: 860, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14 }}>
             {spec.blocks.map((block) => (
-              <BlockCard key={block.id} block={block} states={states} />
+              <BlockCard key={block.id} block={block} states={states} onRepair={repairSource} repairingId={repairingId} />
             ))}
           </div>
         </div>
@@ -295,7 +337,12 @@ function resolveData(states: Record<string, SourceState>, sourceId?: string): un
   return r && r.ok === true ? r.data : undefined;
 }
 
-function BlockCard({ block, states }: { block: Block; states: Record<string, SourceState> }) {
+function BlockCard({ block, states, onRepair, repairingId }: {
+  block: Block;
+  states: Record<string, SourceState>;
+  onRepair?: (sourceId: string, error: string) => void;
+  repairingId?: string | null;
+}) {
   const fullWidth = (block.span ?? 2) === 2;
   const needsData = block.type !== "markdown" && block.type !== "kpiGrid";
   // 主数据源：块级 sourceId（kpiGrid 用各 metric 自己的 sourceId，不靠块级）
@@ -305,7 +352,13 @@ function BlockCard({ block, states }: { block: Block; states: Record<string, Sou
   if (needsData && state?.loading && !state.result) {
     body = <Skeleton />;
   } else if (needsData && state?.result && state.result.ok === false) {
-    body = <ErrorHint msg={state.result.error} />;
+    body = (
+      <ErrorHint
+        msg={state.result.error}
+        onRepair={block.sourceId && onRepair ? () => onRepair(block.sourceId!, state.result!.ok === false ? state.result!.error : "") : undefined}
+        repairing={repairingId === block.sourceId}
+      />
+    );
   } else {
     body = <BlockBody block={block} data={resolveData(states, block.sourceId)} states={states} />;
   }
@@ -457,7 +510,7 @@ const EXAMPLE_PROMPT_KEYS = ["gp.exQuick.1", "gp.exQuick.2", "gp.exQuick.3", "gp
 const DEEP_EXAMPLE_KEYS = ["gp.exDeep.1", "gp.exDeep.2", "gp.exDeep.3", "gp.exDeep.4"];
 
 function PanelComposer({
-  value, onChange, generating, error, deepMode, onToggleDeep, research, onGenerate, onClose,
+  value, onChange, generating, error, deepMode, onToggleDeep, research, refineMode, onGenerate, onClose,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -466,6 +519,7 @@ function PanelComposer({
   deepMode: boolean;
   onToggleDeep: () => void;
   research: ResearchProgress | null;
+  refineMode?: boolean;
   onGenerate: () => void;
   onClose: () => void;
 }) {
@@ -479,11 +533,17 @@ function PanelComposer({
         background: "color-mix(in srgb, var(--color-primary) 5%, var(--color-surface))",
       }}
     >
-      {/* 模式切换：快速生成 / 深度调研 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-        <ModePill active={!deepMode} onClick={() => deepMode && onToggleDeep()} icon={<Zap size={12} />} label={t("gp.mode.quick")} disabled={generating} />
-        <ModePill active={deepMode} onClick={() => !deepMode && onToggleDeep()} icon={<Users size={12} />} label={t("gp.mode.deep")} disabled={generating} />
-      </div>
+      {/* 改进模式提示条；否则显示 快速生成 / 深度调研 模式切换 */}
+      {refineMode ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, fontSize: 12, fontWeight: 600, color: "var(--color-primary)" }}>
+          <Wand2 size={12} /> {t("gp.refineHint")}
+        </div>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+          <ModePill active={!deepMode} onClick={() => deepMode && onToggleDeep()} icon={<Zap size={12} />} label={t("gp.mode.quick")} disabled={generating} />
+          <ModePill active={deepMode} onClick={() => !deepMode && onToggleDeep()} icon={<Users size={12} />} label={t("gp.mode.deep")} disabled={generating} />
+        </div>
+      )}
 
       <div
         style={{
@@ -499,7 +559,7 @@ function PanelComposer({
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onGenerate(); }
           }}
-          placeholder={deepMode ? t("gp.ph.deep") : t("gp.ph.quick")}
+          placeholder={refineMode ? t("gp.ph.refine") : deepMode ? t("gp.ph.deep") : t("gp.ph.quick")}
           rows={2}
           disabled={generating}
           style={{
@@ -708,11 +768,30 @@ function Skeleton() {
     </div>
   );
 }
-function ErrorHint({ msg }: { msg: string }) {
+function ErrorHint({ msg, onRepair, repairing }: { msg: string; onRepair?: () => void; repairing?: boolean }) {
+  const { t } = useT();
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 14px", borderRadius: 10, background: "var(--color-danger-soft)", color: "var(--color-danger)", fontSize: 12, lineHeight: 1.45 }}>
-      <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-      <span style={{ minWidth: 0, wordBreak: "break-word" }}>{msg}</span>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "12px 14px", borderRadius: 10, background: "var(--color-danger-soft)", color: "var(--color-danger)", fontSize: 12, lineHeight: 1.45 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+        <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+        <span style={{ minWidth: 0, wordBreak: "break-word" }}>{msg}</span>
+      </div>
+      {onRepair && (
+        <button
+          onClick={onRepair}
+          disabled={repairing}
+          style={{
+            alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 5,
+            padding: "5px 10px", borderRadius: 7, cursor: repairing ? "default" : "pointer",
+            border: "1px solid currentColor", background: "transparent", color: "inherit",
+            fontSize: 11.5, fontWeight: 600, fontFamily: "inherit", opacity: repairing ? 0.6 : 1,
+          }}
+        >
+          {repairing
+            ? <><Loader2 size={12} style={{ animation: "spin 0.8s linear infinite" }} /> {t("gp.repairing")}</>
+            : <><Wand2 size={12} /> {t("gp.repair")}</>}
+        </button>
+      )}
     </div>
   );
 }

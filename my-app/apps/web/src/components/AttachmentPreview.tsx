@@ -189,9 +189,13 @@ function BlobView({ info }: { info: { url: string; mime: string; name: string } 
   }
   if (isPdf) {
     return (
+      // SEC-15：上传文件是不可信内容（可能是伪装成 .pdf 的 HTML）。沙箱化 —— 不给
+      // allow-same-origin / allow-scripts，即使是 HTML 也不会在应用源里执行脚本；
+      // 浏览器原生 PDF 查看器在此沙箱下仍可正常渲染。
       <iframe
         src={info.url}
         title={info.name}
+        sandbox=""
         style={{ width: "100%", height: "70vh", border: "none", background: "var(--color-surface)" }}
       />
     );

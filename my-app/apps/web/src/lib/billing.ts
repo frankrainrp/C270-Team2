@@ -106,6 +106,10 @@ export interface Invoice {
   cycle: BillingCycle;
   amount: number;
   status: "paid";
+  /** 账单类型：订阅（默认）/ 积分加油包 */
+  kind?: "plan" | "pack";
+  /** kind=pack：包含的积分数 */
+  credits?: number;
 }
 
 const SUB_KEY = "butler.subscription";
