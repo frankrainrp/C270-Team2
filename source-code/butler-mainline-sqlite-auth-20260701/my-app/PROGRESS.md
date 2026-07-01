@@ -7,7 +7,6 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
-| [098] | 清理冗余文件 + 独立源码快照归档 | 停止本地 dev 进程后清理外部 helper/security runtime 目录、旧 dev 日志、Next/Turbo 缓存和测试 SQLite 数据库文件；保留 `.env.local` 与依赖目录。新增 `source-code/butler-mainline-sqlite-auth-20260701/`，用 `git archive` 从提交 `b8ac80d` 导出完整 `my-app/` 源码快照，并写入 `SOURCE_VERSION_NOTES.md` 记录分支、提交、运行方式、SQLite 登录边界、排除项和验证命令。 |
 | [097] | 登录改为 SQLite database auth + paper 登录界面 | 按新要求移除 Clerk/Google 登录路径，改为 Butler 自有 email/password 数据库登录；新增 SQLite `users` / `sessions` 临时账号库、`/api/auth/login|signup|me|logout`、httpOnly session cookie、PBKDF2 密码哈希、登录限流。登录页改用内置 paper UI token，保留英文默认和中文切换。Docker Compose 增加 `butler-sqlite` volume，`.gitignore` / `.dockerignore` 排除本地 SQLite 文件，setup/README 更新 SQLite 登录说明。 |
 | [096] | 后续开发主线整理：登录入口 + 英文默认 + UI 计划清账 | 新建后续开发分支 `codex/butler-mainline`。`layout.tsx` 可选接入 ClerkProvider（有 `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` 才启用），新增 `AuthGate` 登录入口与 `/sso-callback`，支持 Clerk Google OAuth；未配置 Clerk 时只给本地演示入口，不冒充正式登录。默认语言从中文切到英文，中文保留为次选；登录页和偏好设置都可切换 EN/中文。TopBar 用户信息改读登录上下文。更新 `.env.local.example` / setup / UI redesign 计划状态。边界：不把 Paddle/Neon/真实商业账本做成“假完成”，仅保证可部署认证入口和应用功能可运行；英文残留已审计记录，仍需继续清硬编码中文提示。 |
 | [095] | 安全总收尾：限流 + 错误脱敏 + 安全响应头 + 法务草案（无后端项全清零） | `api-guard` 加 `rateLimit`/`rateLimited`（进程内令牌桶，按 IP）+ `safeError`（错误脱敏）→ 8 个 API 路由全接限流（SEC-05），AI 生成类 catch 改 safeError（SEC-11）。`next.config.js headers()` 全站安全响应头：CSP（frame-ancestors none 防点击劫持 + object/base/form 收口）+ X-Frame-Options DENY + nosniff + Referrer/Permissions-Policy + HSTS(prod)（SEC-16）。`Doc/legal/` 三份草案：服务条款/隐私政策/退款政策（SEC-07）。**真机验证**：重启 dev 头部正确下发、应用零 CSP 违规零报错；连打连接器 20 次后触发 429（限流生效）。SECURITY.md 加 §7 上线 Runbook（剩 SEC-03/04/10 必须 Clerk/Neon/Paddle 账号）。tsc EXIT=0 |
@@ -83,36 +82,6 @@
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
 > **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 30 条 [056]-[085] 是近期进度，其余条目（[022]-[055]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
-
----
-
-## [098] 2026-07-01 — 清理冗余文件 + 独立源码快照归档
-
-> 用户要求：删除不需要的沉余文件；单独分出一个文件夹专门存放这个版本的完整源代码；版本上需要有足够详细的备注；把这项任务记到 progress。
-
-### 清理范围
-- 停止占用 `127.0.0.1:3000` 的本地 dev 进程，避免删除运行时文件时被锁定。
-- 删除根目录下不属于 Butler 主应用交付源码的外部辅助目录与脚本：`.agents/`、`.hacker-bob/`、`mcp/`、`audit-i18n.cjs`、根目录未跟踪 `README.md`。
-- 删除旧 dev 日志：`dev-server*.log`、`web-dev*.log`。
-- 删除本地运行产物：`my-app/.turbo/`、`my-app/apps/web/.next/`、`my-app/apps/web/data/`、`my-app/apps/web/tsconfig.tsbuildinfo`。
-
-### 保留边界
-- 保留 `.env.local`，因为它是本机开发配置/密钥文件，不进入 Git，也不应被清理脚本误删。
-- 保留 `node_modules/`，因为它不是源码归档的一部分，但保留它能让本机继续快速运行项目。
-- 不把已有未提交的 `my-app/apps/web/src/app/globals.css` 样式改动混入本次清理提交；该文件属于后续 UI 调整线。
-
-### 源码快照
-- 新增目录：`source-code/butler-mainline-sqlite-auth-20260701/`。
-- 快照来源：`git archive HEAD my-app`。
-- 固定提交：`b8ac80defe480a67f9f5f1b3566e914441782d02`。
-- 快照内容：完整 `my-app/` 应用源码、工作区配置、Docker/Compose、文档、脚本和锁文件。
-- 快照排除：`.git/`、`node_modules/`、`.next/`、`.turbo/`、`.env.local`、SQLite 运行数据库、旧日志和外部 helper/security-agent 目录。
-- 备注文件：`source-code/butler-mainline-sqlite-auth-20260701/SOURCE_VERSION_NOTES.md`，记录分支、提交、运行命令、验证命令、SQLite 登录实现边界和部署边界。
-
-### 状态
-- 该快照用于保留“SQLite database auth + paper 登录界面”之后的后续开发主线版本。
-- 本轮只整理源码与运行产物边界，不改变应用业务逻辑。
-- 验证：`@smart-hub/web` 包 TypeScript 检查通过；源码快照目录内 `node scripts/ci-validate.mjs` 与 `node --test scripts/*.test.mjs` 通过。本机 `my-app/apps/web/.env.local` 保留在工作区，未进入源码快照。
 
 ---
 
