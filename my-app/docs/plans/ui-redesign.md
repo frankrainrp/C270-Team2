@@ -4,6 +4,8 @@
 > 留作历史参考，理解为什么当前 UI 是这套设计语言。
 >
 > 📦 从原 `my-app/UI-REDESIGN-PLAN.md` 迁移到此（PROGRESS [027]）。
+>
+> 2026-07-01 状态清账：旧 checklist 已按真实落地情况更新。后续开发主线为 `codex/butler-mainline`；本文件不再作为开放待办入口。
 
 ---
 
@@ -228,65 +230,65 @@
 
 ---
 
-## 5. 分阶段实施
+## 5. 分阶段实施状态（2026-07-01 更新）
 
-### Stage A — 全局 layout 框架 + 设计 token（~1 天）
+### Stage A — 全局 layout 框架 + 设计 token（已完成）
 
 **Deliverable**：4 个页面都能进，整体外观切换完成，内容尚未深度重做。
 
-- [ ] `globals.css` 新增 token 变量；删除 `.bg-grid` / `.glass-btn` / `.fx-layer` / `.deco-layered-btn`（保留备份注释）
-- [ ] 删除 `components/ui/GlassButton.tsx` / `components/ui/DecoLayered.tsx`（或重命名为 `.legacy.tsx`）
-- [ ] 新建 `components/layout/TopBar.tsx`（56px，左 Logo 字标 + Tab + 右搜索 + 用户）
-- [ ] 新建 `components/layout/LeftRail.tsx`（200px，children 由各 Tab 注入）
-- [ ] 改造 `app/page.tsx` 顶层结构：`<TopBar /> + <LeftRail> + <main> + <RightDrawer?>`
-- [ ] 删除 `Sidebar.tsx` 68px 设计（或归档为 `Sidebar.legacy.tsx`）
-- [ ] 删除 `SessionListPanel.tsx`（Recent Chats 改放 LeftRail）
+- [x] `globals.css` 新增 token 变量；旧玻璃/网格/紫色 legacy 已清理，后续又演进为 paper / simple / retro 三主题。
+- [x] 删除旧 `components/ui/GlassButton.tsx` / `components/ui/DecoLayered.tsx` 引用；当前保留的是新 `components/ui/Glass.tsx` / `Portal.tsx`。
+- [x] 新建 `components/layout/TopBar.tsx`（Logo 字标 + Tab + 搜索 + 用户菜单）。
+- [x] 新建 `components/layout/LeftRail.tsx`（各 Tab 注入二级导航）。
+- [x] 改造 `app/page.tsx` 顶层结构：`<TopBar /> + <LeftRail> + <main> + <RightDrawer?>`，移动端另有 `MobileTabBar`。
+- [x] 删除旧 `Sidebar.tsx` 68px 设计。
+- [x] 删除旧 `SessionListPanel.tsx`，Recent Chats 改为 `ChatRail`。
 
-### Stage B — Chat 页（~1 天）
+### Stage B — Chat 页（已完成，部分实现调整）
 
 **Deliverable**：聊天页符合 chat.png 视觉。
 
-- [ ] LeftRail 内嵌：`+ New Chat` + Recent Chats 列表（沿用 [016] 的 sessions 数据）
-- [ ] ChatCanvas 欢迎屏：标题改 "Good morning, Feng." + 时间感问候；**4 张** QuickCard（拆 + 1：上传课件 / 添加日程 / 拆解任务 / 总结进度）
-- [ ] 消息流：去除头像气泡、用户消息淡灰底卡 + 右对齐 / AI 消息无底 + 左对齐 + 头像
-- [ ] Pipeline 消息：从 `DecoLayered` 改为白底细边框卡 + 实色 ✓/✕ 状态图标
-- [ ] InputPod：改为白底 + 细边框、去掉玻璃 blur；发送按钮改墨绿圆形
+- [x] LeftRail 内嵌：`+ New Chat` + Recent Chats 列表（`ChatRail`）。
+- [x] ChatCanvas 欢迎屏已重做为本地问候 + TodayHero + 提示词卡；不是原计划 4 张 QuickCard，而是后续交互版本。
+- [x] 消息流完成漫画/工具型布局，AI/用户消息区分明确。
+- [x] Pipeline 消息从旧装饰板改为独立状态组件。
+- [x] InputPod 完成新视觉与模型/额度/附件能力整合。
 
-### Stage C — Tasks 页（~1.5 天）
+### Stage C — Tasks 页（已完成）
 
 **Deliverable**：Tasks 页符合 task.png 视觉与基础交互。
 
-- [ ] Dexie v3→v4：加 `status` + `tags?` + `priority?` 字段；自动迁移旧数据
-- [ ] LeftRail 内嵌：Views（Active / Upcoming / All / Done）+ 标签云
-- [ ] 主区：表格风格列表（任务名 / 标签 chips / 优先级 / 截止日期 / 完成状态），按 status 分组
-- [ ] 顶部 sub-toolbar：Board / List 切换（先只做 List）/ Sort by 下拉 / 「+ New Task」按钮（墨绿）
-- [ ] 右侧详情抽屉：替换原 Modal —— 选中行时滑入；含 Description / Notes / Subtasks 区（暂留空标签）/ Attachments
-- [ ] 顶部右上的 ICS 订阅 / 导入导出按钮移到这里
+- [x] Dexie v3→v4：加 `status` + `tags?` + `priority?` 字段；自动迁移旧数据。
+- [x] LeftRail 内嵌 Views（Active / In Progress / Upcoming / All / Completed）；标签统计在 Tasks 顶部聚合。
+- [x] 主区列表显示任务名 / 标签 chips / 优先级 / 截止日期 / 完成状态，并支持视图过滤。
+- [x] 顶部工具条保留 List 主模式，含 New Task / 周期任务 / ICS / 导入导出。
+- [x] `TaskDetailDrawer` 替换原 Modal，含说明 / 备注 / 附件 / 关联笔记等字段。
+- [x] ICS 订阅 / 导入导出已保留在 Tasks 工具条中，位置与原计划略有调整。
 
-### Stage D — Calendar 页（~1.5-2 天）
+### Stage D — Calendar 页（已完成，Week 已在后续版本补齐）
 
 **Deliverable**：Calendar 页符合 calender.png 视觉 + 至少日/月切换。
 
-- [ ] LeftRail 内嵌：迷你月历组件（自实现，无外部依赖） + Calendars 分类 + `+ New Event`
-- [ ] 主区视图切换：Day / Week / Month 三态
+- [x] LeftRail 内嵌迷你月历与 `+ New Event`。
+- [x] 主区已支持 Month / Day，后续 [042]/[043] 补了 Week 与拖拽创建/改时间。
   - Month：复用现有 CalendarPanel 月视图、视觉重做
-  - Day：新建 `DayTimeline.tsx`，按小时纵向排布事件
-  - Week：先不做（标 "Coming soon"）
-- [ ] 右侧 widgets 区：
-  - Upcoming Events（取 ddls 中下 7 天）
-  - Tasks（取未完成 ddls 前 5）
-  - Focus Timer（**仅 UI，不接逻辑**——做成静态 120 分钟展示，等用户后续要再接计时）
+  - Day：按小时纵向排布事件
+  - Week：已在后续 Calendar C1-C4 中落地
+- [x] 右侧 widgets 区已落地并后续调整：
+  - Upcoming Events（取 ddls 中未来事件）
+  - Tasks（取未完成 ddls）
+  - Focus Timer 最终调整为全局 Mini Apps Drawer，不再放 Calendar 右侧
 
-### Stage E — Notes 占位重做 + 收尾（~0.5 天）
+### Stage E — Notes 占位重做 + 收尾（已完成，Notes 后续已真实化）
 
 **Deliverable**：notes.png 风格的「Coming soon」页 + 全局打磨。
 
-- [ ] NotesPanel 重做：背景 / 字体 / 排版用新 token；保留 Phase 3 标签
-- [ ] LeftRail 显示「目录树（Coming soon）」灰色占位
-- [ ] 顶部全局搜索框接基础功能（搜任务名 + 笔记标题 placeholder）
-- [ ] 用户区下拉菜单（右上）：账号 / 账单 / 退出
-- [ ] 检查 4 个页面字号 / 间距 / 圆角一致性
-- [ ] 写 `PROGRESS.md [017]`
+- [x] NotesPanel 重做：背景 / 字体 / 排版用新 token；后续已从占位页演进为浏览器版真实 Notes。
+- [x] LeftRail 显示 Notes 列表/入口，Phase 3 Vault 仍为后续桌面壳事项。
+- [x] 顶部全局搜索已接任务 / 笔记 / 对话。
+- [x] 用户区下拉菜单已有偏好设置 / 成就 / 账单 / 升级入口；2026-07-01 起登录用户信息从 AuthGate/Clerk 读取。
+- [x] 4 个页面字号 / 间距 / 圆角一致性已多轮打磨并通过后续走查。
+- [x] `PROGRESS.md` 已记录 [017]-[026]，后续继续记录到 [096]。
 
 ---
 

@@ -7,6 +7,7 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [096] | 后续开发主线整理：登录入口 + 英文默认 + UI 计划清账 | 新建后续开发分支 `codex/butler-mainline`。`layout.tsx` 可选接入 ClerkProvider（有 `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` 才启用），新增 `AuthGate` 登录入口与 `/sso-callback`，支持 Clerk Google OAuth；未配置 Clerk 时只给本地演示入口，不冒充正式登录。默认语言从中文切到英文，中文保留为次选；登录页和偏好设置都可切换 EN/中文。TopBar 用户信息改读登录上下文。更新 `.env.local.example` / setup / UI redesign 计划状态。边界：不把 Paddle/Neon/真实商业账本做成“假完成”，仅保证可部署认证入口和应用功能可运行；英文残留已审计记录，仍需继续清硬编码中文提示。 |
 | [095] | 安全总收尾：限流 + 错误脱敏 + 安全响应头 + 法务草案（无后端项全清零） | `api-guard` 加 `rateLimit`/`rateLimited`（进程内令牌桶，按 IP）+ `safeError`（错误脱敏）→ 8 个 API 路由全接限流（SEC-05），AI 生成类 catch 改 safeError（SEC-11）。`next.config.js headers()` 全站安全响应头：CSP（frame-ancestors none 防点击劫持 + object/base/form 收口）+ X-Frame-Options DENY + nosniff + Referrer/Permissions-Policy + HSTS(prod)（SEC-16）。`Doc/legal/` 三份草案：服务条款/隐私政策/退款政策（SEC-07）。**真机验证**：重启 dev 头部正确下发、应用零 CSP 违规零报错；连打连接器 20 次后触发 429（限流生效）。SECURITY.md 加 §7 上线 Runbook（剩 SEC-03/04/10 必须 Clerk/Neon/Paddle 账号）。tsc EXIT=0 |
 | [094] | 安全收尾：SSRF DNS 预解析闭环 + OCR 类型白名单（无后端可修项清零） | SEC-02：connector-core 加 `dnsResolvesToBlocked`——请求前 `dns.lookup(all)` 解析域名所有 IP，任一落私网/本机/元数据即 403，闭掉「公网域名解析到内网」的 DNS-SSRF。**实测**：`localtest.me`(→127.0.0.1) 被拦、127.0.0.1/169.254.169.254 直连 403、真实 CoinGecko 正常通。SEC-09：OCR 路由加 MIME/扩展名白名单（仅图片/PDF，挡任意二进制转发上游），返回 415。SECURITY.md 同步：无后端可修项全闭环（SEC-01/02/06/09/12/13/15 ✅、SEC-14 缓解），剩余全是卡 Clerk/Neon/Paddle 的结构性项。tsc EXIT=0 + 真机验证 |
 | [093] | 安全加固第二轮：输入限额 / 注入防护 / 沙箱 / spec 上限（不信任用户输入） | 用户「默认不信任任何用户输入，除显式写代码处」。新建 `lib/api-guard.ts`（clampText/clampMessages + INPUT_LIMITS）→ 7 个 AI 路由全部接入输入硬上限（SEC-12 成本放大）。`panel-schema.SPEC_LIMITS` sources≤20/blocks≤50/transforms≤15（SEC-13 DoS）。chat/generate-panel/extract-ddls 系统提示加最高优先级**反 prompt 注入**段 + A1.4 探测样本截断标注不可信（SEC-14，ConfirmCard 兜底）。AttachmentPreview PDF iframe `sandbox=""`（SEC-15 上传 HTML 伪装 XSS）。CustomPanelView iframe 去 `allow-popups-to-escape-sandbox`（SEC-06）。SECURITY.md 同步 SEC-06/09/12-15。tsc EXIT=0、零新增 console 错误 |
@@ -80,6 +81,43 @@
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
 > **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 30 条 [056]-[085] 是近期进度，其余条目（[022]-[055]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [096] 2026-07-01 — 后续开发主线整理：登录入口 + 英文默认 + UI 计划清账
+
+> 用户要求：把过时的 UI redesign 待办更新掉；把当前状态另存为后续开发主线分支；不要做成完整商业化可用版本，只保证服务器部署、用户登录、软件功能正常运行；英文作为主语言，中文作为次选；增加简洁风格登录页；所有改动写文档。
+
+### 分支定位
+- 新建分支：`codex/butler-mainline`，作为后续开发主线整理分支。
+- 不把 `.agents` / `.hacker-bob` / `mcp` 这类旁支目录纳入本轮目标；主线聚焦 `my-app`、部署文件和项目文档。
+
+### 登录入口
+- `apps/web/src/app/layout.tsx`：有 `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` 时才包 `ClerkProvider`；未配置时主应用仍可本地演示，不因缺 Clerk key 崩。
+- `apps/web/src/components/AuthGate.tsx`：新增主入口登录门。配置 Clerk 时显示标准 Google OAuth 登录按钮；未配置 Clerk 时显示清楚的“本地演示”入口。
+- `apps/web/src/app/sso-callback/page.tsx`：新增 Clerk OAuth 回调页，配合 `signIn.authenticateWithRedirect({ strategy:"oauth_google" })`；未配置 Clerk 时显示部署提示页，避免无 key 环境 production build 预渲染失败。
+- `TopBar` 用户资料从 `AuthGate` 上下文读取：Clerk 登录后显示真实用户名/邮箱/头像；本地演示显示 local demo。
+
+### 语言与 UI
+- `lib/i18n.ts` 默认语言改为英文；`localStorage` 只有显式 `zh` 才使用中文。
+- `PreferencesPanel` 语言切换顺序改为 English / Chinese。
+- 登录页使用现有“简单”暗色风格：深色极简面板、单主 CTA、Google 标准白按钮、保留语言切换。
+- UI redesign 计划文档从“旧待办清单”更新为真实完成状态/调整状态，避免机器统计误判为 0%。
+
+### 部署边界
+- `.env.local.example` 和 `docs/setup.md` 补 Clerk / Google OAuth 配置项。
+- 本轮不落地 Neon 服务端账本、Paddle webhook、真实支付、Redis 共享限流；这些仍属于上线商业化硬前提。
+- 目标是“可部署 + 可登录 + 主功能可运行”，不是完整商业 SaaS。
+
+### 英文残留审计
+- 主语言默认已切英文，核心导航、设置、登录、账单/定价等已有 EN 字典。
+- 仍有中文残留：`page.tsx` 内部分 toast/工具状态/AI 自动标题 prompt、`ai-models.ts` 模型描述、`api-guard.ts` 错误文案、若干 provider 描述。后续需要逐步迁入 i18n 或改为英文默认。
+
+### 验证
+- `corepack pnpm exec tsc --noEmit`（`apps/web`）：通过。
+- `corepack pnpm build`（`my-app`）：通过；`/sso-callback` 在无 Clerk key 环境也可预渲染。
+- `corepack pnpm test` / `corepack pnpm ci:validate`：本机失败，原因是当前工作区存在 `apps/web/.env.local`。该文件被 `.gitignore` 忽略，不应进入 GitHub 或最终提交包；在 clean/staged package 中删除本地密钥文件后再跑提交包校验。
+- `rg "[\x{4e00}-\x{9fff}]" apps/web/src -g "*.ts" -g "*.tsx"`：仍有 94 个 TS/TSX 文件命中中文字符，包含注释、toast、AI prompt、工具回执和部分业务文案。结论：英文默认入口已完成，但全应用硬编码文案迁移尚未彻底完成。
 
 ---
 
@@ -3480,4 +3518,3 @@ const APPS: MiniApp[] = [
 - 按月索引：[docs/progress/INDEX.md](docs/progress/INDEX.md)
 
 > 接班 AI 只需 Read PROGRESS 第一条（offset=0, limit=100）即可获取当前状态;旧条目按需 Glob/Grep 关键字定位。
-

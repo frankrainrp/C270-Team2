@@ -3,6 +3,7 @@
 // 全局根布局 — 挂载 Google Fonts 与全局样式
 // ============================================================
 import type { Metadata } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
 import { Inter, Cinzel } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/Toast";
@@ -22,23 +23,26 @@ const cinzel = Cinzel({
 });
 
 export const metadata: Metadata = {
-  title: "Butler — 智能多模态学习管家",
-  description: "AI-powered multimodal learning hub — 让学习更智能、更高效。",
+  title: "Butler — AI Study Workspace",
+  description: "AI-powered multimodal learning workspace for tasks, calendar, notes, and study panels.",
   manifest: "/manifest.webmanifest",
   icons: { icon: "/assets/logo.png", apple: "/assets/logo.png" },
 };
 
 export const viewport = { themeColor: "#FAFAF8" };
 
+const clerkConfigured = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const app = <ToastProvider>{children}</ToastProvider>;
   return (
-    <html lang="zh-CN" data-theme="paper" className={`${inter.variable} ${cinzel.variable}`}>
+    <html lang="en" data-theme="paper" className={`${inter.variable} ${cinzel.variable}`}>
       <body>
-        <ToastProvider>{children}</ToastProvider>
+        {clerkConfigured ? <ClerkProvider>{app}</ClerkProvider> : app}
       </body>
     </html>
   );

@@ -5,6 +5,7 @@
 // ============================================================
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import AuthGate from "@/components/AuthGate";
 import TopBar from "@/components/layout/TopBar";
 import LeftRail from "@/components/layout/LeftRail";
 import MiniAppsDrawer from "@/components/MiniAppsDrawer";
@@ -93,6 +94,14 @@ import type { RecurringTask } from "@/lib/types";
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 
 export default function HomePage() {
+  return (
+    <AuthGate>
+      <ButlerApp />
+    </AuthGate>
+  );
+}
+
+function ButlerApp() {
   const toast = useToast();
   const { t } = useT();
   const [activeNav, setActiveNav] = useState<NavId>("chat");

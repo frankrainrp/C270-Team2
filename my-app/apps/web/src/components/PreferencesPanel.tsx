@@ -379,8 +379,8 @@ export default function PreferencesPanel({ open, onClose }: Props) {
           {/* [072] 语言（中英主语言切换）*/}
           <Section title={t("prefs.section.language")}>
             <SegRow>
-              <SegBtn active={lang === "zh"} onClick={() => setLang("zh")} icon={<Languages size={14} />} label={t("prefs.language.zh")} />
               <SegBtn active={lang === "en"} onClick={() => setLang("en")} icon={<Languages size={14} />} label={t("prefs.language.en")} />
+              <SegBtn active={lang === "zh"} onClick={() => setLang("zh")} icon={<Languages size={14} />} label={t("prefs.language.zh")} />
             </SegRow>
             <p style={{ fontSize: 11, color: "var(--color-text-faint)", marginTop: 6, lineHeight: 1.5 }}>
               {t("prefs.language.hint")}

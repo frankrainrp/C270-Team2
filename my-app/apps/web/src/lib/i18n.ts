@@ -21,11 +21,11 @@ export const LANG_KEY = "butler.lang";
 export const LANG_EVENT = "butler:lang-change";
 
 export function getStoredLang(): Lang {
-  if (typeof window === "undefined") return "zh";
+  if (typeof window === "undefined") return "en";
   try {
-    return localStorage.getItem(LANG_KEY) === "en" ? "en" : "zh";
+    return localStorage.getItem(LANG_KEY) === "zh" ? "zh" : "en";
   } catch {
-    return "zh";
+    return "en";
   }
 }
 
@@ -41,7 +41,7 @@ export function setStoredLang(lang: Lang) {
   window.dispatchEvent(new CustomEvent(LANG_EVENT));
 }
 
-/** 启动注入：把 <html lang> 同步成存储值（layout 默认 zh-CN，英文用户需校正）*/
+/** 启动注入：把 <html lang> 同步成存储值（layout 默认 en，中文用户需校正）*/
 export function applyStoredLang() {
   if (typeof document === "undefined") return;
   document.documentElement.lang = getStoredLang() === "en" ? "en" : "zh-CN";
@@ -63,6 +63,20 @@ const ZH: Dict = {
   "common.comingSoon": "敬请期待",
   "common.month": "月",
   "common.year": "年",
+
+  // 登录入口
+  "auth.language": "语言",
+  "auth.eyebrow": "AI 学习工作区",
+  "auth.title": "登录 Butler",
+  "auth.subtitle": "进入你的任务、日历、笔记和 AI 面板工作区。",
+  "auth.google": "使用 Google 继续",
+  "auth.localDemo": "进入本地演示",
+  "auth.configNeeded": "Clerk 尚未配置。填入 Clerk 环境变量并在 Clerk 后台启用 Google OAuth 后，这里会变成真实 Google 登录。",
+  "auth.configHint": "本地演示只用于开发预览，不是正式用户登录。",
+  "auth.clerkHint": "由 Clerk 托管认证流程。Google OAuth 需在 Clerk Dashboard 启用。",
+  "auth.benefit.workspace": "一个入口管理学习任务、日历、笔记和面板",
+  "auth.benefit.private": "登录后再进入主应用，避免匿名使用平台能力",
+  "auth.benefit.deploy": "面向服务器部署的标准认证入口",
 
   // 导航
   "nav.chat": "对话",
@@ -817,6 +831,20 @@ const EN: Dict = {
   "common.month": "month",
   "common.year": "year",
 
+  // Auth gate
+  "auth.language": "Language",
+  "auth.eyebrow": "AI study workspace",
+  "auth.title": "Sign in to Butler",
+  "auth.subtitle": "Open your task, calendar, notes, and AI panel workspace.",
+  "auth.google": "Continue with Google",
+  "auth.localDemo": "Enter local demo",
+  "auth.configNeeded": "Clerk is not configured yet. Add the Clerk environment variables and enable Google OAuth in Clerk Dashboard to turn this into real Google sign-in.",
+  "auth.configHint": "Local demo is only for development preview, not production user login.",
+  "auth.clerkHint": "Authentication is handled by Clerk. Google OAuth must be enabled in Clerk Dashboard.",
+  "auth.benefit.workspace": "One workspace for tasks, calendar, notes, and panels",
+  "auth.benefit.private": "The main app opens after sign-in",
+  "auth.benefit.deploy": "Standard auth entry for server deployment",
+
   "nav.chat": "Chat",
   "nav.tasks": "Tasks",
   "nav.calendar": "Calendar",
@@ -1567,7 +1595,7 @@ export type TFunc = (key: string, params?: Record<string, string | number>) => s
 
 /** 组件内：返回 t() + 当前 lang + setLang，语言变化时自动重渲 */
 export function useT(): { t: TFunc; lang: Lang; setLang: (l: Lang) => void } {
-  const [lang, setLangState] = useState<Lang>("zh");
+  const [lang, setLangState] = useState<Lang>("en");
   useEffect(() => {
     setLangState(getStoredLang());
     const onChange = () => setLangState(getStoredLang());
