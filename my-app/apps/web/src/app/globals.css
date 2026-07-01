@@ -113,10 +113,10 @@
     --color-text-muted: #93A5A2;
     --color-text-faint: #61736F;
     /* 更深的纯色底（青墨深炭）+ 面板更亮一档拉开层次 */
-    --color-bg: #121A1A;
-    --color-surface: #1E2B2A;
-    --color-border: #324140;
-    --color-border-soft: #28302F;
+    --color-bg: #0A0A0B;
+    --color-surface: #18191B;
+    --color-border: #2A2C2F;
+    --color-border-soft: #202225;
 
     --glass-bg: rgba(30, 43, 42, 0.62);
     --glass-bg-strong: rgba(34, 47, 46, 0.78);
@@ -140,12 +140,12 @@
     --color-warning-soft: #2E2305;
     --color-danger-soft: #2E0F0D;
 
-    /* 纯色底（去网格/光团）+ 极淡圆点花纹 */
+    /* 简单风格：纯黑底 + 极简圆点网纹 */
     --grid-line: transparent;
     --bg-grid: none;
     --bg-glow: none;
-    --bg-halftone: radial-gradient(circle at center, rgba(255, 255, 255, 0.022) 1px, transparent 1.5px);
-    --bg-halftone-size: 22px 22px;
+    --bg-halftone: radial-gradient(circle at center, rgba(255, 255, 255, 0.045) 1px, transparent 1.4px);
+    --bg-halftone-size: 26px 26px;
 
     --glass-highlight: inset 1px 1px 0 rgba(255, 255, 255, 0.1),
       inset -1px -1px 0 rgba(0, 0, 0, 0.3);
@@ -177,10 +177,10 @@
     --color-text-muted: #6A5E48;
     --color-text-faint: #9C8E72;
     /* ---- Surfaces（羊皮纸）---- */
-    --color-bg: #ECE3CF;
-    --color-surface: #F6EEDC;
-    --color-border: #C9B894;
-    --color-border-soft: #DCD0B4;
+    --color-bg: #F3EEE0;          /* 微微米色（比旧羊皮纸更浅更柔）*/
+    --color-surface: #F8F3E6;
+    --color-border: #D8CBAB;
+    --color-border-soft: #E6DCC4;
 
     /* ---- 玻璃面板：复古纸面（不透明、暖白、轻投影）---- */
     --glass-bg: rgba(246, 238, 220, 0.92);
@@ -218,13 +218,12 @@
     /* 纸纹 + 半调网点底（无素材也有复古质感）*/
     --grid-line: transparent;
     --bg-grid: none;
+    /* 简易图案：极淡 45° 暖色刻线（版画纸感）*/
     --bg-glow:
-      radial-gradient(60% 50% at 12% 6%, rgba(176, 141, 87, 0.10), transparent 60%),
-      radial-gradient(55% 45% at 92% 4%, rgba(45, 74, 62, 0.08), transparent 58%),
-      repeating-linear-gradient(0deg, rgba(58, 46, 24, 0.02) 0 1px, transparent 1px 3px);
-    /* 半调网点（独立平铺层，size 见 body 规则）*/
-    --bg-halftone: radial-gradient(circle, rgba(58, 46, 24, 0.11) 0.8px, transparent 1.1px);
-    --bg-halftone-size: 7px 7px;
+      repeating-linear-gradient(45deg, rgba(120, 95, 55, 0.035) 0 1px, transparent 1px 11px);
+    /* 半调网点（暖棕，微微可见）*/
+    --bg-halftone: radial-gradient(circle, rgba(120, 95, 55, 0.07) 0.9px, transparent 1.2px);
+    --bg-halftone-size: 9px 9px;
 
     --glass-highlight: inset 1px 1px 0 rgba(255, 255, 255, 0.55),
       inset -1px -1px 0 rgba(58, 46, 24, 0.06);
@@ -675,8 +674,8 @@ html[data-theme="paper"] {
   --color-text: #1A1A1A;           /* 墨黑 */
   --color-text-muted: #4A4A4A;     /* 铅笔灰 */
   --color-text-faint: #8C8575;     /* 牛皮纸灰 */
-  --color-bg: #FAFAF8;             /* 纸白 */
-  --color-surface: #FFFDF6;        /* 微暖纸卡 */
+  --color-bg: #FFFFFF;             /* 纯白纸感 */
+  --color-surface: #FCFCFC;        /* 微灰纸卡（与纯白拉开层次）*/
   --color-border: #1A1A1A;         /* 马克墨黑描边 */
   --color-border-soft: #C7C0AE;    /* 铅笔淡线 */
 
@@ -714,12 +713,12 @@ html[data-theme="paper"] {
   --font-display: 'Caveat', 'Gaegu', "PingFang SC", "Microsoft YaHei", "Noto Sans SC", cursive, sans-serif;
   --font-body: 'Gaegu', 'Caveat', "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
 
-  /* —— 纸纹点底（html 背景，全局）—— */
+  /* —— 纸纹点底（html 背景，全局）：纯白 + 极简墨点网纹 —— */
   --grid-line: transparent;
   --bg-grid: none;
   --bg-glow: none;
-  --bg-halftone: radial-gradient(rgba(26,26,26,0.05) 0.6px, transparent 0.7px);
-  --bg-halftone-size: 5px 5px;
+  --bg-halftone: radial-gradient(circle, rgba(26,26,26,0.045) 1px, transparent 1.4px);
+  --bg-halftone-size: 24px 24px;
 }
 
 /* 反精致 = 无平滑过渡（硬切，手作感）*/
