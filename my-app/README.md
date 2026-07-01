@@ -13,12 +13,12 @@ security scanning, and monitoring.
 
 | Member | App feature ownership | DevOps ownership | Contribution |
 | --- | --- | --- | --- |
-| Feng Kaiduo | Core architecture, AI chat, integration | CI/CD and integration lead | 26% |
+| Feng Kaiduo | Core architecture, AI chat, integration | CI/CD and integration lead | 25% |
 | Yu Fei | Tasks and recurring task workflows | Docker containerisation | 15% |
 | Ei Htet Htet Tun | Calendar and schedule planning | Deployment workflow | 15% |
 | Hein Thu Nyi Nyi (June) | Notes and study content workflows | Ansible / IaC | 15% |
 | Sherlyn | Quality checks and user validation | Testing and security gate | 15% |
-| Khen | AI panel / data-source workflows | Monitoring and documentation | 14% |
+| Khen | AI panel / data-source workflows | Monitoring and documentation | 15% |
 
 The contribution table must match the final GitHub commit and PR history before
 uploading to LMS.
