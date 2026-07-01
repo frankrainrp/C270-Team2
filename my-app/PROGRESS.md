@@ -106,6 +106,7 @@
 
 ### 部署边界
 - `.env.local.example` 和 `docs/setup.md` 补 Clerk / Google OAuth 配置项。
+- 部署主线文件纳入当前分支：`Dockerfile`、`.dockerignore`、`docker-compose.yml`、`.github/workflows/ci.yml`、`ansible/`、`scripts/`、`README.md`、`docs/C270_FINAL_REPORT.md`、`/api/health`。CI 触发分支覆盖 `master/main/dev/feature/**/codex/**/ui/**`，Ansible 默认拉取 `https://github.com/frankrainrp/Bulter.git` 的 `codex/butler-mainline`。
 - 本轮不落地 Neon 服务端账本、Paddle webhook、真实支付、Redis 共享限流；这些仍属于上线商业化硬前提。
 - 目标是“可部署 + 可登录 + 主功能可运行”，不是完整商业 SaaS。
 

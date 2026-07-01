@@ -1,0 +1,14 @@
+.git
+.github
+.turbo
+node_modules
+**/node_modules
+apps/web/.next
+**/.next
+dist
+coverage
+*.log
+.env
+.env.*
+!apps/web/.env.local.example
+*.tsbuildinfo
