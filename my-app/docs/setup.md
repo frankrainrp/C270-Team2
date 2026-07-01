@@ -30,9 +30,8 @@ DEEPSEEK_API_KEY=sk-...
 DEEPSEEK_BASE_URL=https://api.deepseek.com/v1    # 可省
 DEEPSEEK_MODEL=deepseek-v4-flash                 # 已不再读，仅备查；模型由前端 selectedModel 决定
 
-# Clerk 登录（部署时必填；本地没填会进入 local demo 登录入口）
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
-CLERK_SECRET_KEY=sk_...
+# Database login（临时 SQLite 账号库）
+BUTLER_SQLITE_PATH=                         # 可选；默认 apps/web/data/butler.sqlite
 
 # Mistral OCR（可选，用于扫描件 PDF + 图片课件识别）
 MISTRAL_API_KEY=                                  # 申请：https://console.mistral.ai
@@ -40,12 +39,12 @@ MISTRAL_BASE_URL=https://api.mistral.ai/v1
 OCR_PROVIDER=mistral                              # mistral / deepseek-vl(占位) / tesseract(占位)
 ```
 
-### Clerk / Google 登录
+### Database / SQLite 登录
 
-- 本地未配置 Clerk 时，首页显示 local demo 登录入口，便于继续开发和验证功能。
-- 部署环境需要填 `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` 和 `CLERK_SECRET_KEY`。
-- 在 Clerk Dashboard 启用 Google OAuth；OAuth 回调页是 `/sso-callback`。
-- 当前登录门只负责进入应用；Neon 服务端用户数据、Paddle 付费、Redis 共享限流仍是上线商业化前置项。
+- 当前登录门使用 email/password，并把用户与 session 写入 SQLite。
+- 默认数据库路径是 `apps/web/data/butler.sqlite`；可用 `BUTLER_SQLITE_PATH` 改到其它位置。
+- Docker Compose 默认使用 `/app/data/butler.sqlite`，并通过 named volume `butler-sqlite` 持久化。
+- 这是临时开发用账号库；正式上线前仍应迁移到受管数据库、补完整账号策略和共享限流。
 
 ---
 

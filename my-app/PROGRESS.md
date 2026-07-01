@@ -7,6 +7,7 @@
 
 | # | 标题 | 主要产出 |
 |---|---|---|
+| [097] | 登录改为 SQLite database auth + paper 登录界面 | 按新要求移除 Clerk/Google 登录路径，改为 Butler 自有 email/password 数据库登录；新增 SQLite `users` / `sessions` 临时账号库、`/api/auth/login|signup|me|logout`、httpOnly session cookie、PBKDF2 密码哈希、登录限流。登录页改用内置 paper UI token，保留英文默认和中文切换。Docker Compose 增加 `butler-sqlite` volume，`.gitignore` / `.dockerignore` 排除本地 SQLite 文件，setup/README 更新 SQLite 登录说明。 |
 | [096] | 后续开发主线整理：登录入口 + 英文默认 + UI 计划清账 | 新建后续开发分支 `codex/butler-mainline`。`layout.tsx` 可选接入 ClerkProvider（有 `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` 才启用），新增 `AuthGate` 登录入口与 `/sso-callback`，支持 Clerk Google OAuth；未配置 Clerk 时只给本地演示入口，不冒充正式登录。默认语言从中文切到英文，中文保留为次选；登录页和偏好设置都可切换 EN/中文。TopBar 用户信息改读登录上下文。更新 `.env.local.example` / setup / UI redesign 计划状态。边界：不把 Paddle/Neon/真实商业账本做成“假完成”，仅保证可部署认证入口和应用功能可运行；英文残留已审计记录，仍需继续清硬编码中文提示。 |
 | [095] | 安全总收尾：限流 + 错误脱敏 + 安全响应头 + 法务草案（无后端项全清零） | `api-guard` 加 `rateLimit`/`rateLimited`（进程内令牌桶，按 IP）+ `safeError`（错误脱敏）→ 8 个 API 路由全接限流（SEC-05），AI 生成类 catch 改 safeError（SEC-11）。`next.config.js headers()` 全站安全响应头：CSP（frame-ancestors none 防点击劫持 + object/base/form 收口）+ X-Frame-Options DENY + nosniff + Referrer/Permissions-Policy + HSTS(prod)（SEC-16）。`Doc/legal/` 三份草案：服务条款/隐私政策/退款政策（SEC-07）。**真机验证**：重启 dev 头部正确下发、应用零 CSP 违规零报错；连打连接器 20 次后触发 429（限流生效）。SECURITY.md 加 §7 上线 Runbook（剩 SEC-03/04/10 必须 Clerk/Neon/Paddle 账号）。tsc EXIT=0 |
 | [094] | 安全收尾：SSRF DNS 预解析闭环 + OCR 类型白名单（无后端可修项清零） | SEC-02：connector-core 加 `dnsResolvesToBlocked`——请求前 `dns.lookup(all)` 解析域名所有 IP，任一落私网/本机/元数据即 403，闭掉「公网域名解析到内网」的 DNS-SSRF。**实测**：`localtest.me`(→127.0.0.1) 被拦、127.0.0.1/169.254.169.254 直连 403、真实 CoinGecko 正常通。SEC-09：OCR 路由加 MIME/扩展名白名单（仅图片/PDF，挡任意二进制转发上游），返回 415。SECURITY.md 同步：无后端可修项全闭环（SEC-01/02/06/09/12/13/15 ✅、SEC-14 缓解），剩余全是卡 Clerk/Neon/Paddle 的结构性项。tsc EXIT=0 + 真机验证 |
@@ -81,6 +82,31 @@
 | [001]-[021] | Phase 1 完成 + Phase 2 早期 | 见 [docs/progress/2026-05.md](docs/progress/2026-05.md) |
 
 > **接班 AI 提示**: 只看「最新一条」推算下一步即可。最近 30 条 [056]-[085] 是近期进度，其余条目（[022]-[055]）仍在本文件，[022]-[026] + [001]-[021] 已归档到 docs/progress/。
+
+---
+
+## [097] 2026-07-01 — 登录改为 SQLite database auth + paper 登录界面
+
+> 用户要求：登录不要再走 Google/Clerk；先用 database 登录即可，数据库暂时用 SQLite；登录界面采用项目内置 paper UI。
+
+### 登录与账号库
+- 移除 `@clerk/nextjs` 依赖、`ClerkProvider` 根包装和 `/sso-callback` OAuth 回调页。
+- 新增 `apps/web/src/lib/server-auth.ts`：本地 SQLite 初始化 `users` / `sessions` 表；密码用 PBKDF2-SHA256 + per-user salt；session 用 httpOnly cookie `butler_session`。
+- 新增 API：`/api/auth/signup`、`/api/auth/login`、`/api/auth/me`、`/api/auth/logout`。登录/注册路由接入现有进程内限流。
+
+### UI
+- `AuthGate` 改为 database auth gate：启动先查 `/api/auth/me`，未登录显示 paper 风格登录/注册表单，登录成功后把数据库用户信息提供给 TopBar。
+- 登录页不再显示 Google 按钮或 local demo；使用项目 `paper` 主题 token、可切换 English/中文，布局参考“左侧品牌说明 + 右侧表单”，但不照搬 Cisco 商业视觉。
+
+### 部署与文件保护
+- 新增 `better-sqlite3` / `@types/better-sqlite3`，Next external package 配置包含 `better-sqlite3`。
+- 默认本地数据库：`apps/web/data/butler.sqlite`；可用 `BUTLER_SQLITE_PATH` 覆盖。
+- Docker Compose 设置 `BUTLER_SQLITE_PATH=/app/data/butler.sqlite` 并增加 `butler-sqlite` named volume；Dockerfile 创建可写 `/app/data`。
+- `.gitignore` / `.dockerignore` 排除 SQLite 数据库文件，防止本地账号库进入 Git 或镜像上下文。
+- `.env.local.example`、`docs/setup.md`、`README.md` 更新为 SQLite 登录说明。
+
+### 边界
+- 这是临时 database 登录，不是完整生产账号系统；正式上线仍需要受管数据库、密码重置、邮箱验证、审计日志和共享限流。
 
 ---
 

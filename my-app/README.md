@@ -34,6 +34,10 @@ pnpm dev
 
 Open `http://localhost:3000`.
 
+The login screen uses the built-in Butler database auth flow. In development,
+accounts are stored in `apps/web/data/butler.sqlite` unless
+`BUTLER_SQLITE_PATH` points somewhere else.
+
 ## CI Validation
 
 ```bash
@@ -57,6 +61,9 @@ Open `http://localhost:3000`, then verify health:
 ```bash
 curl http://localhost:3000/api/health
 ```
+
+Docker Compose stores the temporary SQLite auth database in the
+`butler-sqlite` named volume.
 
 ## C270 DevOps Artefacts
 

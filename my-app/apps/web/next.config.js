@@ -36,7 +36,7 @@ const securityHeaders = [
 
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ["openai"],
+    serverComponentsExternalPackages: ["openai", "better-sqlite3"],
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

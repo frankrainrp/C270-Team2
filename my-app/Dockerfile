@@ -30,6 +30,7 @@ RUN addgroup --system --gid 1001 nodejs \
 
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 COPY --from=builder /app ./
+RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
 
 USER nextjs
 EXPOSE 3000

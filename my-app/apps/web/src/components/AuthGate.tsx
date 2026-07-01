@@ -1,25 +1,29 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Loader2, LockKeyhole, Server } from "lucide-react";
-import { SignedIn, SignedOut, useClerk, useSignIn, useUser } from "@clerk/nextjs";
+import { BookOpen, CheckCircle2, Database, Languages, Loader2, LockKeyhole, Mail, UserRound } from "lucide-react";
 import { useT } from "@/lib/i18n";
 
 export type AuthProfile = {
   name: string;
   email: string;
   imageUrl?: string;
-  mode: "clerk" | "local-demo";
+  mode: "database";
   signOut?: () => void;
 };
 
-const LOCAL_DEMO_KEY = "butler.localDemoAuth";
-const clerkConfigured = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+type ApiUser = {
+  id: string;
+  email: string;
+  name: string;
+};
+
+type AuthMode = "login" | "signup";
 
 const AuthProfileContext = createContext<AuthProfile>({
   name: "Student",
   email: "student@example.com",
-  mode: "local-demo",
+  mode: "database",
 });
 
 export function useAuthProfile() {
@@ -27,324 +31,615 @@ export function useAuthProfile() {
 }
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
-  const [localDemo, setLocalDemo] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [user, setUser] = useState<ApiUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (clerkConfigured) return;
-    try {
-      setLocalDemo(localStorage.getItem(LOCAL_DEMO_KEY) === "1");
-    } catch {
-      setLocalDemo(false);
-    }
+    setMounted(true);
   }, []);
 
-  if (!clerkConfigured) {
-    if (localDemo) {
-      return (
-        <AuthProfileContext.Provider
-          value={{
-            name: "Local demo",
-            email: "local-demo@butler.dev",
-            mode: "local-demo",
-            signOut: () => {
-              try {
-                localStorage.removeItem(LOCAL_DEMO_KEY);
-              } catch {
-                /* silent */
-              }
-              setLocalDemo(false);
-            },
-          }}
-        >
-          {children}
-        </AuthProfileContext.Provider>
-      );
-    }
-    return (
-      <LoginScreen
-        configured={false}
-        onLocalDemo={() => {
-          try {
-            localStorage.setItem(LOCAL_DEMO_KEY, "1");
-          } catch {
-            /* silent */
-          }
-          setLocalDemo(true);
-        }}
-      />
-    );
+  useEffect(() => {
+    if (!mounted) return;
+    let alive = true;
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then(async (res) => {
+        if (!alive) return;
+        const data = await res.json();
+        setUser(data.user ?? null);
+      })
+      .catch(() => {
+        if (alive) setUser(null);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [mounted]);
+
+  const profile = useMemo<AuthProfile | null>(() => {
+    if (!user) return null;
+    return {
+      name: user.name,
+      email: user.email,
+      mode: "database",
+      signOut: async () => {
+        await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
+        setUser(null);
+      },
+    };
+  }, [user]);
+
+  if (!mounted || loading) return <AuthLoadingScreen />;
+
+  if (!profile) {
+    return <DatabaseLoginScreen onAuthenticated={setUser} />;
   }
 
+  return <AuthProfileContext.Provider value={profile}>{children}</AuthProfileContext.Provider>;
+}
+
+function AuthLoadingScreen() {
+  const { t } = useT();
   return (
-    <>
-      <SignedIn>
-        <ClerkProfileProvider>{children}</ClerkProfileProvider>
-      </SignedIn>
-      <SignedOut>
-        <ClerkLoginScreen />
-      </SignedOut>
-    </>
-  );
-}
-
-function ClerkProfileProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useUser();
-  const { signOut } = useClerk();
-  const value = useMemo<AuthProfile>(() => {
-    const email = user?.primaryEmailAddress?.emailAddress ?? "";
-    return {
-      name: user?.fullName ?? user?.firstName ?? email.split("@")[0] ?? "Student",
-      email: email || "Signed in",
-      imageUrl: user?.imageUrl,
-      mode: "clerk",
-      signOut: () => void signOut(),
-    };
-  }, [signOut, user]);
-
-  return <AuthProfileContext.Provider value={value}>{children}</AuthProfileContext.Provider>;
-}
-
-function ClerkLoginScreen() {
-  const { signIn, isLoaded } = useSignIn();
-  const [error, setError] = useState<string | null>(null);
-
-  const handleGoogle = async () => {
-    if (!isLoaded || !signIn) return;
-    setError(null);
-    try {
-      await signIn.authenticateWithRedirect({
-        strategy: "oauth_google",
-        redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/",
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Google sign-in failed.");
-    }
-  };
-
-  return <LoginScreen configured onGoogle={handleGoogle} googleLoading={!isLoaded} error={error} />;
-}
-
-function LoginScreen({
-  configured,
-  googleLoading,
-  error,
-  onGoogle,
-  onLocalDemo,
-}: {
-  configured: boolean;
-  googleLoading?: boolean;
-  error?: string | null;
-  onGoogle?: () => void;
-  onLocalDemo?: () => void;
-}) {
-  const { t, lang, setLang } = useT();
-
-  return (
-    <main
-      style={{
-        minHeight: "100dvh",
-        background: "#0A0A0B",
-        color: "#EAF3F1",
-        display: "grid",
-        placeItems: "center",
-        padding: 24,
-        fontFamily: "var(--font-body)",
-      }}
-    >
-      <section
-        aria-label={t("auth.title")}
-        style={{
-          width: "min(440px, 100%)",
-          border: "1px solid #2A2C2F",
-          background: "#18191B",
-          borderRadius: 12,
-          padding: "28px 24px",
-          boxShadow: "0 18px 70px rgba(0,0,0,0.42)",
-        }}
-      >
-        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 26 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span
-              aria-hidden="true"
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                display: "inline-block",
-                background: "url('/assets/logo.png') center / contain no-repeat",
-                filter: "invert(1) brightness(1.2)",
-              }}
-            />
-            <strong style={{ fontSize: 18, letterSpacing: 0, fontWeight: 700 }}>Butler</strong>
-          </div>
-          <div
-            aria-label={t("auth.language")}
-            style={{
-              display: "inline-flex",
-              border: "1px solid #2A2C2F",
-              borderRadius: 999,
-              padding: 3,
-              background: "#101112",
-            }}
-          >
-            <LangButton active={lang === "en"} label="EN" onClick={() => setLang("en")} />
-            <LangButton active={lang === "zh"} label="中文" onClick={() => setLang("zh")} />
-          </div>
-        </header>
-
-        <div style={{ marginBottom: 24 }}>
-          <p style={{ margin: "0 0 8px", color: "#93A5A2", fontSize: 13, fontWeight: 600 }}>{t("auth.eyebrow")}</p>
-          <h1 style={{ margin: 0, fontSize: 32, lineHeight: 1.08, letterSpacing: 0, fontWeight: 750 }}>
-            {t("auth.title")}
-          </h1>
-          <p style={{ margin: "12px 0 0", color: "#A8B8B5", lineHeight: 1.55, fontSize: 15 }}>
-            {t("auth.subtitle")}
-          </p>
-        </div>
-
-        <div style={{ display: "grid", gap: 10, marginBottom: 24 }}>
-          <Benefit icon={<CheckCircle2 size={16} />} label={t("auth.benefit.workspace")} />
-          <Benefit icon={<LockKeyhole size={16} />} label={t("auth.benefit.private")} />
-          <Benefit icon={<Server size={16} />} label={t("auth.benefit.deploy")} />
-        </div>
-
-        {configured ? (
-          <button
-            type="button"
-            onClick={onGoogle}
-            disabled={googleLoading}
-            style={{
-              width: "100%",
-              height: 48,
-              borderRadius: 8,
-              border: "1px solid #DADCE0",
-              background: "#FFFFFF",
-              color: "#202124",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 12,
-              fontSize: 15,
-              fontWeight: 650,
-              cursor: googleLoading ? "wait" : "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            {googleLoading ? <Loader2 size={17} className="auth-spin" /> : <GoogleMark />}
-            {t("auth.google")}
-          </button>
-        ) : (
-          <>
-            <div
-              role="status"
-              style={{
-                border: "1px solid #3B3D40",
-                background: "#101112",
-                borderRadius: 8,
-                padding: 12,
-                color: "#B5C5C2",
-                fontSize: 13,
-                lineHeight: 1.5,
-                marginBottom: 12,
-              }}
-            >
-              {t("auth.configNeeded")}
-            </div>
-            <button
-              type="button"
-              onClick={onLocalDemo}
-              style={{
-                width: "100%",
-                height: 48,
-                borderRadius: 8,
-                border: "1px solid #4A86A4",
-                background: "#3E7591",
-                color: "#FFFFFF",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 10,
-                fontSize: 15,
-                fontWeight: 700,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              {t("auth.localDemo")}
-            </button>
-          </>
-        )}
-
-        {error && (
-          <p role="alert" style={{ margin: "12px 0 0", color: "#FF8A80", fontSize: 13, lineHeight: 1.45 }}>
-            {error}
-          </p>
-        )}
-
-        <p style={{ margin: "16px 0 0", color: "#6F807C", fontSize: 12, lineHeight: 1.5 }}>
-          {configured ? t("auth.clerkHint") : t("auth.configHint")}
-        </p>
-      </section>
-
-      <style>{`
-        @keyframes auth-spin { to { transform: rotate(360deg); } }
-        .auth-spin { animation: auth-spin 0.8s linear infinite; }
-      `}</style>
+    <main className="auth-paper-shell auth-paper-loading" aria-busy="true">
+      <Loader2 size={22} className="auth-spin" />
+      <span>{t("auth.loading")}</span>
+      <AuthStyles />
     </main>
   );
 }
 
-function LangButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+function DatabaseLoginScreen({ onAuthenticated }: { onAuthenticated: (user: ApiUser) => void }) {
+  const { t, lang, setLang } = useT();
+  const [mode, setMode] = useState<AuthMode>("login");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const isSignup = mode === "signup";
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch(isSignup ? "/api/auth/signup" : "/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.user) {
+        setError(typeof data.error === "string" ? data.error : t("auth.errorGeneric"));
+        return;
+      }
+      onAuthenticated(data.user);
+    } catch {
+      setError(t("auth.errorGeneric"));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        minWidth: 42,
-        height: 28,
-        borderRadius: 999,
-        border: "none",
-        background: active ? "#EAF3F1" : "transparent",
-        color: active ? "#0A0A0B" : "#A8B8B5",
-        fontSize: 12,
-        fontWeight: 700,
-        cursor: "pointer",
-        fontFamily: "inherit",
-      }}
-    >
-      {label}
-    </button>
+    <main className="auth-paper-shell">
+      <section className="auth-paper-hero" aria-label="Butler">
+        <div className="auth-paper-brand">
+          <span className="auth-paper-logo" aria-hidden="true" />
+          <div>
+            <strong>Butler</strong>
+            <span>{t("auth.eyebrow")}</span>
+          </div>
+        </div>
+        <div className="auth-paper-copy">
+          <p>{t("auth.paperKicker")}</p>
+          <h1>{t("auth.paperTitle")}</h1>
+          <p>{t("auth.paperSubtitle")}</p>
+        </div>
+        <div className="auth-paper-benefits" aria-label={t("auth.benefits")}>
+          <Benefit icon={<BookOpen size={17} />} label={t("auth.benefit.workspace")} />
+          <Benefit icon={<Database size={17} />} label={t("auth.benefit.database")} />
+          <Benefit icon={<LockKeyhole size={17} />} label={t("auth.benefit.private")} />
+        </div>
+      </section>
+
+      <section className="auth-paper-panel" aria-label={isSignup ? t("auth.signupTitle") : t("auth.title")}>
+        <div className="auth-lang-row">
+          <button type="button" className="auth-lang-button" onClick={() => setLang(lang === "en" ? "zh" : "en")}>
+            <Languages size={16} />
+            {lang === "en" ? "English" : "中文"}
+          </button>
+        </div>
+
+        <div className="auth-form-head">
+          <p>{isSignup ? t("auth.signupEyebrow") : t("auth.loginEyebrow")}</p>
+          <h2>{isSignup ? t("auth.signupTitle") : t("auth.title")}</h2>
+          <span>{isSignup ? t("auth.signupSubtitle") : t("auth.subtitle")}</span>
+        </div>
+
+        <form className="auth-form" onSubmit={handleSubmit}>
+          {isSignup && (
+            <Field
+              icon={<UserRound size={17} />}
+              label={t("auth.name")}
+              value={name}
+              onChange={setName}
+              autoComplete="name"
+            />
+          )}
+          <Field
+            icon={<Mail size={17} />}
+            label={t("auth.email")}
+            type="email"
+            value={email}
+            onChange={setEmail}
+            autoComplete="email"
+            required
+          />
+          <Field
+            icon={<LockKeyhole size={17} />}
+            label={t("auth.password")}
+            type="password"
+            value={password}
+            onChange={setPassword}
+            autoComplete={isSignup ? "new-password" : "current-password"}
+            minLength={isSignup ? 8 : 6}
+            required
+          />
+
+          {error && (
+            <p className="auth-error" role="alert">
+              {error}
+            </p>
+          )}
+
+          <button type="submit" className="auth-submit" disabled={submitting}>
+            {submitting && <Loader2 size={17} className="auth-spin" />}
+            {isSignup ? t("auth.signupCta") : t("auth.loginCta")}
+          </button>
+        </form>
+
+        <div className="auth-switch">
+          <span>{isSignup ? t("auth.hasAccount") : t("auth.noAccount")}</span>
+          <button
+            type="button"
+            onClick={() => {
+              setMode(isSignup ? "login" : "signup");
+              setError(null);
+            }}
+          >
+            {isSignup ? t("auth.switchLogin") : t("auth.switchSignup")}
+          </button>
+        </div>
+
+        <p className="auth-note">{t("auth.databaseHint")}</p>
+      </section>
+      <AuthStyles />
+    </main>
+  );
+}
+
+function Field({
+  icon,
+  label,
+  value,
+  onChange,
+  type = "text",
+  autoComplete,
+  minLength,
+  required,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  autoComplete?: string;
+  minLength?: number;
+  required?: boolean;
+}) {
+  const id = `auth-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  return (
+    <label className="auth-field" htmlFor={id}>
+      <span>{label}</span>
+      <div className="auth-input-wrap">
+        {icon}
+        <input
+          id={id}
+          type={type}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          autoComplete={autoComplete}
+          minLength={minLength}
+          required={required}
+        />
+      </div>
+    </label>
   );
 }
 
 function Benefit({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#C8D6D3", fontSize: 14 }}>
-      <span style={{ color: "#5FD6CE", width: 18, display: "inline-flex" }}>{icon}</span>
-      <span>{label}</span>
+    <div className="auth-benefit">
+      <span>{icon}</span>
+      <p>{label}</p>
     </div>
   );
 }
 
-function GoogleMark() {
+function AuthStyles() {
   return (
-    <span
-      aria-hidden="true"
-      style={{
-        width: 20,
-        height: 20,
-        borderRadius: "50%",
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontWeight: 800,
-        fontSize: 15,
-        color: "#4285F4",
-        background: "#fff",
-      }}
-    >
-      G
-    </span>
+    <style suppressHydrationWarning>{`
+      .auth-paper-shell {
+        min-height: 100dvh;
+        display: grid;
+        grid-template-columns: minmax(360px, 0.92fr) minmax(360px, 1fr);
+        background:
+          var(--bg-glow),
+          var(--bg-grid),
+          var(--color-bg);
+        color: var(--color-text);
+        font-family: var(--font-body);
+      }
+
+      .auth-paper-loading {
+        grid-template-columns: 1fr;
+        place-items: center;
+        align-content: center;
+        gap: 10px;
+        color: var(--color-text-muted);
+      }
+
+      .auth-paper-hero {
+        position: relative;
+        min-height: 100dvh;
+        padding: clamp(32px, 6vw, 78px);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        overflow: hidden;
+        border-right: 1px solid var(--color-border);
+      }
+
+      .auth-paper-hero::before {
+        content: "";
+        position: absolute;
+        inset: 28px;
+        border: 1px solid color-mix(in srgb, var(--color-primary) 24%, transparent);
+        border-radius: var(--radius-card);
+        pointer-events: none;
+      }
+
+      .auth-paper-hero::after {
+        content: "";
+        position: absolute;
+        width: 300px;
+        height: 300px;
+        right: -80px;
+        bottom: -100px;
+        border-radius: 50%;
+        background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+        filter: blur(8px);
+        pointer-events: none;
+      }
+
+      .auth-paper-brand,
+      .auth-paper-copy,
+      .auth-paper-benefits {
+        position: relative;
+        z-index: 1;
+      }
+
+      .auth-paper-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .auth-paper-logo {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        background: url('/assets/logo.png') center / contain no-repeat;
+        box-shadow: var(--shadow-card);
+      }
+
+      .auth-paper-brand strong {
+        display: block;
+        font-family: var(--font-display);
+        font-size: 18px;
+        letter-spacing: 0;
+      }
+
+      .auth-paper-brand span {
+        display: block;
+        margin-top: 2px;
+        color: var(--color-text-muted);
+        font-size: 13px;
+      }
+
+      .auth-paper-copy {
+        max-width: 580px;
+        margin: auto 0;
+      }
+
+      .auth-paper-copy p:first-child {
+        margin: 0 0 14px;
+        color: var(--color-primary);
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .auth-paper-copy h1 {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: clamp(42px, 6vw, 74px);
+        line-height: 0.98;
+        letter-spacing: 0;
+        font-weight: 600;
+      }
+
+      .auth-paper-copy p:last-child {
+        margin: 22px 0 0;
+        max-width: 520px;
+        color: var(--color-text-muted);
+        font-size: 18px;
+        line-height: 1.62;
+      }
+
+      .auth-paper-benefits {
+        display: grid;
+        gap: 10px;
+        max-width: 540px;
+      }
+
+      .auth-benefit {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--color-text-muted);
+        font-size: 14px;
+      }
+
+      .auth-benefit span {
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--color-primary);
+        background: var(--color-primary-soft);
+        flex: 0 0 auto;
+      }
+
+      .auth-benefit p {
+        margin: 0;
+      }
+
+      .auth-paper-panel {
+        min-height: 100dvh;
+        padding: clamp(24px, 6vw, 86px);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        background: color-mix(in srgb, var(--color-surface) 74%, transparent);
+      }
+
+      .auth-lang-row {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: clamp(28px, 7vh, 76px);
+      }
+
+      .auth-lang-button {
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-pill);
+        background: var(--glass-bg-strong);
+        color: var(--color-text-muted);
+        cursor: pointer;
+        font: inherit;
+        font-size: 13px;
+      }
+
+      .auth-form-head {
+        max-width: 520px;
+      }
+
+      .auth-form-head p {
+        margin: 0 0 10px;
+        color: var(--color-primary);
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .auth-form-head h2 {
+        margin: 0;
+        font-size: clamp(32px, 4vw, 44px);
+        line-height: 1.05;
+        letter-spacing: 0;
+        font-weight: 700;
+      }
+
+      .auth-form-head span {
+        display: block;
+        margin-top: 10px;
+        color: var(--color-text-muted);
+        font-size: 16px;
+        line-height: 1.55;
+      }
+
+      .auth-form {
+        width: min(100%, 520px);
+        display: grid;
+        gap: 16px;
+        margin-top: 34px;
+      }
+
+      .auth-field {
+        display: grid;
+        gap: 8px;
+        color: var(--color-text);
+        font-size: 14px;
+        font-weight: 650;
+      }
+
+      .auth-input-wrap {
+        min-height: 52px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        background: var(--color-surface);
+        padding: 0 14px;
+        color: var(--color-text-muted);
+        box-shadow: var(--shadow-card);
+      }
+
+      .auth-input-wrap:focus-within {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 16%, transparent);
+      }
+
+      .auth-input-wrap input {
+        width: 100%;
+        min-width: 0;
+        height: 50px;
+        border: none;
+        outline: none;
+        background: transparent;
+        color: var(--color-text);
+        font: inherit;
+        font-size: 16px;
+      }
+
+      .auth-error {
+        margin: 0;
+        border: 1px solid color-mix(in srgb, var(--color-danger) 34%, transparent);
+        border-radius: var(--radius-md);
+        padding: 11px 13px;
+        background: var(--color-danger-soft);
+        color: var(--color-danger);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .auth-submit {
+        min-height: 52px;
+        border: 1px solid var(--color-primary);
+        border-radius: var(--radius-md);
+        background: var(--color-primary);
+        color: white;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 750;
+        box-shadow: var(--shadow-card);
+      }
+
+      .auth-submit:disabled {
+        cursor: wait;
+        opacity: 0.72;
+      }
+
+      .auth-switch {
+        width: min(100%, 520px);
+        min-height: 62px;
+        margin-top: 22px;
+        padding: 12px 16px;
+        border: 1px solid var(--color-border-soft);
+        border-radius: var(--radius-md);
+        background: color-mix(in srgb, var(--color-bg) 62%, transparent);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        color: var(--color-text-muted);
+        font-size: 14px;
+      }
+
+      .auth-switch button {
+        min-height: 40px;
+        border: none;
+        background: transparent;
+        color: var(--color-primary);
+        cursor: pointer;
+        font: inherit;
+        font-weight: 750;
+      }
+
+      .auth-note {
+        width: min(100%, 520px);
+        margin: 16px 0 0;
+        color: var(--color-text-faint);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      @keyframes auth-spin { to { transform: rotate(360deg); } }
+      .auth-spin { animation: auth-spin 0.8s linear infinite; }
+
+      @media (max-width: 860px) {
+        .auth-paper-shell {
+          grid-template-columns: 1fr;
+        }
+
+        .auth-paper-hero {
+          min-height: auto;
+          padding: 28px 22px 18px;
+          border-right: none;
+          border-bottom: 1px solid var(--color-border);
+        }
+
+        .auth-paper-hero::before,
+        .auth-paper-hero::after,
+        .auth-paper-benefits {
+          display: none;
+        }
+
+        .auth-paper-copy {
+          margin: 34px 0 0;
+        }
+
+        .auth-paper-copy h1 {
+          font-size: 38px;
+        }
+
+        .auth-paper-copy p:last-child {
+          font-size: 15px;
+        }
+
+        .auth-paper-panel {
+          min-height: auto;
+          padding: 24px 22px 40px;
+        }
+
+        .auth-lang-row {
+          justify-content: flex-start;
+          margin-bottom: 28px;
+        }
+
+        .auth-switch {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+      }
+    `}</style>
   );
 }

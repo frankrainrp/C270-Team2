@@ -40,3 +40,8 @@ Thumbs.db
 
 # TypeScript 增量编译
 *.tsbuildinfo
+
+# Local SQLite auth/database files
+*.sqlite
+*.sqlite-*
+my-app/apps/web/data/

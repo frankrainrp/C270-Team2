@@ -3,7 +3,6 @@
 // 全局根布局 — 挂载 Google Fonts 与全局样式
 // ============================================================
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
 import { Inter, Cinzel } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/Toast";
@@ -31,8 +30,6 @@ export const metadata: Metadata = {
 
 export const viewport = { themeColor: "#FAFAF8" };
 
-const clerkConfigured = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
-
 export default function RootLayout({
   children,
 }: {
@@ -41,9 +38,7 @@ export default function RootLayout({
   const app = <ToastProvider>{children}</ToastProvider>;
   return (
     <html lang="en" data-theme="paper" className={`${inter.variable} ${cinzel.variable}`}>
-      <body>
-        {clerkConfigured ? <ClerkProvider>{app}</ClerkProvider> : app}
-      </body>
+      <body>{app}</body>
     </html>
   );
 }

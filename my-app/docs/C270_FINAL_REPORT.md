@@ -34,7 +34,9 @@ manage learning materials, deadlines, revision notes, and project work.
 | --- | --- |
 | Frontend | Next.js 14, React 18, TypeScript, Tailwind CSS |
 | Workspace | pnpm 9, Turborepo |
+| Authentication | Butler email/password login with temporary SQLite session storage |
 | Local storage | Dexie / IndexedDB and browser storage |
+| Server-side database | SQLite via `better-sqlite3` for the current login gate |
 | AI integration | OpenAI-compatible server routes |
 | Validation | Zod and custom API guards |
 | DevOps | GitHub Actions, Docker, Docker Compose, Ansible |
@@ -97,7 +99,8 @@ The `Dockerfile` uses a multi-stage build:
 4. Run the production Next.js server on port 3000.
 
 `docker-compose.yml` starts the web service and includes a health check against
-`/api/health`.
+`/api/health`. It also mounts a named volume for the temporary SQLite login
+database used by the current development mainline.
 
 Deployment options:
 
@@ -152,7 +155,7 @@ Reliability decisions:
 | Scalability | Next.js app can run in a container and be moved to cloud hosting. | Add managed database and horizontal scaling. |
 | Reliability | CI build, Docker image, health check, and repeatable deployment. | Add uptime monitoring and rollback strategy. |
 | Maintainability | TypeScript, modular components, documented DevOps flow. | Add more feature-level automated tests. |
-| Security | API guards, security headers, audit scan, secret exclusion. | Add user-scoped authentication and server-side billing ledger. |
+| Security | API guards, security headers, audit scan, secret exclusion, and temporary SQLite login. | Move auth to a managed database, add email verification, and add a server-side billing ledger. |
 
 ## 13. Team Contribution Table
 

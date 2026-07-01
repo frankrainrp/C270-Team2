@@ -8,6 +8,9 @@ apps/web/.next
 dist
 coverage
 *.log
+*.sqlite
+*.sqlite-*
+apps/web/data
 .env
 .env.*
 !apps/web/.env.local.example
