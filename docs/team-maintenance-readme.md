@@ -44,8 +44,10 @@ Backend ownership:
 
 Frontend ownership:
 
+- `apps/web/src/lib/ai-models.ts`
 - `apps/web/src/lib/chat-client.ts`
 - `apps/web/src/lib/ai-tools.ts`
+- `apps/web/src/lib/pending.ts`
 - `apps/web/src/lib/tool-executor.ts`
 - `apps/web/src/lib/document-parser.ts`
 - `apps/web/src/lib/semantic-filter.ts`
@@ -109,6 +111,7 @@ Primary files:
 - `apps/web/src/app/globals.css`
 - `apps/web/src/components/AuthGate.tsx`
 - `apps/web/src/components/ChatCanvas.tsx`
+- `apps/web/src/components/EmptyIllustrations.tsx`
 - `apps/web/src/components/InputPod.tsx`
 - `apps/web/src/components/KeyboardShortcutsHelp.tsx`
 - `apps/web/src/components/MiniAppsDrawer.tsx`
@@ -241,6 +244,7 @@ Frontend and product-system ownership:
 
 QA and documentation ownership:
 
+- `complexity/complexity-estimate.md`
 - `scripts/CleanGenerated.mjs`
 - `scripts/refactor-guard.test.mjs`
 - `scripts/runtime-smoke.mjs`

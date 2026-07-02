@@ -118,16 +118,15 @@ Browser `localStorage` remains only for UI preferences and lightweight client se
 
 Detailed file ownership is maintained in `docs/team-maintenance-readme.md`.
 
-| Role | Main Scope | Primary Code Areas |
-| --- | --- | --- |
-| AI Agent Processing Specialist | chat, tool calls, OCR, DDL extraction, agent flows | `apps/api/src/routes/*Chat*`, `apps/api/src/services/*Chat*`, `apps/api/src/services/*Agent*`, `apps/api/src/services/*Ocr*`, `apps/web/src/lib/chat-client.ts`, `apps/web/src/lib/tool-executor.ts` |
-| Database And Data Organization Specialist | MongoDB models, persistence services, import/export contracts | `apps/api/src/db`, `apps/api/src/models`, `apps/api/src/services/*Service.ts`, `apps/web/src/lib/backend-api.ts`, `apps/web/src/lib/types.ts` |
-| App Shell And UI System Specialist | shell layout, navigation, theme, i18n, responsive UI | `apps/web/src/app`, `apps/web/src/components/layout`, `apps/web/src/components/ChatCanvas.tsx`, `apps/web/src/components/InputPod.tsx`, `apps/web/src/lib/i18n.ts` |
-| Learning Productivity Specialist | tasks, calendar, notes, daily overview, achievements, focus tools | `apps/web/src/components/TasksPanel.tsx`, `CalendarPanel.tsx`, `NotesPanel.tsx`, `AchievementsRoom.tsx`, `RecurringTasksManager.tsx`, matching task/note API routes |
-| Panels, Connectors, And Visualization Specialist | custom panels, generated panels, connectors, charts, research | `apps/api/src/routes/*Panel*`, `apps/api/src/routes/*Connector*`, `apps/api/src/routes/*Research*`, `apps/web/src/components/CustomPanelView.tsx`, `apps/web/src/lib/panel-*` |
-| Platform, Billing, And QA Specialist | env templates, scripts, middleware, health checks, billing, quota, verification | `env`, `scripts`, `apps/api/src/config`, `apps/api/src/middleware`, `apps/api/src/routes/HealthRoutes.ts`, `apps/web/src/lib/billing.ts`, `apps/web/src/lib/usage.ts` |
+| Role | Managed Files / Areas |
+| --- | --- |
+| AI Agent Processing Specialist | `apps/api/src/routes/{Agent,Chat,ExtractDdl,Ocr}Routes.ts`, `apps/api/src/services/{Agent,AgentLog,Ai,Chat,ChatToolDefinitions,ExtractDdl,Ocr}*.ts`, `apps/api/src/models/AgentLogModel.ts`, `apps/web/src/lib/{ai-models,ai-tools,chat-client,tool-executor,document-parser,semantic-filter,pending}.ts`, `apps/web/src/lib/ocr/*`, `apps/web/src/components/{ProcessingPipeline,ConfirmCard}.tsx` |
+| Database And Data Organization Specialist | `apps/api/src/db`, `apps/api/src/models`, `AuthService.ts`, `ChatHistoryService.ts`, `GenericDataService.ts`, `NoteService.ts`, `TaskService.ts`, `AuthRoutes.ts`, `StorageRoutes.ts`, `TaskRoutes.ts`, `NoteRoutes.ts`, `apps/web/src/lib/{backend-api,types,json-export,ics-import,ics-export,blobs,storage-client,custom-panels,recurring}.ts` |
+| App Shell And UI System Specialist | `apps/web/src/app`, `apps/web/src/components/layout`, `apps/web/src/components/ui`, `apps/web/src/components/{AuthGate,ChatCanvas,InputPod,KeyboardShortcutsHelp,MiniAppsDrawer,OnboardingTour,PreferencesPanel,Toast,WallpaperLayer,EmptyIllustrations}.tsx`, `apps/web/src/lib/{i18n,layout-prefs,theme,use-is-mobile}.ts` |
+| Learning Productivity Specialist | `apps/web/src/components/{TasksPanel,CalendarPanel,NotesPanel,NotesPreview,AchievementsRoom,RecurringTasksManager,TaskDetailDrawer,DailyBrief,TodayHero}.tsx`, `apps/web/src/components/mini-apps/*`, `apps/web/src/lib/{demo-data,mock-pipeline,streak}.ts`, task/note/recurring routes, services, and models |
+| Panels, Connectors, And Visualization Specialist | `apps/api/src/routes/{Connector,CustomPanel,GeneratePanel,GenerateSource,Research}Routes.ts`, `apps/api/src/services/{Connector,GeneratePanel,GenerateSource,Research}Service.ts`, `apps/web/src/components/{CustomPanelView,DataSourceBuilder,GeneratedPanelView}.tsx`, `apps/web/src/components/panel-modules/*`, `apps/web/src/lib/{connector-client,panel-data,panel-generator,panel-local,panel-schema,research-assembler,research-client}.ts` |
+| Platform, Billing, And QA Specialist | root package/workspace files, `env`, `scripts`, `docs`, `complexity`, `apps/api/src/{app,server}.ts`, `apps/api/src/config`, `apps/api/src/middleware`, `apps/api/src/routes/HealthRoutes.ts`, `apps/api/src/utils`, `apps/web/src/components/{AttachmentPreview,BillingPanel,CheckoutModal,PricingModal,QuotaWallModal}.tsx`, `apps/web/src/lib/{api-guard,billing,credits,sound,usage,wallpaper}.ts` |
 
 ## Current UI Rule
 
 The newest AI confirmation card is docked directly above the chat input. This behavior is implemented in `apps/web/src/components/ChatCanvas.tsx`.
-
