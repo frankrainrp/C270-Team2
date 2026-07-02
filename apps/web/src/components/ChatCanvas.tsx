@@ -523,6 +523,18 @@ export default function ChatCanvas(props: ChatCanvasProps) {
 
   const isEmpty = messages.length === 0;
   const isMobile = useIsMobile();
+  const dockedConfirmMessage = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === "confirm" && msg.confirmBatchId && pendingBatches[msg.confirmBatchId]) {
+        return msg;
+      }
+    }
+    return null;
+  }, [messages, pendingBatches]);
+  const dockedConfirmBatch = dockedConfirmMessage?.confirmBatchId
+    ? pendingBatches[dockedConfirmMessage.confirmBatchId]
+    : null;
 
   return (
     <main
@@ -624,7 +636,8 @@ export default function ChatCanvas(props: ChatCanvasProps) {
               if (msg.role === "confirm" && msg.confirmBatchId) {
                 const batch = pendingBatches[msg.confirmBatchId];
                 if (!batch) return null;
-                // Keep the confirmation card centered so it is easy to review.
+                if (msg.id === dockedConfirmMessage?.id) return null;
+                // Older confirmation cards stay in the conversation history.
                 return (
                   <div
                     key={msg.id}
@@ -632,9 +645,6 @@ export default function ChatCanvas(props: ChatCanvasProps) {
                     style={{
                       display: "flex",
                       justifyContent: "center",
-                      position: "sticky",
-                      bottom: 12,
-                      zIndex: 5,
                     }}
                   >
                     <ConfirmCard
@@ -681,6 +691,26 @@ export default function ChatCanvas(props: ChatCanvasProps) {
             zIndex: 2,
           }}
         >
+          {dockedConfirmBatch && (
+            <div
+              className="comic-bubble"
+              style={{
+                width: "100%",
+                maxWidth: CONTENT_MAX,
+                display: "flex",
+                justifyContent: "center",
+                marginBottom: 8,
+                flexShrink: 0,
+              }}
+            >
+              <ConfirmCard
+                batch={dockedConfirmBatch}
+                onAccept={onAcceptBatch}
+                onReject={onRejectBatch}
+                onDropChange={onDropChange}
+              />
+            </div>
+          )}
           <div style={{ width: "100%", maxWidth: CONTENT_MAX, display: "flex", justifyContent: "center" }}>
             <InputPod
               value={inputValue}

@@ -9,10 +9,13 @@ Default project repository: https://github.com/frankrainrp/C270-Team2
 
 - `apps/api` - Express + Node + MongoDB/Mongoose backend.
 - `apps/web` - Next/React frontend with no Next API route handlers.
+- `env` - environment templates only; real local env files stay inside each app.
 - `docs` - refactor plan and migration status.
 - `complexity` - complexity and readability notes.
 
 The frontend talks to the backend through `/express-api/*`, which is proxied by Next to the Express `/api/*` routes.
+
+Team file ownership is documented in `docs/team-maintenance-readme.md`.
 
 ## Core Data Ownership
 
@@ -33,6 +36,8 @@ Browser `localStorage` remains only for UI preferences and lightweight client se
 
 ```bash
 pnpm install
+copy env\api.env.example apps\api\.env
+copy env\web.env.local.example apps\web\.env.local
 pnpm dev:api
 pnpm dev:web
 pnpm test
@@ -42,3 +47,8 @@ pnpm build
 Use `pnpm test:all` before considering the refactor complete.
 
 MongoDB must be running for real API runtime verification.
+
+Runtime env files are intentionally ignored by git:
+
+- API: `apps/api/.env`
+- Web: `apps/web/.env.local`

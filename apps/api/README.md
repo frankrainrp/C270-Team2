@@ -6,8 +6,7 @@ Basic Express + MongoDB backend framework for the Butler refactor.
 
 ```bash
 pnpm install
-copy .env.example .env
-docker compose up -d
+copy ..\..\env\api.env.example .env
 pnpm dev
 ```
 
@@ -54,3 +53,19 @@ Supported first actions:
 - `ListTasks`
 - `AddNote`
 - `ListNotes`
+
+## Environment
+
+The API reads `apps/api/.env` through `dotenv`.
+
+Use the root template when setting up a new machine:
+
+```powershell
+Copy-Item ..\..\env\api.env.example .\.env
+```
+
+Required integrations:
+
+- `MONGO_URL` for MongoDB.
+- `DEEPSEEK_API_KEY` for chat and AI generation.
+- `MISTRAL_API_KEY` for OCR.
