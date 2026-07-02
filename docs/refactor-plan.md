@@ -1,33 +1,38 @@
-# C270_FA 重构计划书
+# C270_FA Refactor Plan
 
-创建时间：2026-07-01
+Created: 2026-07-01  
+Updated: 2026-07-02
 
-## 1. 目标
+## 1. Goal
 
-把当前 Butler 项目逐步重构成开发人员更熟悉的 `Express + Node + MongoDB` 架构，同时降低阅读成本和维护复杂度。
+Refactor the Butler project into a structure that is easier for standard Express + Node developers to understand and maintain.
 
-当前计划不直接修改原来的 `copy` 项目，而是在 `C270_FA` 文件夹中先建立独立的重构方案和最小后端框架。
+The target architecture is:
 
-## 2. 当前问题判断
+- Express + Node backend
+- MongoDB/Mongoose persistence
+- frontend kept as Next/React for now
+- no Next API route handlers in the frontend
+- clear route, service, model, and utility boundaries
 
-当前项目的复杂度主要来自以下几点：
+The original desktop `copy` project is not modified by this workspace.
 
-- Next.js 页面和 API route 同时承担前端、后端、AI 调用和数据处理职责。
-- `page.tsx` 状态集中，文件过长，阅读成本高。
-- 业务数据主要在浏览器 IndexedDB/Dexie，登录数据在 SQLite，另有 Postgres/Drizzle 包，数据层不统一。
-- 任务、笔记、对话、AI 写操作之间耦合较深。
-- 后端 API 不够像传统 Express 项目，团队成员不容易按常见 MVC/service 方式接手。
+## 2. Current Problems Being Reduced
 
-## 3. 目标架构
+- The old application mixed frontend behavior, backend behavior, AI calls, and data processing inside the Next app.
+- The old data layer was split across browser storage, SQLite auth data, and old package dependencies.
+- `page.tsx` still contains too much UI and orchestration state.
+- AI write actions, notes, tasks, and chat history were too tightly coupled.
+- The project did not look like a conventional Express service that new backend developers could quickly navigate.
 
-建议目标结构：
+## 3. Target Structure
 
 ```text
 apps/
-  web/       # 保留现有 Next/React 前端，逐步改成调用后端 API
-  api/       # 新 Express + Node + MongoDB 后端
+  api/       Express + Node + MongoDB backend
+  web/       Next/React frontend that calls Express through /express-api/*
 
-api/src/
+apps/api/src/
   app.ts
   server.ts
   config/
@@ -39,37 +44,32 @@ api/src/
   utils/
 ```
 
-在 `C270_FA/apps/api` 中先实现 `api` 部分的基础框架。
+## 4. Database Plan
 
-## 4. 数据库方案
+MongoDB is the unified persistence layer for core data.
 
-数据库统一采用 MongoDB。
+Current core collections:
 
-第一阶段建议集合：
-
-| Collection | 用途 |
+| Collection | Purpose |
 | --- | --- |
-| `users` | 用户账号 |
-| `sessions` | 登录会话 |
-| `tasks` | DDL、任务、日历共享数据 |
-| `notes` | 学习笔记 |
-| `chat_sessions` | 对话会话 |
-| `chat_messages` | 对话消息 |
-| `agent_logs` | agent 执行动作日志 |
+| `users` | user accounts |
+| `sessions` | login sessions |
+| `tasks` | tasks, deadlines, and calendar data |
+| `notes` | study notes |
+| `chat_sessions` | chat session metadata |
+| `chat_messages` | chat messages |
+| `custom_panels` | user-created and AI-created panels |
+| `recurring_tasks` | recurring task templates |
+| `storage_items` | blob, custom asset, and wallpaper records |
+| `agent_logs` | agent action audit records |
 
-本次基础框架先写：
+Browser `localStorage` is allowed only for UI preferences and lightweight client settings.
 
-- `tasks`
-- `notes`
-- `agent_logs`
+## 5. Code Style Rules
 
-后续再迁移 auth、chat、OCR、AI 提取等模块。
+Keep function names direct and action-oriented.
 
-## 5. 代码风格规则
-
-为了降低阅读成本，先采用非常直接的命名方式。
-
-函数命名使用 PascalCase，例如：
+Preferred naming examples:
 
 - `AddTask`
 - `GetTaskList`
@@ -78,92 +78,59 @@ api/src/
 - `DeleteTask`
 - `AddNote`
 - `RunAgentAction`
-
-避免过早抽象。只有重复明显、能减少阅读量的地方才做复用，例如：
-
 - `MakeOk`
-- `MakeFail`
 - `RunSafe`
-- `ConnectMongo`
 
-## 6. 第一阶段计划
+Avoid early abstraction. Add a shared helper only when it reduces real repetition or makes a file easier to read.
 
-第一阶段只建立最基础的 agent/API 框架。
+## 6. Completed Refactor Work
 
-完成内容：
+- Added `apps/api` as the Express + Node backend.
+- Added MongoDB/Mongoose models for core data.
+- Added Express routes for auth, tasks, notes, chat, custom panels, recurring tasks, connector proxy, generated panels, generated sources, OCR, research, storage, and DDL extraction.
+- Removed Next API route handlers from the frontend.
+- Added frontend proxying through `/express-api/*`.
+- Added architecture guard tests in `scripts/refactor-guard.test.mjs`.
+- Added runtime smoke testing in `scripts/runtime-smoke.mjs`.
+- Added environment templates under `env/`.
+- Added team ownership documentation under `docs/team-maintenance-readme.md`.
 
-- Express app 初始化。
-- MongoDB 连接。
-- Health check。
-- Task model + task routes。
-- Note model + note routes。
-- Agent action route。
-- 通用响应格式。
-- 通用异步错误包装。
-- 基础复杂度说明。
+## 7. Remaining Refactor Work
 
-不做内容：
+- Split `apps/web/src/app/page.tsx` into smaller view-model and orchestration modules.
+- Continue reducing browser-only state for any core workflow that should be server-backed.
+- Decide whether the frontend should remain Next/React or later move toward a simpler template layer such as EJS.
+- Decide whether the API source should remain TypeScript or be converted to plain JavaScript for a more traditional Node developer workflow.
+- Add broader manual QA records for auth, notes, tasks, chat persistence, and storage-backed assets.
 
-- 不接入原前端。
-- 不迁移真实 IndexedDB 数据。
-- 不重写 UI。
-- 不改原项目 Docker/CI。
-- 不声称这是最终可提交版本。
+## 8. Complexity Targets
 
-## 7. 第二阶段计划
-
-第二阶段把原来前端里的任务和笔记从 Dexie 调用迁移到 API 调用。
-
-步骤：
-
-1. 在原前端新增 `task-api-client.ts` 和 `note-api-client.ts`。
-2. 保留旧 Dexie 数据读取作为临时 fallback。
-3. 增加导出/导入脚本，把本地任务和笔记导入 MongoDB。
-4. 页面层只调用 client，不直接碰数据库。
-5. 任务、笔记功能稳定后，删除旧 Dexie 表访问。
-
-## 8. 第三阶段计划
-
-第三阶段迁移 AI 和 agent 逻辑。
-
-步骤：
-
-1. 把 `/api/chat` 迁到 Express。
-2. 把 pending change 和 confirm gate 变成后端可追踪模型。
-3. 把 `create_item`、`update_item`、`create_note` 等 tool action 统一进入 `RunAgentAction`。
-4. 所有写操作先进入草稿或待确认状态。
-5. 用户确认后再写入 MongoDB。
-
-## 9. 复杂度目标
-
-目标不是让代码文件数量最少，而是让单个文件更短、更容易定位。
-
-建议指标：
-
-| 项目 | 目标 |
+| Area | Target |
 | --- | --- |
-| 单个 route 文件 | 80 行以内 |
-| 单个 service 文件 | 150 行以内 |
-| 单个 model 文件 | 120 行以内 |
-| 单个 React 页面文件 | 400 行以内 |
-| 核心函数参数 | 1 到 3 个优先 |
-| 函数命名 | 直接表达动作 |
+| Route files | keep thin, usually request parsing plus service calls |
+| Service files | hold business logic for one domain |
+| Model files | hold schema fields, indexes, and minimal model config |
+| React page files | keep orchestration readable and split large sections over time |
+| Function parameters | prefer one to three clear parameters |
+| Function names | describe the action directly |
 
-## 10. 风险
+## 9. Risks
 
-- MongoDB 迁移会改变数据来源，需要处理旧 IndexedDB 数据迁移。
-- 如果一次性重写前端和后端，风险会很高。
-- Express 后端会增加一个服务进程，需要更新开发启动方式和部署方式。
-- 如果当前项目仍用于 C270 交付，必须保留原始已验证版本和 DevOps 证据。
+- MongoDB migration changes the source of truth for core data.
+- Rewriting the frontend and backend at the same time would increase risk.
+- Express adds a separate runtime process and changes local startup.
+- The current source is still TypeScript/TSX, even though the backend runtime architecture is Express + Node.
+- Manual browser QA is still needed after structural changes.
 
-## 11. 验收标准
+## 10. Acceptance Criteria
 
-第一阶段验收：
+The transformed project is acceptable when:
 
-- `apps/api` 可以安装依赖。
-- 可以通过 `.env` 配置 MongoDB。
-- `/api/health` 返回正常。
-- `/api/tasks` 可以新增和读取任务。
-- `/api/notes` 可以新增和读取笔记。
-- `/api/agent/run` 可以执行最基础的 `AddTask`、`ListTasks`、`AddNote`、`ListNotes` 动作。
-- 文件命名和函数命名直观，新人能按目录快速找到逻辑。
+- `pnpm test` passes.
+- `pnpm build:api` passes.
+- `pnpm build:web` passes.
+- no `apps/web/src/app/api/**/route.ts` files exist.
+- core tasks, notes, auth, chat history, custom panels, recurring tasks, and storage records persist through Express API routes and MongoDB models.
+- local runtime health checks pass for both `http://localhost:4010/api/health` and `http://localhost:3000/express-api/health`.
+- documentation, templates, and README files are English-first.
+

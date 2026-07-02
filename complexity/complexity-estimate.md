@@ -1,40 +1,55 @@
-# 复杂度预估
+# Complexity Estimate
 
-## 当前重构目标
+## Current Refactor Goal
 
-当前目标是先建立一个能读懂、能扩展的基础框架，不追求一次性迁移全部功能。
+The current goal is to keep the application understandable and maintainable while moving backend ownership into a conventional Express + Node + MongoDB structure.
 
-## 预估复杂度
+The project is not yet a plain JavaScript codebase. The backend runtime is Express + Node, but the source still uses TypeScript and compiles before running.
 
-| 模块 | 当前预估复杂度 | 原因 |
+## Estimated Complexity
+
+| Module | Current Complexity | Reason |
 | --- | --- | --- |
-| Express app 初始化 | 低 | 固定结构，代码少 |
-| MongoDB 连接 | 低 | 单文件连接函数 |
-| Task CRUD | 中低 | 字段较多，但逻辑直接 |
-| Note CRUD | 低 | 字段少，逻辑直接 |
-| Agent action 分发 | 中 | 后续会扩展更多动作 |
-| Auth 迁移 | 中 | 涉及密码、cookie、session |
-| Chat/AI 迁移 | 高 | 涉及流式响应、tool call、错误恢复 |
-| 前端状态拆分 | 高 | `page.tsx` 状态集中，需要渐进拆 |
+| Express app setup | Low | The structure is fixed and the app entry is small. |
+| MongoDB connection | Low | One connection module owns the setup. |
+| Task CRUD | Medium-low | The data shape has many fields, but the service logic is direct. |
+| Note CRUD | Low | The data shape is small and the service logic is direct. |
+| Agent action dispatch | Medium | The action set will keep growing. |
+| Auth migration | Medium | It includes password handling, cookies, and sessions. |
+| Chat and AI migration | High | It includes streaming responses, tool calls, error handling, and model configuration. |
+| Frontend state split | High | `page.tsx` still owns too much orchestration state and needs gradual extraction. |
+| Panel and connector system | Medium-high | It connects generated UI, external data, charts, and research workflows. |
+| Runtime configuration | Medium | API and web env files must stay separated and secrets must stay out of git. |
 
-## 降低复杂度的方法
+## Complexity Reduction Rules
 
-- 每个 route 只负责接收请求和返回响应。
-- 每个 service 只负责一个业务对象。
-- Mongo model 只写字段和索引，不放业务逻辑。
-- 通用响应统一走 `MakeOk` 和 `MakeFail`。
-- 异步错误统一走 `RunSafe`。
-- agent 动作先用简单 switch，等动作多了再拆 action map。
+- Each route should receive the request, call a service, and return a response.
+- Each service should own one business area.
+- Mongo models should define fields and indexes, not business workflows.
+- API responses should use shared response helpers such as `MakeOk`.
+- Async route errors should go through `RunSafe`.
+- Keep agent actions direct first, then split to an action map only when the list becomes hard to scan.
+- Keep environment templates in `env/` and real local secrets in ignored runtime env files.
 
-## 命名约定
+## Naming Convention
 
-使用直观函数名：
+Use direct PascalCase function names:
 
 - `AddTask`
 - `GetTaskList`
 - `AddNote`
 - `RunAgentAction`
 - `SaveAgentLog`
+- `MakeOk`
+- `RunSafe`
 
-不使用难懂缩写，不把简单逻辑包装成复杂类。
+Avoid unclear abbreviations. Do not wrap simple logic in complex classes unless it removes meaningful duplication.
+
+## Current Highest-Risk Files
+
+- `apps/web/src/app/page.tsx` - large orchestration surface.
+- `apps/web/src/components/ChatCanvas.tsx` - chat rendering, input docking, and confirmation-card placement.
+- `apps/api/src/services/ChatService.ts` - streaming model calls and tool-support behavior.
+- `apps/api/src/services/AgentService.ts` - agent action dispatch and note/task control behavior.
+- `apps/api/src/config/Env.ts` - runtime defaults and environment ownership.
 
