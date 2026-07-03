@@ -118,12 +118,26 @@ Browser `localStorage` remains only for UI preferences and lightweight client se
 
 Detailed file ownership is maintained in `docs/team-maintenance-readme.md`.
 
+### Frontend Page Breakdown
+
+`apps/web/src/app/page.tsx` is the page composition shell. It should wire global state, refs, panels, and chat flow together, while feature-specific behavior should live in owned components, hooks, or library modules.
+
+| Responsibility | Owner Role | Primary Paths |
+| --- | --- | --- |
+| Page composition, layout wiring, modal/panel placement, global UI state | App Shell And UI System Specialist | `apps/web/src/app/page.tsx`, `apps/web/src/components/layout/*`, `apps/web/src/components/{ChatCanvas,InputPod,MiniAppsDrawer,PreferencesPanel,Toast}.tsx` |
+| AI pending review batches for generated tasks, notes, panels, accept/reject/drop behavior | AI Agent Processing Specialist | `apps/web/src/hooks/usePendingBatches.ts`, `apps/web/src/lib/pending.ts`, `apps/web/src/lib/tool-executor.ts`, `apps/web/src/components/ConfirmCard.tsx` |
+| Recurring task creation and materializing daily task instances | Learning Productivity Specialist | `apps/web/src/hooks/useRecurringTasks.ts`, `apps/web/src/lib/recurring.ts`, `apps/web/src/components/RecurringTasksManager.tsx` |
+| Task, calendar, note, daily overview, and study-tool surfaces | Learning Productivity Specialist | `apps/web/src/components/{TasksPanel,CalendarPanel,NotesPanel,NotesPreview,DailyBrief,TodayHero}.tsx`, `apps/web/src/components/mini-apps/*` |
+| Backend data contracts and browser data adapters | Database And Data Organization Specialist | `apps/api/src/{db,models,routes,services}`, `apps/web/src/lib/{backend-api,types,json-export,ics-import,ics-export,blobs,storage-client,custom-panels}.ts` |
+| Custom panels, connectors, research, generated sources, visualization modules | Panels, Connectors, And Visualization Specialist | `apps/api/src/routes/{Connector,CustomPanel,GeneratePanel,GenerateSource,Research}Routes.ts`, `apps/web/src/components/{CustomPanelView,DataSourceBuilder,GeneratedPanelView}.tsx`, `apps/web/src/components/panel-modules/*` |
+| Project config, env templates, guards, billing/quota UI, verification scripts | Platform, Billing, And QA Specialist | root workspace files, `env`, `scripts`, `docs`, `complexity`, `apps/web/src/lib/{api-guard,billing,credits,usage,wallpaper}.ts` |
+
 | Role | Managed Files / Areas |
 | --- | --- |
-| AI Agent Processing Specialist | `apps/api/src/routes/{Agent,Chat,ExtractDdl,Ocr}Routes.ts`, `apps/api/src/services/{Agent,AgentLog,Ai,Chat,ChatToolDefinitions,ExtractDdl,Ocr}*.ts`, `apps/api/src/models/AgentLogModel.ts`, `apps/web/src/lib/{ai-models,ai-tools,chat-client,tool-executor,document-parser,semantic-filter,pending}.ts`, `apps/web/src/lib/ocr/*`, `apps/web/src/components/{ProcessingPipeline,ConfirmCard}.tsx` |
+| AI Agent Processing Specialist | `apps/api/src/routes/{Agent,Chat,ExtractDdl,Ocr}Routes.ts`, `apps/api/src/services/{Agent,AgentLog,Ai,Chat,ChatToolDefinitions,ExtractDdl,Ocr}*.ts`, `apps/api/src/models/AgentLogModel.ts`, `apps/web/src/hooks/usePendingBatches.ts`, `apps/web/src/lib/{ai-models,ai-tools,chat-client,tool-executor,document-parser,semantic-filter,pending}.ts`, `apps/web/src/lib/ocr/*`, `apps/web/src/components/{ProcessingPipeline,ConfirmCard}.tsx` |
 | Database And Data Organization Specialist | `apps/api/src/db`, `apps/api/src/models`, `AuthService.ts`, `ChatHistoryService.ts`, `GenericDataService.ts`, `NoteService.ts`, `TaskService.ts`, `AuthRoutes.ts`, `StorageRoutes.ts`, `TaskRoutes.ts`, `NoteRoutes.ts`, `apps/web/src/lib/{backend-api,types,json-export,ics-import,ics-export,blobs,storage-client,custom-panels,recurring}.ts` |
 | App Shell And UI System Specialist | `apps/web/src/app`, `apps/web/src/components/layout`, `apps/web/src/components/ui`, `apps/web/src/components/{AuthGate,ChatCanvas,InputPod,KeyboardShortcutsHelp,MiniAppsDrawer,OnboardingTour,PreferencesPanel,Toast,WallpaperLayer,EmptyIllustrations}.tsx`, `apps/web/src/lib/{i18n,layout-prefs,theme,use-is-mobile}.ts` |
-| Learning Productivity Specialist | `apps/web/src/components/{TasksPanel,CalendarPanel,NotesPanel,NotesPreview,AchievementsRoom,RecurringTasksManager,TaskDetailDrawer,DailyBrief,TodayHero}.tsx`, `apps/web/src/components/mini-apps/*`, `apps/web/src/lib/{demo-data,mock-pipeline,streak}.ts`, task/note/recurring routes, services, and models |
+| Learning Productivity Specialist | `apps/web/src/hooks/useRecurringTasks.ts`, `apps/web/src/components/{TasksPanel,CalendarPanel,NotesPanel,NotesPreview,AchievementsRoom,RecurringTasksManager,TaskDetailDrawer,DailyBrief,TodayHero}.tsx`, `apps/web/src/components/mini-apps/*`, `apps/web/src/lib/{demo-data,mock-pipeline,recurring,streak}.ts`, task/note/recurring routes, services, and models |
 | Panels, Connectors, And Visualization Specialist | `apps/api/src/routes/{Connector,CustomPanel,GeneratePanel,GenerateSource,Research}Routes.ts`, `apps/api/src/services/{Connector,GeneratePanel,GenerateSource,Research}Service.ts`, `apps/web/src/components/{CustomPanelView,DataSourceBuilder,GeneratedPanelView}.tsx`, `apps/web/src/components/panel-modules/*`, `apps/web/src/lib/{connector-client,panel-data,panel-generator,panel-local,panel-schema,research-assembler,research-client}.ts` |
 | Platform, Billing, And QA Specialist | root package/workspace files, `env`, `scripts`, `docs`, `complexity`, `apps/api/src/{app,server}.ts`, `apps/api/src/config`, `apps/api/src/middleware`, `apps/api/src/routes/HealthRoutes.ts`, `apps/api/src/utils`, `apps/web/src/components/{AttachmentPreview,BillingPanel,CheckoutModal,PricingModal,QuotaWallModal}.tsx`, `apps/web/src/lib/{api-guard,billing,credits,sound,usage,wallpaper}.ts` |
 

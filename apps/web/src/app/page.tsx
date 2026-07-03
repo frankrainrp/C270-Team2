@@ -67,7 +67,7 @@ import {
   ReplaceTaskListByApi,
 } from "@/lib/backend-api";
 import { createToolExecutor } from "@/lib/tool-executor";
-import { type PendingBatch, type PendingChange, makeBatch, makeChangeId, applyBatch, extractNoteDrafts, extractCustomPanelDrafts } from "@/lib/pending";
+import { type PendingChange, makeBatch, makeChangeId } from "@/lib/pending";
 import { type AiModelId, DEFAULT_MODEL_ID, MODEL_STORAGE_KEY, isValidModelId } from "@/lib/ai-models";
 import { canSpend, getNextResetAt } from "@/lib/usage";
 import type { TaskViewId } from "@/components/layout/TasksRail";
@@ -83,18 +83,12 @@ import {
   createCustomPanel,
   deleteCustomPanel,
   getAllCustomPanels,
-  putCustomPanel,
   updateCustomPanel,
 } from "@/lib/custom-panels";
 import { playSound } from "@/lib/sound";
 import RecurringTasksManager from "@/components/RecurringTasksManager";
-import {
-  getAllRecurring,
-  putRecurring,
-  bulkPutRecurring,
-  materializeDue,
-} from "@/lib/recurring";
-import type { RecurringTask } from "@/lib/types";
+import { usePendingBatches } from "@/hooks/usePendingBatches";
+import { useRecurringTasks } from "@/hooks/useRecurringTasks";
 
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 
@@ -141,10 +135,6 @@ function ButlerApp() {
   const [inputValue, setInputValue] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<UploadedFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  // 待核实批次：AI tool_call / PDF 提取 都先入此处，用户接受后才落 ddls
-  const [pendingBatches, setPendingBatches] = useState<Record<string, PendingBatch>>({});
-  // 一次 AI send 期间累积同一 batchId，多个 tool_call 共用一张核实卡
-  const currentBatchIdRef = useRef<string | null>(null);
   // 停止生成：handleSend 时 new AbortController() 存入，handleStopGeneration abort
   const abortRef = useRef<AbortController | null>(null);
 
@@ -174,6 +164,29 @@ function ButlerApp() {
   useEffect(() => { notesRef.current = notes; }, [notes]);
   const activeSessionIdRef = useRef<string | null>(null);
   useEffect(() => { activeSessionIdRef.current = activeSessionId; }, [activeSessionId]);
+
+  const {
+    pendingBatches,
+    resetCurrentBatch,
+    addPendingBatch,
+    addPendingChange,
+    handleAcceptBatch,
+    handleRejectBatch,
+    handleDropChange,
+  } = usePendingBatches({
+    activeSessionIdRef,
+    ddlsRef,
+    setDdls,
+    setNotes,
+    setMessages,
+  });
+
+  const {
+    recurringOpen,
+    setRecurringOpen,
+    runMaterialize,
+    addRecurring,
+  } = useRecurringTasks({ setDdls });
 
   // ---------- 持久化：核心任务/笔记走 Express API；会话缓存暂用 localStorage ----------
   const [hydrated, setHydrated] = useState(false);
@@ -485,19 +498,7 @@ function ButlerApp() {
         summary: `${d.taskName} · ${d.dueDate || t("tasks.date.tbd")}${d.dueTime ? " " + d.dueTime : ""}${d.weight != null ? ` · ${d.weight}%` : ""}`,
         draft: d,
       }));
-      setPendingBatches((prev) => ({ ...prev, [batch.id]: batch }));
-      // 同时往聊天流 push 一条 confirm 消息，方便用户在 Chat 里看到
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: "msg-" + uid(),
-          sessionId: sid,
-          role: "confirm",
-          content: "",
-          confirmBatchId: batch.id,
-          timestamp: new Date(),
-        },
-      ]);
+      addPendingBatch(batch);
       setStep(3, "success", `Detected ${newDdls.length} item(s) and added them to the review queue`);
 
       finishPipeline("completed", newDdls.length);
@@ -512,116 +513,7 @@ function ButlerApp() {
     }
   }, []);
 
-  // ---------- 待核实批次：add / accept / reject / dropChange ----------
-  const addPendingChange = useCallback((change: PendingChange) => {
-    const sid = activeSessionIdRef.current;
-    if (!sid) return;
-    // 如果当前 send 还没建过 batch，建一个 + push confirm 消息到聊天流
-    let batchId = currentBatchIdRef.current;
-    if (!batchId) {
-      const batch = makeBatch(sid, "ai-chat", "Please review the following proposed changes:");
-      batchId = batch.id;
-      currentBatchIdRef.current = batchId;
-      setPendingBatches((prev) => ({ ...prev, [batch.id]: { ...batch, changes: [change] } }));
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: "msg-" + uid(),
-          sessionId: sid,
-          role: "confirm",
-          content: "",
-          confirmBatchId: batch.id,
-          timestamp: new Date(),
-        },
-      ]);
-    } else {
-      // 追加到现有 batch
-      const bid = batchId;
-      setPendingBatches((prev) => {
-        const cur = prev[bid];
-        if (!cur) return prev;
-        return { ...prev, [bid]: { ...cur, changes: [...cur.changes, change] } };
-      });
-    }
-  }, []);
-
-  const handleAcceptBatch = useCallback((batchId: string) => {
-    setPendingBatches((prev) => {
-      const batch = prev[batchId];
-      if (!batch || batch.status !== "pending") return prev;
-      // 1. 应用 ddls 相关 changes
-      const { next, stats } = applyBatch(ddlsRef.current, batch);
-      setDdls(next);
-      // 2. 应用 create-note changes（B2 跨面板联动）
-      const noteDrafts = extractNoteDrafts(batch);
-      if (noteDrafts.length > 0) {
-        setNotes((prevNotes) => [...noteDrafts, ...prevNotes]);
-      }
-      // 3. [054] D.3 应用 create-custom-panel changes（异步 put IndexedDB；CUSTOM_PANEL_EVENT 触发 page 重载）
-      const panelDrafts = extractCustomPanelDrafts(batch);
-      if (panelDrafts.length > 0) {
-        (async () => {
-          for (const p of panelDrafts) {
-            try { await putCustomPanel(p); } catch (e) { console.warn("[pending] put custom panel failed", e); }
-          }
-        })();
-      }
-      console.log(
-        "[pending] accepted batch", batchId, stats,
-        noteDrafts.length > 0 ? `+${noteDrafts.length} notes` : "",
-        panelDrafts.length > 0 ? `+${panelDrafts.length} custom panels` : "",
-      );
-      return { ...prev, [batchId]: { ...batch, status: "accepted" } };
-    });
-  }, []);
-
-  const handleRejectBatch = useCallback((batchId: string) => {
-    setPendingBatches((prev) => {
-      const batch = prev[batchId];
-      if (!batch || batch.status !== "pending") return prev;
-      return { ...prev, [batchId]: { ...batch, status: "rejected" } };
-    });
-  }, []);
-
-  const handleDropChange = useCallback((batchId: string, changeId: string) => {
-    setPendingBatches((prev) => {
-      const batch = prev[batchId];
-      if (!batch || batch.status !== "pending") return prev;
-      return {
-        ...prev,
-        [batchId]: { ...batch, changes: batch.changes.filter((c) => c.id !== changeId) },
-      };
-    });
-  }, []);
-
-  // ---------- [079] 周期任务 ----------
-  const [recurringOpen, setRecurringOpen] = useState(false);
-  // 扫描所有模板：当期未生成的 → 生成实例 append 到 ddls + 回写 lastGeneratedPeriod
-  const runMaterialize = useCallback(async () => {
-    try {
-      const routines = await getAllRecurring();
-      if (routines.length === 0) return;
-      const { newTasks, updatedRoutines, changed } = materializeDue(routines);
-      if (newTasks.length > 0) {
-        setDdls((prev) => [...prev, ...newTasks]);
-        toast.info(`🔁 Generated ${newTasks.length} recurring task instance(s)`);
-      }
-      if (changed) await bulkPutRecurring(updatedRoutines);
-    } catch (e) {
-      console.warn("[recurring] materialize failed", e);
-    }
-  }, [toast]);
-  // AI 工具 / 管理器创建模板 → 落库 + 立即生成当期
-  const addRecurring = useCallback((routine: RecurringTask) => {
-    (async () => {
-      try {
-        await putRecurring(routine);
-        await runMaterialize();
-      } catch (e) { console.warn("[recurring] add failed", e); }
-    })();
-  }, [runMaterialize]);
-
-  // ---------- Tool 执行器（稳定 ref） ----------
+  // ---------- Tool executor ----------
   const executeToolCall = useMemo(
     () => createToolExecutor({
       getDdls: () => ddlsRef.current,
@@ -700,7 +592,7 @@ function ButlerApp() {
     // 3. 纯文本 → 真实 AI 对话（高级模型先扣积分，预检已通过）
     if (premiumCost > 0) spendCredits(premiumCost, "chatPremium");
     setIsLoading(true);
-    currentBatchIdRef.current = null; // 新一轮 send：清掉旧 batchId，让首个 tool_call 时建新 batch
+    resetCurrentBatch(); // 新一轮 send：清掉旧 batchId，让首个 tool_call 时建新 batch
 
     // 把当前 session 的 UI 历史消息转成 API 格式
     const allHistory: ApiMessage[] = [...messages, userUiMsg]
@@ -812,7 +704,7 @@ function ButlerApp() {
       }
     } finally {
       setIsLoading(false);
-      currentBatchIdRef.current = null;
+      resetCurrentBatch();
       abortRef.current = null;
     }
   }, [inputValue, attachedFiles, isLoading, messages, runRealPipeline, executeToolCall, buildContextSummary, touchActiveSession, selectedModel, toast]);

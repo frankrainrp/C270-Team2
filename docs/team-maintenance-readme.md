@@ -44,6 +44,7 @@ Backend ownership:
 
 Frontend ownership:
 
+- `apps/web/src/hooks/usePendingBatches.ts`
 - `apps/web/src/lib/ai-models.ts`
 - `apps/web/src/lib/chat-client.ts`
 - `apps/web/src/lib/ai-tools.ts`
@@ -138,12 +139,19 @@ Latest UI rule:
 
 - The newest AI confirmation card must stay docked directly above the chat input. This is implemented in `apps/web/src/components/ChatCanvas.tsx`.
 
+Page boundary:
+
+- `apps/web/src/app/page.tsx` owns page composition only: global state wiring, refs, panel placement, and handoff between hooks/components.
+- AI pending review logic belongs in `apps/web/src/hooks/usePendingBatches.ts`.
+- Recurring task generation logic belongs in `apps/web/src/hooks/useRecurringTasks.ts`.
+
 ## 4. Learning Productivity Specialist
 
 Scope: tasks, calendar, notes, daily overview, achievements, recurring tasks, study tools, focus tools.
 
 Frontend ownership:
 
+- `apps/web/src/hooks/useRecurringTasks.ts`
 - `apps/web/src/components/AchievementsRoom.tsx`
 - `apps/web/src/components/CalendarPanel.tsx`
 - `apps/web/src/components/DailyBrief.tsx`
