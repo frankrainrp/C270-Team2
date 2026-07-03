@@ -4,6 +4,7 @@ export type TaskStatus = "todo" | "in_progress" | "done";
 export type TaskPriority = "low" | "med" | "high";
 
 export type TaskDoc = {
+  ownerId: string;
   clientId: string;
   taskName: string;
   weight: number | null;
@@ -24,7 +25,8 @@ export type TaskDoc = {
 
 const TaskSchema = new Schema<TaskDoc>(
   {
-    clientId: { type: String, required: true, unique: true },
+    ownerId: { type: String, required: true, index: true },
+    clientId: { type: String, required: true },
     taskName: { type: String, required: true, trim: true },
     weight: { type: Number, default: null },
     dueDate: { type: String, default: "" },
@@ -42,8 +44,8 @@ const TaskSchema = new Schema<TaskDoc>(
   { timestamps: true },
 );
 
-TaskSchema.index({ dueDate: 1, status: 1 });
+TaskSchema.index({ ownerId: 1, dueDate: 1, status: 1 });
 TaskSchema.index({ taskName: "text", description: "text", notes: "text" });
-TaskSchema.index({ clientId: 1 }, { unique: true });
+TaskSchema.index({ ownerId: 1, clientId: 1 }, { unique: true });
 
 export const TaskModel = mongoose.model<TaskDoc>("Task", TaskSchema);

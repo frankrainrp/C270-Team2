@@ -8,6 +8,7 @@ export type StoredUploadedFile = {
 };
 
 export type ChatMessageDoc = {
+  ownerId: string;
   clientId: string;
   sessionId: string;
   role: "user" | "assistant";
@@ -32,7 +33,8 @@ const StoredUploadedFileSchema = new Schema<StoredUploadedFile>(
 
 const ChatMessageSchema = new Schema<ChatMessageDoc>(
   {
-    clientId: { type: String, required: true, unique: true },
+    ownerId: { type: String, required: true, index: true },
+    clientId: { type: String, required: true },
     sessionId: { type: String, required: true, index: true },
     role: { type: String, enum: ["user", "assistant"], required: true },
     content: { type: String, default: "" },
@@ -44,7 +46,7 @@ const ChatMessageSchema = new Schema<ChatMessageDoc>(
   { timestamps: true },
 );
 
-ChatMessageSchema.index({ sessionId: 1, timestampMs: 1 });
-ChatMessageSchema.index({ clientId: 1 }, { unique: true });
+ChatMessageSchema.index({ ownerId: 1, sessionId: 1, timestampMs: 1 });
+ChatMessageSchema.index({ ownerId: 1, clientId: 1 }, { unique: true });
 
 export const ChatMessageModel = mongoose.model<ChatMessageDoc>("ChatMessage", ChatMessageSchema);
