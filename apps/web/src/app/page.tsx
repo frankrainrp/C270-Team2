@@ -308,6 +308,16 @@ function ButlerApp() {
   const [prefsOpen, setPrefsOpen] = useState(false);
   // C1 CalendarRail 迷你月历跳转目标
   const [calendarJumpDay, setCalendarJumpDay] = useState<string | null>(null);
+  const [calendarTagFilter, setCalendarTagFilter] = useState<string | null>(null);
+  const calendarDdls = useMemo(() => {
+    if (!calendarTagFilter) return ddls;
+    return ddls.filter((d) => (d.tags ?? []).some((tag) => tag === calendarTagFilter));
+  }, [ddls, calendarTagFilter]);
+  useEffect(() => {
+    if (!calendarTagFilter) return;
+    const stillExists = ddls.some((d) => (d.tags ?? []).some((tag) => tag === calendarTagFilter));
+    if (!stillExists) setCalendarTagFilter(null);
+  }, [ddls, calendarTagFilter]);
 
   // Epic 3 mount 时立即 apply localStorage 偏好(主题/字号/Phase B accent) + [072] 语言
   useEffect(() => { applyStoredPreferences(); applyStoredLang(); }, []);
@@ -398,8 +408,10 @@ function ButlerApp() {
       )}
       {!activeCustomPanelId && activeNav === "calendar" && (
         <CalendarRail
-          onCreateEvent={() => setEditing({ mode: "create" })}
+          onCreateEvent={() => setEditing({ mode: "create", presetTags: calendarTagFilter ? [calendarTagFilter] : undefined })}
           ddls={ddls}
+          selectedTag={calendarTagFilter}
+          onSelectTag={setCalendarTagFilter}
           onJumpToDay={(iso) => {
             setCalendarJumpDay(iso + "#" + Date.now());
           }}
@@ -572,8 +584,8 @@ function ButlerApp() {
           )}
           {!activeCustomPanelId && activeNav === "calendar" && (
             <CalendarPanel
-              ddls={ddls}
-              onRequestCreate={(presetDate, presetTime) => setEditing({ mode: "create", presetDate, presetTime })}
+              ddls={calendarDdls}
+              onRequestCreate={(presetDate, presetTime) => setEditing({ mode: "create", presetDate, presetTime, presetTags: calendarTagFilter ? [calendarTagFilter] : undefined })}
               onRequestEdit={(d) => setEditing({ mode: "edit", item: d })}
               jumpToDay={calendarJumpDay ? calendarJumpDay.split("#")[0] : null}
               onMoveEvent={handleMoveEvent}

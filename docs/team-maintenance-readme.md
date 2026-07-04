@@ -198,6 +198,7 @@ Frontend ownership:
 - `apps/web/src/components/DailyBrief.tsx`
 - `apps/web/src/components/NotesPanel.tsx`
 - `apps/web/src/components/NotesPreview.tsx`
+- `apps/web/src/components/ObsidianMarkdown.tsx`
 - `apps/web/src/components/RecurringTasksManager.tsx`
 - `apps/web/src/components/TaskDetailDrawer.tsx`
 - `apps/web/src/components/TasksPanel.tsx`
@@ -225,6 +226,7 @@ Code smell removal responsibilities:
 - Task, note, and recurring-task features share ownership with Database for `ownerId` persistence boundaries.
 - AI-created learning items must flow through the same confirmation and owner-scoped service paths as manual user actions.
 - Recurring materialization must continue through `apps/web/src/hooks/useRecurringTasks.ts` so duplicate guards stay centralized.
+- Shared Markdown/Obsidian-style note preview behavior belongs in `apps/web/src/components/ObsidianMarkdown.tsx`; note panels and task-note previews should reuse it instead of maintaining duplicate renderer overrides.
 
 ## 5. Panels, Connectors, And Visualization Specialist
 
