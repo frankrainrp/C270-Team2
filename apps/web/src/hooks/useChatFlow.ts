@@ -25,6 +25,9 @@ import { canSpend } from "@/lib/usage";
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 const HISTORY_LIMIT = 10;
 
+// Chat send orchestration lives here so page.tsx only wires state and UI.
+// This hook owns quota/credit gates, attachment pipeline handoff, streaming
+// assistant messages, tool-call callbacks, cancellation, and regeneration.
 interface UseChatFlowArgs {
   activeSessionIdRef: MutableRefObject<string | null>;
   ddlsRef: MutableRefObject<DdlItem[]>;
@@ -78,6 +81,8 @@ export function useChatFlow({
   const [isLoading, setIsLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
+  // Keep chat titles lightweight: the first non-empty user prompt or file name
+  // becomes the session title, while later sends only refresh updatedAt.
   const touchActiveSession = useCallback((titleHint?: string) => {
     const sid = activeSessionIdRef.current;
     if (!sid) return;
@@ -112,6 +117,8 @@ export function useChatFlow({
       return;
     }
 
+    // Snapshot attachments before clearing input state; the async pipeline must
+    // keep the exact File objects the user submitted in this send action.
     const filesSnapshot = attachedFiles;
     const userUiMsg: ChatMessage = {
       id: uid(),
@@ -128,6 +135,8 @@ export function useChatFlow({
     setInputValue("");
     setAttachedFiles([]);
 
+    // File uploads are processed by the document pipeline and produce review
+    // batches. They intentionally do not also call the chat streaming endpoint.
     if (filesSnapshot.length > 0) {
       filesSnapshot.forEach((file) => {
         void runRealPipeline(file);
@@ -139,6 +148,8 @@ export function useChatFlow({
     setIsLoading(true);
     resetCurrentBatch();
 
+    // Send only compact user/assistant turns to the model. Tool/pipeline/confirm
+    // UI messages are local workflow artifacts, not model conversation history.
     const allHistory: ApiMessage[] = [...messages, userUiMsg]
       .filter((message) => (
         message.sessionId === sid
@@ -157,6 +168,8 @@ export function useChatFlow({
     }
 
     let currentAssistantId: string | null = null;
+    // Streaming content and reasoning deltas may arrive before a full assistant
+    // message is finalized, so create one UI message lazily and append deltas.
     const ensureAssistant = (patch: { content?: string; reasoning?: string }) => {
       if (!currentAssistantId) {
         const id = uid();

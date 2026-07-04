@@ -22,6 +22,8 @@ import { putCustomPanel } from "@/lib/custom-panels";
 
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 
+// Owns the review queue for AI/PDF-generated writes. Task changes, note drafts,
+// and custom-panel drafts stay pending until the user accepts the batch.
 interface UsePendingBatchesArgs {
   activeSessionIdRef: MutableRefObject<string | null>;
   ddlsRef: MutableRefObject<DdlItem[]>;
@@ -40,6 +42,8 @@ export function usePendingBatches({
   const [pendingBatches, setPendingBatches] = useState<Record<string, PendingBatch>>({});
   const pendingBatchesRef = useRef(pendingBatches);
   const currentBatchIdRef = useRef<string | null>(null);
+  // Guards against double-clicks or repeated accept events applying the same
+  // batch more than once.
   const acceptedBatchIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -73,6 +77,8 @@ export function usePendingBatches({
     const sid = activeSessionIdRef.current;
     if (!sid) return;
 
+    // Tool calls in one assistant turn should appear as one confirmation card,
+    // so subsequent changes append to the current batch until chat resets it.
     const existingBatchId = currentBatchIdRef.current;
     if (!existingBatchId) {
       const batch = makeBatch(sid, "ai-chat", "Please review the following proposed changes:");
@@ -96,6 +102,8 @@ export function usePendingBatches({
     if (!batch || batch.status !== "pending") return;
     acceptedBatchIdsRef.current.add(batchId);
 
+    // Task changes update the task list first; other draft types are extracted
+    // below because they belong to separate state/persistence paths.
     const { next, stats } = applyBatch(ddlsRef.current, batch);
     setDdls(next);
 

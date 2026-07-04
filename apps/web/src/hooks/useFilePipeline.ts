@@ -14,6 +14,9 @@ import type { ChatMessage, DdlItem, ProcessingPipeline, UploadedFile } from "@/l
 
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 
+// Runs the attachment-to-review flow: parse/OCR the document, filter it for
+// deadline-relevant text, ask the backend extractor for structured tasks, then
+// stage the results in the same confirmation queue used by AI tool calls.
 interface UseFilePipelineArgs {
   activeSessionIdRef: MutableRefObject<string | null>;
   addPendingBatch: (batch: PendingBatch) => void;
@@ -102,6 +105,7 @@ export function useFilePipeline({
         setStep(0, "running", t("pg.bigFile", { mb: (uploaded.file.size / 1024 / 1024).toFixed(1) }));
       }
 
+      // Load heavier parsing code only when a file is actually submitted.
       const { parseDocument, filterDdlRelevant } = await import("@/lib/document-parser");
       const parsed = await parseDocument(uploaded.file);
       if (parsed.ok !== true) {
@@ -127,6 +131,8 @@ export function useFilePipeline({
           chars: parsed.text.length,
           kw: keywordFiltered.length,
         }));
+        // Semantic filtering is an optimization. If it fails, keyword filtering
+        // remains the safe fallback and the pipeline continues.
         const { filterBySemantic } = await import("@/lib/semantic-filter");
         const sem = await filterBySemantic(parsed.text, { topK: 30, minSim: 0.35 });
         if (sem.kept > 0) {
@@ -147,6 +153,8 @@ export function useFilePipeline({
       setStep(1, "running");
       const today = new Date();
       const isoToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      // The backend owns model calls and schema validation for extracted DDLs;
+      // the browser only submits filtered markdown and receives safe items.
       const res = await fetch("/express-api/extract-ddls", {
         method: "POST",
         headers: { "content-type": "application/json" },

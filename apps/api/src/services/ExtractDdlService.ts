@@ -18,6 +18,8 @@ export type ExtractedDdl = {
 
 const MaxDocChars = 50_000;
 
+// AI output is accepted only if it matches this schema. The extractor may omit
+// uncertain values, but it cannot pass natural-language dates into the app.
 const ExtractedDdlSchema = z.object({
   taskName: z.string().trim().min(1).max(240),
   dueDate: z.string().trim().refine((value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value), {
@@ -33,6 +35,8 @@ const ExtractResultSchema = z.object({
   items: z.array(ExtractedDdlSchema).default([]),
 });
 
+// Force the model to return data through one function call so parsing and
+// validation have a single predictable surface.
 const ExtractTool = {
   type: "function" as const,
   function: {
@@ -67,6 +71,8 @@ export async function ExtractDdls(input: ExtractDdlInput) {
     return { ok: false, status: 400, error: "Markdown content is missing or too short." };
   }
 
+  // Clamp untrusted document text before sending it to the model; this keeps
+  // cost bounded and reduces prompt-injection surface from oversized uploads.
   const docText = ClampText(input.markdown, MaxDocChars);
   const filename = ClampText(input.filename || "", 200);
   const currentDate = input.currentDate || new Date().toISOString().slice(0, 10);
