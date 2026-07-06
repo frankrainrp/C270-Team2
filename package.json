@@ -23,6 +23,7 @@
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/multer": "^2.2.0",
     "typescript": "^5.7.2"
   },
   "packageManager": "pnpm@9.0.0",
@@ -31,6 +32,8 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "mongoose": "^9.7.3",
+    "multer": "^2.2.0",
+    "openai": "^6.45.0",
     "zod": "^4.4.3"
   }
 }
