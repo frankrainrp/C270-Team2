@@ -4,7 +4,7 @@ import { MakeFail } from "../utils/ApiResponse.js";
 
 export function ErrorMiddleware(error: unknown, req: Request, res: Response, next: NextFunction) {
   if (error instanceof ZodError) {
-    res.status(400).json(MakeFail(error.errors[0]?.message || "Invalid request data."));
+    res.status(400).json(MakeFail(error.issues[0]?.message || "Invalid request data."));
     return;
   }
 
